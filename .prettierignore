@@ -1,0 +1,8 @@
+out
+dist
+release
+coverage
+docs
+pnpm-lock.yaml
+resources
+src/renderer/components/ui
