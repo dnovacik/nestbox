@@ -27,6 +27,8 @@ import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
 import { createEnvFileAccess } from './tools/env/env-files';
+import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
+import { lanAddresses } from './tools/static/net';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
@@ -157,6 +159,20 @@ if (!app.requestSingleInstanceLock()) {
             return null;
           }
         },
+        logger,
+      },
+      static: {
+        certStore: createCertStore({
+          file: join(app.getPath('userData'), 'static-cert.json'),
+          generate: generateWithSelfsigned,
+          now: Date.now,
+        }),
+        pickFolder: async (defaultPath) => {
+          const options = { properties: ['openDirectory' as const], title: 'Folder to serve', defaultPath };
+          const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+          return result.canceled ? null : (result.filePaths[0] ?? null);
+        },
+        lanAddresses: () => lanAddresses(),
         logger,
       },
     });
