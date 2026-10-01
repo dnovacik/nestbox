@@ -155,6 +155,17 @@ describe('ProcessManager exits', () => {
     expect(pm.get('p1', 'dev')?.exit).toEqual({ code: 3, signal: null, lastLine: 'kaboom' });
   });
 
+  it('keeps the last meaningful line without ANSI codes (vitest separators are skipped)', async () => {
+    const { pm, platform } = setup();
+    await pm.start(req());
+    platform.last().stdout.write('\u001b[31mFAIL\u001b[39m src/a.test.ts > adds\n');
+    platform.last().stdout.write('\u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\u001b[22m\u001b[39m\n');
+    await flushIo();
+    platform.last().exit(1);
+    await flushIo();
+    expect(pm.get('p1', 'dev')?.exit?.lastLine).toBe('FAIL src/a.test.ts > adds');
+  });
+
   it('uses the last stdout line when stderr was silent, and reports signals', async () => {
     const { pm, platform, texts } = setup();
     await pm.start(req());

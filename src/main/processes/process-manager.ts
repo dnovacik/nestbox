@@ -436,9 +436,14 @@ export class ProcessManager {
   private append(entry: Entry, stream: LogLine['stream'], text: string): void {
     const line: LogLine = { seq: ++entry.seq, ts: this.now(), stream, text };
     entry.buffer.push(line);
-    if (stream !== 'system' && text.trim() !== '' && !PACKAGE_MANAGER_NOISE.test(stripAnsi(text))) {
-      entry.lastLine = text;
-      if (stream === 'stderr') entry.lastStderr = text;
+    if (stream !== 'system') {
+      // The crash row shows this as plain text: no ANSI codes, and only lines with words or numbers in them
+      // (not test-runner separators like "⎯⎯⎯⎯" or package-manager noise).
+      const plain = stripAnsi(text).trim();
+      if (/[\p{L}\p{N}]/u.test(plain) && !PACKAGE_MANAGER_NOISE.test(plain)) {
+        entry.lastLine = plain;
+        if (stream === 'stderr') entry.lastStderr = plain;
+      }
     }
     this.emit({ type: 'line', projectId: entry.req.projectId, script: entry.req.script, line });
   }
