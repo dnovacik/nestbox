@@ -144,6 +144,21 @@ describe('static tool', () => {
     await vi.waitFor(async () => expect((await call<unknown[]>('running')).length).toBe(1));
   });
 
+  it('closes a server whose project was removed while it was starting', async () => {
+    const { call, certStore } = setup();
+    let release: (pems: { cert: string; key: string }) => void = () => undefined;
+    const { generateWithSelfsigned } = await import('./cert-store');
+    const pems = await generateWithSelfsigned([], Date.now() + 86_400_000 * 30);
+    certStore.get.mockReturnValue(new Promise((r) => (release = r)));
+    await call('setConfig', { config: ServerConfigSchema.parse({ https: true }) });
+    const starting = call<ServerStatus>('start');
+    await vi.waitFor(() => expect(certStore.get).toHaveBeenCalled());
+    tool?.forgetProject?.('p1');
+    release(pems);
+    await expect(starting).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(await call<unknown[]>('running')).toEqual([]);
+  }, 30_000);
+
   it('uses the stored certificate for HTTPS', async () => {
     const { call, certStore } = setup();
     const { generateWithSelfsigned } = await import('./cert-store');

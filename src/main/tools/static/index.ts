@@ -45,6 +45,8 @@ interface Running {
 
 interface ProjectState {
   running: Running | null;
+  /** A start in progress: stopping waits for it, so a server that is still binding is not left behind. */
+  starting: Promise<unknown> | null;
   logs: BatchedLog;
 }
 
@@ -59,6 +61,7 @@ function statusColour(status: number): string {
 export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
   /** By project id (root or workspace package). */
   const states = new Map<string, ProjectState>();
+  let disposed = false;
 
   function stateOf(ctx: Ctx): ProjectState {
     const existing = states.get(ctx.project.id);
@@ -67,7 +70,7 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
       existing.logs.emit = emit;
       return existing;
     }
-    const created: ProjectState = { running: null, logs: new BatchedLog(LOG_LINES, emit) };
+    const created: ProjectState = { running: null, starting: null, logs: new BatchedLog(LOG_LINES, emit) };
     states.set(ctx.project.id, created);
     return created;
   }
@@ -103,6 +106,7 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
   }
 
   async function stopState(state: ProjectState): Promise<void> {
+    await state.starting?.catch(() => undefined);
     const running = state.running;
     if (!running) return;
     state.running = null;
@@ -115,7 +119,18 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
 
   async function start(ctx: Ctx): Promise<ServerStatus> {
     const state = stateOf(ctx);
+    if (state.starting) await state.starting.catch(() => undefined);
     if (state.running) return statusOf(ctx);
+    const starting = listen(ctx, state);
+    state.starting = starting;
+    try {
+      return await starting;
+    } finally {
+      if (state.starting === starting) state.starting = null;
+    }
+  }
+
+  async function listen(ctx: Ctx, state: ProjectState): Promise<ServerStatus> {
     const config = configOf(ctx);
     const folder = folderOf(ctx, config);
     if (!(await stat(folder).catch(() => null))?.isDirectory()) {
@@ -153,6 +168,12 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
       });
       server.listen(port, host, () => resolve());
     });
+    if (disposed || states.get(ctx.project.id) !== state) {
+      // The project was removed (or the app is quitting) while the server was starting.
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      for (const socket of sockets) socket.destroy();
+      throw new NestboxError('NOT_FOUND', 'The project was removed');
+    }
     const protocol = config.https ? 'https' : 'http';
     state.running = { server, sockets, port, protocol, folder, config };
     log(state, `▸ serving ${basename(folder)} on ${protocol}://localhost:${port}/`, 'system');
@@ -201,6 +222,7 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
       },
     },
     async dispose() {
+      disposed = true;
       await Promise.all([...states.values()].map((s) => stopState(s)));
       for (const s of states.values()) s.logs.dispose();
     },

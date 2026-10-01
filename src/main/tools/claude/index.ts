@@ -85,7 +85,8 @@ export function createClaudeTool(deps: ClaudeToolDeps): AnyMainTool {
       for (const stream of ['stdout', 'stderr'] as const) for (const line of splitters[stream].flush(true)) state.logs.push(stream, line);
       state.logs.push('system', message);
       if (state.run === run) state.run = null;
-      ctx.emit('changed', undefined);
+      // Nothing to tell about a project that was removed meanwhile.
+      if (states.get(ctx.project.id) === state) ctx.emit('changed', undefined);
     };
     child.once('error', () => end('■ claude could not be started'));
     child.once('close', (code: number | null) => {

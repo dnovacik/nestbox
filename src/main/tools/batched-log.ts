@@ -10,6 +10,7 @@ export class BatchedLog {
   private seq = 0;
   private pending: LogLine[] = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private disposed = false;
 
   /** emit is replaced on every call that has a fresher one (tool contexts are built per call). */
   constructor(
@@ -20,6 +21,7 @@ export class BatchedLog {
   }
 
   push(stream: LogLine['stream'], text: string): void {
+    if (this.disposed) return;
     const line: LogLine = { seq: ++this.seq, ts: Date.now(), stream, text };
     this.lines.push(line);
     this.pending.push(line);
@@ -35,12 +37,15 @@ export class BatchedLog {
     return { lines, firstSeq: this.lines.toArray()[0]?.seq ?? this.seq + 1, lastSeq: this.seq };
   }
 
+  /** Drops the lines, including a batch not sent yet. Sequence numbers carry on. */
   clear(): void {
     this.lines.clear();
+    this.pending = [];
   }
 
-  /** Drops the pending batch; nothing is emitted afterwards. */
+  /** Drops the pending batch; later pushes are ignored and nothing is emitted. */
   dispose(): void {
+    this.disposed = true;
     clearTimeout(this.timer);
     this.timer = undefined;
     this.pending = [];

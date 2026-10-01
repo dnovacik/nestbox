@@ -118,11 +118,15 @@ describe('claude tool', () => {
   });
 
   it('kills running prompts on dispose and when the project is removed', async () => {
-    const { call, platform } = setup({ id: 'p1', rootId: 'p1' });
+    const { call, platform, emit } = setup({ id: 'p1', rootId: 'p1' });
     await call('prompt', { text: 'go' });
     await flushIo();
+    emit.mockClear();
     tool?.forgetProject?.('p1');
     expect(platform.killTree).toHaveBeenCalledWith(platform.last().pid);
+    await flushIo();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(emit).not.toHaveBeenCalled();
   });
 
   it('previews and applies the context block, keeping hand-written text', async () => {

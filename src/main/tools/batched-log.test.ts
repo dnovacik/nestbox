@@ -36,7 +36,18 @@ describe('BatchedLog', () => {
     expect(second).toHaveBeenCalledTimes(1);
     log.push('stdout', 'b');
     log.dispose();
+    log.push('stdout', 'c');
     vi.advanceTimersByTime(50);
     expect(second).toHaveBeenCalledTimes(1);
+    expect(log.snapshot().lines.map((l) => l.text)).toEqual(['a', 'b']);
+  });
+
+  it('does not send a queued batch after a clear', () => {
+    const emit = vi.fn();
+    const log = new BatchedLog(10, emit);
+    log.push('stdout', 'a');
+    log.clear();
+    vi.advanceTimersByTime(50);
+    expect(emit).not.toHaveBeenCalled();
   });
 });
