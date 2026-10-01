@@ -68,6 +68,8 @@ export interface PlatformAdapter {
   normalizePath(p: string): string;
   samePath(a: string, b: string): boolean;
   windowChrome(colors: OverlayColors): WindowChrome;
+  /** The AppUserModelID Windows needs for toast notifications (matches electron-builder's appId); null elsewhere. */
+  notificationAppId(): string | null;
 }
 
 export function notImplemented(method: string): never {

@@ -10,6 +10,10 @@ describe('darwin stub', () => {
     expect(adapter.samePath('/Users/me/Shop', '/users/me/shop')).toBe(false);
   });
 
+  it('needs no notification app id', () => {
+    expect(adapter.notificationAppId()).toBeNull();
+  });
+
   it('uses an inset title bar', () => {
     expect(adapter.windowChrome({ color: 'a', symbolColor: 'b', height: 40 })).toEqual({ titleBarStyle: 'hiddenInset' });
   });

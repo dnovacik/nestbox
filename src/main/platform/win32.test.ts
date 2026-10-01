@@ -218,6 +218,10 @@ describe('win32 other members', () => {
     });
   });
 
+  it('uses the installer appId for notifications', () => {
+    expect(adapter.notificationAppId()).toBe('dev.nestbox.app');
+  });
+
   it('returns a copy of the inherited environment', async () => {
     const env = await adapter.resolveShellEnv();
     expect(env).toEqual(process.env);

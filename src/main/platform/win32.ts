@@ -116,5 +116,7 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
     samePath: (a, b) => normalizeWin32Path(a) === normalizeWin32Path(b),
 
     windowChrome: (colors) => ({ titleBarStyle: 'hidden', titleBarOverlay: colors }),
+
+    notificationAppId: () => 'dev.nestbox.app',
   };
 }
