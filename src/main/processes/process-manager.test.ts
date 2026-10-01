@@ -126,6 +126,21 @@ describe('ProcessManager exits', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'crashed', final: true }));
   });
 
+  it.each([
+    ['npm', ['npm error code 3', 'npm error command failed', 'npm error command C:\\WINDOWS\\system32\\cmd.exe /d /s /c x']],
+    ['npm 6', ['npm ERR! code ELIFECYCLE', 'npm ERR! errno 3']],
+    ['pnpm', [' ELIFECYCLE  Command failed with exit code 3.']],
+    ['yarn', ['error Command failed with exit code 3.', 'info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.']],
+  ])('skips %s failure noise when picking the last line', async (_pm, noise) => {
+    const { pm, platform } = setup();
+    await pm.start(req());
+    platform.last().stderr.write(`kaboom\n${noise.join('\n')}\n`);
+    await flushIo();
+    platform.last().exit(3);
+    await flushIo();
+    expect(pm.get('p1', 'dev')?.exit).toEqual({ code: 3, signal: null, lastLine: 'kaboom' });
+  });
+
   it('uses the last stdout line when stderr was silent, and reports signals', async () => {
     const { pm, platform, texts } = setup();
     await pm.start(req());

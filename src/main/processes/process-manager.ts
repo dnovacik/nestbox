@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import type { PackageManager } from '@shared/detected';
+import { stripAnsi } from '@shared/ansi-strip';
 import { NestboxError } from '@shared/errors';
 import {
   isLive,
@@ -80,6 +81,9 @@ interface Entry {
 }
 
 const keyOf = (projectId: string, script: string): string => JSON.stringify([projectId, script]);
+
+/** What npm, pnpm and yarn print after a failing script. Never the useful "last line" of a crash. */
+const PACKAGE_MANAGER_NOISE = /^(?:npm (?:error|ERR!)|\s*ELIFECYCLE\b|error Command failed with exit code|info Visit https:\/\/yarnpkg)/;
 
 /**
  * Owns every script process Nestbox starts: spawning through the platform adapter, the state machine,
@@ -423,7 +427,7 @@ export class ProcessManager {
   private append(entry: Entry, stream: LogLine['stream'], text: string): void {
     const line: LogLine = { seq: ++entry.seq, ts: this.now(), stream, text };
     entry.buffer.push(line);
-    if (stream !== 'system' && text.trim() !== '') {
+    if (stream !== 'system' && text.trim() !== '' && !PACKAGE_MANAGER_NOISE.test(stripAnsi(text))) {
       entry.lastLine = text;
       if (stream === 'stderr') entry.lastStderr = text;
     }
