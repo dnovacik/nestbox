@@ -60,6 +60,17 @@ describe('LogPane', () => {
     expect(screen.getByRole('log').innerHTML).not.toContain('\u001b');
   });
 
+  it('offers to free the port when the script failed with EADDRINUSE', async () => {
+    setup([line('▸ pnpm run dev', 'system'), line('Error: listen EADDRINUSE: address already in use :::3000', 'stderr')]);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Port 3000 is in use');
+  });
+
+  it('shows no port banner for an address-in-use error before the last start', async () => {
+    setup([line('EADDRINUSE :::3000', 'stderr'), line('▸ pnpm run dev', 'system'), line('ready', 'stdout')]);
+    expect(await screen.findByText('ready')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('marks stderr and system lines', async () => {
     setup([line('▸ pnpm run dev', 'system'), line('oops', 'stderr')]);
     const oops = await screen.findByText('oops');
