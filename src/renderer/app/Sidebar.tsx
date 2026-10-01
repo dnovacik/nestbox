@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight, Plus, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plug, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { aggregateState, belongsTo, type AggregateState } from '@shared/processes';
 import { StateDot } from '@/components/StateDot';
+import { usePorts } from '@/lib/ports';
 import { useAddProject, useProcesses } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
@@ -36,6 +37,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
             className="h-7 bg-app pl-8 text-xs"
           />
         </div>
+        <PortsEntry />
         {pinned.length > 0 && (
           <ProjectSection title="Pinned" count={String(pinned.length)} projects={pinned} selectedId={selectedId} />
         )}
@@ -67,6 +69,34 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
         </Button>
       </div>
     </aside>
+  );
+}
+
+/** Opens the machine-wide Ports page. The count uses the last scan only: the sidebar never polls. */
+function PortsEntry() {
+  const view = useUiStore((s) => s.view);
+  const showPorts = useUiStore((s) => s.showPorts);
+  const { data } = usePorts(false);
+  const owned = data?.rows.filter((r) => r.owner !== null).length ?? 0;
+  const active = view === 'ports';
+  return (
+    <button
+      type="button"
+      aria-current={active ? 'page' : undefined}
+      onClick={showPorts}
+      className={cn(
+        'flex items-center gap-2.5 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors',
+        active ? 'border-line bg-surface text-fg' : 'border-transparent text-fg-muted hover:bg-surface/50 hover:text-fg',
+      )}
+    >
+      <Plug aria-hidden className="size-3.5 text-brand" />
+      <span>Ports</span>
+      {owned > 0 && (
+        <span aria-hidden className="ml-auto font-mono text-[10px] text-fg-faint">
+          {owned}
+        </span>
+      )}
+    </button>
   );
 }
 

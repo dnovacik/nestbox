@@ -19,6 +19,17 @@ describe('ui store', () => {
   });
 });
 
+describe('views', () => {
+  it('switches to the Ports page and back when a project is selected', () => {
+    const s = () => useUiStore.getState();
+    expect(s().view).toBe('project');
+    s().showPorts();
+    expect(s().view).toBe('ports');
+    s().select('p1');
+    expect(s()).toMatchObject({ view: 'project', selectedProjectId: 'p1' });
+  });
+});
+
 describe('script panes', () => {
   it('fills the active pane and splits into two', () => {
     const s = () => useUiStore.getState();
