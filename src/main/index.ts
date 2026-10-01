@@ -26,6 +26,8 @@ import { ProcessManager } from './processes/process-manager';
 import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
+import { createClaudeCli } from './tools/claude/cli';
+import { createClaudeDocs } from './tools/claude/docs';
 import { createEnvFileAccess } from './tools/env/env-files';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
 import { lanAddresses } from './tools/static/net';
@@ -114,6 +116,7 @@ if (!app.requestSingleInstanceLock()) {
     const ports = new PortService({ platform, processes, ownPid: process.pid, now: Date.now, logger });
 
     const shared = createSharedContext();
+    const envFiles = createEnvFileAccess();
     const tools = createMainTools({
       scripts: {
         processes,
@@ -145,7 +148,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       env: {
-        files: createEnvFileAccess(),
+        files: envFiles,
         clipboard: { writeText: (text) => clipboard.writeText(text) },
         watch: (dir, onChange) => {
           try {
@@ -173,6 +176,13 @@ if (!app.requestSingleInstanceLock()) {
           return result.canceled ? null : (result.filePaths[0] ?? null);
         },
         lanAddresses: () => lanAddresses(),
+        logger,
+      },
+      claude: {
+        cli: createClaudeCli({ platform, now: Date.now }),
+        docs: createClaudeDocs(),
+        envFiles,
+        runGroups: { get: (rootId) => projects.getRunGroups(rootId) },
         logger,
       },
     });

@@ -25,7 +25,8 @@ export const ENV_FACTS = 'env.facts';
 const WATCH_DEBOUNCE_MS = 200;
 const URL_KEY = /^DATABASE_URL$|_(URL|URI)$/;
 
-function portOf(value: string | undefined): number | null {
+/** PORT as a port number, or null when it is not one. */
+export function portOf(value: string | undefined): number | null {
   if (value === undefined || !/^\d{1,5}$/.test(value.trim())) return null;
   const port = Number(value);
   return port >= 1 && port <= 65_535 ? port : null;

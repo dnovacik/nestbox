@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createClaudeDocs, type ClaudeDoc } from './docs';
+import type { ClaudeDoc } from '@shared/tools/claude/contract';
+import { createClaudeDocs } from './docs';
 
 let dir = '';
 beforeEach(async () => {

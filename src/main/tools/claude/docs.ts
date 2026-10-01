@@ -1,11 +1,7 @@
 // CLAUDE.md and CLAUDE.local.md: read with a version, written with the version check. The editor in the
 // renderer works with LF; a file that used CRLF keeps CRLF.
+import { CLAUDE_DOCS, type ClaudeDoc, MAX_DOC_BYTES } from '@shared/tools/claude/contract';
 import { createVersionedFiles } from '../../fs/versioned-file';
-
-export const CLAUDE_DOCS = ['CLAUDE.md', 'CLAUDE.local.md'] as const;
-export type ClaudeDoc = (typeof CLAUDE_DOCS)[number];
-
-export const MAX_DOC_BYTES = 1024 * 1024;
 
 export interface ClaudeDocs {
   /** version null: the file does not exist yet (text ''). */
