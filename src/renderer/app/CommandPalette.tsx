@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { defaultFilter } from 'cmdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/components/ui/command';
@@ -9,6 +10,12 @@ import { useUiStore } from '@/state/ui-store';
 import { scriptListKey } from '@/tools/scripts/use-scripts';
 import { findProjectNode } from './find-project';
 import { PALETTE_GROUPS, type PaletteAction, paletteEntries } from './palette-entries';
+
+/**
+ * Matches the label and keywords only. Item values are entry ids, which hold project ids: letters of a
+ * random id would otherwise match a search.
+ */
+const filterByLabel = (_value: string, search: string, keywords?: string[]) => defaultFilter(keywords?.[0] ?? '', search, keywords?.slice(1));
 
 /** Ctrl+K (⌘K on macOS) from anywhere, unless the focused element already handled the key. */
 function usePaletteShortcut(toggle: () => void) {
@@ -105,6 +112,7 @@ export function CommandPalette() {
       title="Command palette"
       description="Search projects, scripts and actions"
       showCloseButton={false}
+      filter={filterByLabel}
       onCloseAutoFocus={(e) => {
         const target = returnFocus.current;
         if (target?.isConnected) {
