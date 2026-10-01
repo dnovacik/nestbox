@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrate, MigrationError } from './migrations';
+import { migrate, MigrationError, NewerSchemaError } from './migrations';
 
 describe('migrate', () => {
   it('returns data unchanged when already at the target version', () => {
@@ -18,9 +18,12 @@ describe('migrate', () => {
   it.each([
     ['a non-object', [1, 2]],
     ['a missing version', { projects: [] }],
-    ['a newer version', { schemaVersion: 9 }],
   ])('rejects %s', (_label, raw) => {
     expect(() => migrate(raw, 1, {})).toThrow(MigrationError);
+  });
+
+  it('rejects a newer version with NewerSchemaError', () => {
+    expect(() => migrate({ schemaVersion: 9 }, 1, {})).toThrow(NewerSchemaError);
   });
 
   it('rejects a gap in the migration table', () => {

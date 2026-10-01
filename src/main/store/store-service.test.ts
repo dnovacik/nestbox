@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultStoreData } from '@shared/types';
+import { CURRENT_SCHEMA_VERSION, defaultStoreData } from '@shared/types';
 import { createMemoryLogger } from '../logger';
 import { createMemoryBackend } from './backend';
 import { StoreService } from './store-service';
@@ -31,7 +31,6 @@ describe('StoreService', () => {
   it.each([
     ['unreadable JSON', 'throw'],
     ['schema-invalid data', { schemaVersion: 1, settings: {}, projects: [{ id: 5 }] }],
-    ['a newer schema version', { schemaVersion: 7, settings: {}, projects: [] }],
     ['a missing schema version', { projects: [] }],
   ])('backs up and resets on %s', (_label, initial) => {
     const backend = createMemoryBackend(initial === 'throw' ? undefined : initial);
@@ -79,8 +78,8 @@ describe('StoreService', () => {
     expect(writes).toBe(0);
     expect(logger.entries[0]).toMatchObject({
       level: 'warn',
-      message: 'Store unavailable, using defaults in memory',
-      fields: { code: 'EBUSY' },
+      message: 'Store unavailable, running read-only',
+      fields: { reason: 'unavailable', code: 'EBUSY' },
     });
     expect(() => store.updateProjects((ps) => [...ps, project])).toThrow(
       expect.objectContaining({ code: 'INTERNAL' }),
@@ -103,10 +102,82 @@ describe('StoreService', () => {
     expect(writes).toBe(0);
     expect(logger.entries[0]).toMatchObject({
       level: 'warn',
-      fields: { reason: 'invalid', backup: null, code: 'EPERM' },
+      message: 'Store unavailable, running read-only',
+      fields: { reason: 'invalid', code: 'EPERM' },
     });
+    expect(logger.entries.some((e) => e.message === 'Store reset to defaults')).toBe(false);
     expect(() => store.updateProjects((ps) => [...ps, project])).toThrow(
       expect.objectContaining({ code: 'INTERNAL' }),
     );
+  });
+
+  describe('read-only mode', () => {
+    it('opens a newer schema read-only without backing it up', () => {
+      const newer = { ...defaultStoreData(), schemaVersion: CURRENT_SCHEMA_VERSION + 1, projects: [project] };
+      const backend = createMemoryBackend(structuredClone(newer));
+      const logger = createMemoryLogger();
+      const store = new StoreService(backend, logger);
+      expect(store.isReadOnly()).toBe(true);
+      expect(backend.backups).toBe(0);
+      expect(store.getProjects()).toEqual([project]);
+      expect(logger.entries[0]).toMatchObject({ message: 'Store unavailable, running read-only', fields: { reason: 'newer-schema' } });
+      expect(() => store.updateSettings((st) => ({ ...st, closeToTray: false }))).toThrow(/read-only/);
+      expect(backend.data).toEqual(newer);
+    });
+
+    it('falls back to defaults read-only when a newer file does not parse', () => {
+      const backend = createMemoryBackend({ schemaVersion: 99, projects: 'nope' });
+      const store = new StoreService(backend, createMemoryLogger());
+      expect(store.isReadOnly()).toBe(true);
+      expect(store.getProjects()).toEqual([]);
+      expect(backend.backups).toBe(0);
+    });
+
+    it('goes read-only when writing fresh defaults fails', () => {
+      const backend = createMemoryBackend(undefined);
+      backend.write = () => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      };
+      const logger = createMemoryLogger();
+      const store = new StoreService(backend, logger);
+      expect(store.isReadOnly()).toBe(true);
+      expect(logger.entries).toContainEqual(
+        expect.objectContaining({
+          level: 'warn',
+          message: 'Store unavailable, running read-only',
+          fields: { reason: 'write-defaults', code: 'EPERM' },
+        }),
+      );
+    });
+
+    it('goes read-only when writing after a backup fails', () => {
+      const backend = createMemoryBackend({ schemaVersion: 1, settings: {}, projects: [{ id: 5 }] });
+      backend.write = () => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      };
+      const store = new StoreService(backend, createMemoryLogger());
+      expect(backend.backups).toBe(1);
+      expect(store.isReadOnly()).toBe(true);
+    });
+
+    it('is writable in the normal case', () => {
+      expect(new StoreService(createMemoryBackend({}), createMemoryLogger()).isReadOnly()).toBe(false);
+    });
+  });
+
+  describe('updateSettings', () => {
+    it('validates and persists', () => {
+      const backend = createMemoryBackend({});
+      const store = new StoreService(backend, createMemoryLogger());
+      store.updateSettings((st) => ({ ...st, closeToTray: false }));
+      expect(store.getSettings().closeToTray).toBe(false);
+      expect((backend.data as { settings: { closeToTray: boolean } }).settings.closeToTray).toBe(false);
+    });
+
+    it('rejects invalid settings and leaves state untouched', () => {
+      const store = new StoreService(createMemoryBackend({}), createMemoryLogger());
+      expect(() => store.updateSettings((st) => ({ ...st, logBufferLines: 5 }))).toThrow();
+      expect(store.getSettings().logBufferLines).toBe(50_000);
+    });
   });
 });

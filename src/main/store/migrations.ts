@@ -10,6 +10,11 @@ export class MigrationError extends Error {
   override name = 'MigrationError';
 }
 
+/** The store was written by a newer Nestbox. It is opened read-only, never reset. */
+export class NewerSchemaError extends MigrationError {
+  override name = 'NewerSchemaError';
+}
+
 export function migrate(
   raw: unknown,
   target: number,
@@ -21,7 +26,7 @@ export function migrate(
     throw new MigrationError('Store has no schemaVersion');
   }
   if (version > target) {
-    throw new MigrationError(`Store schemaVersion ${version} is newer than supported ${target}`);
+    throw new NewerSchemaError(`Store schemaVersion ${version} is newer than supported ${target}`);
   }
   let data: Record<string, unknown> = raw;
   for (let v = version; v < target; v++) {
