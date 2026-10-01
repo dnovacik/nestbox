@@ -333,6 +333,16 @@ describe('ProcessManager stopping', () => {
     expect(pm.get('p1', 'dev')?.state).toBe('stopped');
   });
 
+  it('a failing environment lookup leaves the entry stopped, not starting', async () => {
+    const { pm, platform, texts } = setup();
+    platform.resolveShellEnv.mockRejectedValueOnce(new NestboxError('NOT_IMPLEMENTED', 'resolveShellEnv is not implemented on this platform yet'));
+    await expect(pm.start(req())).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+    expect(pm.get('p1', 'dev')?.state).toBe('stopped');
+    expect(pm.liveCount()).toBe(0);
+    expect(texts().at(-1)).toBe('■ could not start: resolveShellEnv is not implemented on this platform yet');
+    expect(platform.spawnScript).not.toHaveBeenCalled();
+  });
+
   it('stop during the environment lookup prevents the spawn', async () => {
     const { pm, platform } = setup();
     let release!: (env: NodeJS.ProcessEnv) => void;

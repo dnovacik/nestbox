@@ -282,13 +282,13 @@ export class ProcessManager {
     this.system(entry, `▸ ${command} run ${entry.req.script}`);
     this.changed();
 
-    const env = { ...(await this.deps.platform.resolveShellEnv()), FORCE_COLOR: '1' };
-    if (run !== entry.run) return; // a stop pre-empted the spawn
-
     let child: ChildProcess;
     try {
+      const env = { ...(await this.deps.platform.resolveShellEnv()), FORCE_COLOR: '1' };
+      if (run !== entry.run) return; // a stop pre-empted the spawn
       child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args: ['run', entry.req.script], env });
     } catch (error) {
+      if (run !== entry.run) return;
       entry.state = 'stopped';
       this.system(entry, `■ could not start: ${error instanceof NestboxError ? error.message : 'unexpected error'}`);
       this.changed();
