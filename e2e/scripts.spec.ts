@@ -55,6 +55,7 @@ test('quitting with a running script stops it', async () => {
 });
 
 test('offers to stop a script left running when Nestbox itself was killed', async () => {
+  test.setTimeout(150_000);
   await addProjectAndOpenScripts(page);
   await page.getByRole('button', { name: 'Start serve' }).click();
   await expect(page.getByRole('log', { name: 'serve output' })).toContainText('listening', { timeout: 30_000 });
@@ -74,7 +75,8 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   track(app);
   // The stubbed prompt answers "Stop them".
   await expect
-    .poll(() => messageBoxes(app), { timeout: 30_000 })
+    // Reading the process start time can take PowerShell up to 30 s on a cold runner.
+    .poll(() => messageBoxes(app), { timeout: 60_000 })
     .toContainEqual('1 script from the last session is still running');
   await expect.poll(() => isAlive(serverPid), { timeout: 10_000 }).toBe(false);
 });

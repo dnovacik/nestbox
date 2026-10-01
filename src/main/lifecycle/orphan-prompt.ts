@@ -21,7 +21,15 @@ export interface OrphanPromptDeps {
 export async function handleOrphans(deps: OrphanPromptDeps): Promise<void> {
   try {
     const previous = deps.ledger.previous();
-    const orphans = await findOrphans(previous, deps.startTimeOf);
+    const orphans = await findOrphans(previous, async (pid) => {
+      const started = await deps.startTimeOf(pid);
+      const entry = previous.find((e) => e.pid === pid);
+      deps.logger.info('orphan candidate', {
+        pid,
+        drift: started === null || !entry?.startTime ? null : started - entry.startTime,
+      });
+      return started;
+    });
     if (previous.length > 0) {
       deps.logger.info('orphan check', { recorded: previous.length, running: orphans.length });
     }

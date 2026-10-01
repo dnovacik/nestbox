@@ -42,6 +42,12 @@ export async function launch(
     ),
   );
   const app = await electron.launch({ args: [REPO_ROOT], cwd: REPO_ROOT, env });
+  // The app's own log lines ('[nestbox] …') go to the test output, to diagnose failures in CI.
+  for (const stream of [app.process().stdout, app.process().stderr]) {
+    stream?.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString().split(/\r?\n/)) if (line.includes('[nestbox]')) console.log(line);
+    });
+  }
   await app.evaluate(({ dialog }, dir) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
     const seen: string[] = [];
