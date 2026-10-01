@@ -43,6 +43,15 @@ describe('LineSplitter', () => {
     expect(s.hasPending).toBe(false);
   });
 
+  it('keeps a split character pending across a non-final flush', () => {
+    const bytes = new TextEncoder().encode('é');
+    const s = new LineSplitter();
+    s.push(bytes.slice(0, 1));
+    expect(s.flush()).toEqual([]);
+    expect(s.push(bytes.slice(1))).toEqual([]);
+    expect(s.flush(true)).toEqual(['é']);
+  });
+
   it('flushes an empty splitter to nothing', () => {
     expect(new LineSplitter().flush()).toEqual([]);
   });

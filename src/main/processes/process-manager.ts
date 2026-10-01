@@ -338,23 +338,32 @@ export class ProcessManager {
         this.changed();
       }
     });
-    const startTime = await this.deps.platform.processStartTime(pid).catch(() => null);
-    if (run === entry.run && !closed) {
-      this.deps.ledger.add({ pid, startTime, projectId: entry.req.projectId, script: entry.req.script });
-    }
+    // Recorded at once; the start time (a PowerShell call on Windows) is filled in when it arrives,
+    // so start() never waits for it. Until then the entry is never offered as an orphan.
+    const record = { pid, projectId: entry.req.projectId, script: entry.req.script };
+    this.deps.ledger.add({ ...record, startTime: null });
+    void this.deps.platform
+      .processStartTime(pid)
+      .catch(() => null)
+      .then((startTime) => {
+        if (startTime !== null && run === entry.run && !closed) this.deps.ledger.add({ ...record, startTime });
+      });
     this.changed();
   }
 
   private onData(entry: Entry, stream: Stream, chunk: Buffer): void {
     for (const text of entry.splitters[stream].push(chunk)) this.append(entry, stream, text);
-    if ((entry.splitters.stdout.hasPending || entry.splitters.stderr.hasPending) && entry.timers.flush === undefined) {
-      this.setTimer(entry, 'flush', PARTIAL_FLUSH_MS, () => this.flushPartial(entry));
+    // A partial line is emitted after PARTIAL_FLUSH_MS of silence: every chunk restarts the wait.
+    if (entry.splitters.stdout.hasPending || entry.splitters.stderr.hasPending) {
+      this.setTimer(entry, 'flush', PARTIAL_FLUSH_MS, () => this.flushPartial(entry, false));
+    } else {
+      this.clearTimers(entry, ['flush']);
     }
   }
 
-  private flushPartial(entry: Entry): void {
+  private flushPartial(entry: Entry, final: boolean): void {
     for (const stream of ['stdout', 'stderr'] as const) {
-      for (const text of entry.splitters[stream].flush()) this.append(entry, stream, text);
+      for (const text of entry.splitters[stream].flush(final)) this.append(entry, stream, text);
     }
   }
 
@@ -367,7 +376,7 @@ export class ProcessManager {
   ): void {
     if (run !== entry.run || entry.handledRun === run) return;
     entry.handledRun = run;
-    this.flushPartial(entry);
+    this.flushPartial(entry, true);
     this.clearTimers(entry, ['promote', 'healthy', 'flush']);
     if (entry.pid !== null) this.deps.ledger.remove(entry.pid);
     entry.child = null;

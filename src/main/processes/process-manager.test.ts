@@ -51,18 +51,32 @@ describe('ProcessManager start', () => {
     expect(platform.spawnScript).toHaveBeenCalledWith(expect.objectContaining({ command: 'npm' }));
   });
 
-  it('records the PID with its start time before start resolves', async () => {
-    const { pm, ledger } = setup();
+  it('records the PID before start resolves, without waiting for the start time', async () => {
+    const { pm, platform, ledger } = setup();
+    let answer!: (ms: number | null) => void;
+    platform.processStartTime.mockImplementationOnce(() => new Promise((r) => (answer = r)));
     const summary = await pm.start(req());
     expect(summary).toMatchObject({ state: 'starting', pid: 1000 });
-    expect(ledger.add).toHaveBeenCalledWith({ pid: 1000, startTime: 1_700_000_000_000, projectId: 'p1', script: 'dev' });
+    expect(ledger.add).toHaveBeenCalledWith({ pid: 1000, startTime: null, projectId: 'p1', script: 'dev' });
+    answer(1_700_000_000_000);
+    await flushIo();
+    expect(ledger.add).toHaveBeenLastCalledWith({ pid: 1000, startTime: 1_700_000_000_000, projectId: 'p1', script: 'dev' });
   });
 
-  it('records a null start time when it cannot be read', async () => {
+  it('keeps a null start time when it cannot be read, and never records a closed process', async () => {
     const { pm, platform, ledger } = setup();
     platform.processStartTime.mockRejectedValueOnce(new Error('no powershell'));
     await pm.start(req());
-    expect(ledger.add).toHaveBeenCalledWith(expect.objectContaining({ startTime: null }));
+    await flushIo();
+    expect(ledger.add).toHaveBeenCalledTimes(1);
+    let answer!: (ms: number | null) => void;
+    platform.processStartTime.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    await pm.start(req({ script: 'quick' }));
+    platform.last().exit(0);
+    await flushIo();
+    answer(5);
+    await flushIo();
+    expect(ledger.add).not.toHaveBeenCalledWith(expect.objectContaining({ script: 'quick', startTime: 5 }));
   });
 
   it('promotes starting to running after 3 s', async () => {
@@ -199,6 +213,36 @@ describe('ProcessManager logs', () => {
     expect(texts()).not.toContain('no newline');
     await vi.advanceTimersByTimeAsync(1);
     expect(texts()).toContain('no newline');
+  });
+
+  it('waits for 50 ms of silence, so a line arriving in pieces stays whole', async () => {
+    const { pm, platform, texts } = setup();
+    await pm.start(req());
+    platform.last().stdout.write('{"level":30,');
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(30);
+    platform.last().stdout.write('"msg":"a"');
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(30);
+    platform.last().stdout.write('}');
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(49);
+    expect(texts()).toEqual(['▸ pnpm run dev']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(texts()).toEqual(['▸ pnpm run dev', '{"level":30,"msg":"a"}']);
+  });
+
+  it('keeps a multibyte character intact across a timed flush', async () => {
+    const { pm, platform, texts } = setup();
+    await pm.start(req());
+    const bytes = Buffer.from('ok é\n');
+    platform.last().stdout.write(bytes.subarray(0, 4)); // ends in the middle of é
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(50);
+    platform.last().stdout.write(bytes.subarray(4));
+    await flushIo();
+    expect(texts().slice(1)).toEqual(['ok ', 'é']);
+    expect(texts().join('')).not.toContain('\uFFFD');
   });
 
   it('flushes a partial line when the process closes', async () => {

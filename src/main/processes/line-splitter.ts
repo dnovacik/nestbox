@@ -30,9 +30,12 @@ export class LineSplitter {
     return lines;
   }
 
-  /** Emits the partial line, if any (called after a quiet period and on close). */
-  flush(): string[] {
-    this.pending += this.decoder.decode();
+  /**
+   * Emits the partial line, if any. After a quiet period (`final` false) bytes of a character split
+   * across chunks stay in the decoder; on close (`final` true) the decoder is finished too.
+   */
+  flush(final = false): string[] {
+    if (final) this.pending += this.decoder.decode();
     if (this.pending.length === 0) return [];
     const line = finish(this.pending);
     this.pending = '';

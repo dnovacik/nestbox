@@ -19,7 +19,7 @@ export interface PidLedger {
   remove(pid: number): void;
   /** Forgets the previous session's entries (after the orphan prompt) and rewrites the file. */
   dropPrevious(): void;
-  /** Clean quit: forgets everything and removes the file. */
+  /** Forgets everything and removes the file. Not used on quit: entries that survive a quit are deliberate. */
   clear(): void;
 }
 

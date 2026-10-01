@@ -186,7 +186,8 @@ if (!app.requestSingleInstanceLock()) {
             timedOut: disposed.value.timedOut.join(','),
           });
         }
-        if (processes.liveCount() === 0) ledger.clear();
+        // No ledger.clear(): each process removes its own entry when it closes. Entries that remain belong to
+        // trees that did not exit (or to the previous session, not yet answered) and are offered next start.
       },
       quit: () => app.quit(),
       // Without a tray icon a hidden window could not be brought back, so closing quits instead.
