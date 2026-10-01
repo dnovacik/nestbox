@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
+import { NestboxError } from '@shared/errors';
+import { AppSettingsSchema, type AppSettings } from '@shared/types';
 import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
@@ -10,6 +12,18 @@ const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
   ...over,
 });
 
+function memorySettings(readOnly = false) {
+  let current: AppSettings = AppSettingsSchema.parse({});
+  return {
+    getSettings: () => current,
+    isReadOnly: () => readOnly,
+    updateSettings: vi.fn((fn: (s: AppSettings) => AppSettings) => {
+      if (readOnly) throw new NestboxError('INTERNAL', 'Settings are read-only; changes cannot be saved');
+      current = AppSettingsSchema.parse(fn(current));
+    }),
+  };
+}
+
 function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
   return {
     projects: {
@@ -18,10 +32,17 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       getDetected: vi.fn(() => detected()),
     },
     toolHost: { list: vi.fn(() => []), invoke: vi.fn(), disposeAll: vi.fn() },
-    platform: { openInEditor: vi.fn(async () => {}), openTerminal: vi.fn(async () => {}) },
+    platform: {
+      openInEditor: vi.fn(async () => {}),
+      openTerminal: vi.fn(async () => {}),
+      commandExists: vi.fn(async (): Promise<boolean | null> => true),
+    },
     appInfo: () => ({ version: '0.0.0', platform: 'win32' }),
     pickFolder: vi.fn(async () => null),
     isDirectory: vi.fn(async () => true),
+    settings: memorySettings(),
+    onSettingsChanged: vi.fn(),
+    processes: { list: vi.fn(() => []), stopAll: vi.fn(async () => {}), forget: vi.fn() },
     ...over,
   };
 }
@@ -66,5 +87,98 @@ describe('core handlers', () => {
     const d = deps();
     await createCoreHandlers(d)['tools:invoke']({ toolId: 't', projectId: 'p1', method: 'm', input: {} });
     expect(d.toolHost.invoke).toHaveBeenCalledWith('t', 'p1', 'm', {});
+  });
+
+  describe('settings', () => {
+    it('returns the settings with the read-only flag', async () => {
+      expect(await createCoreHandlers(deps())['settings:get']()).toMatchObject({ closeToTray: true, readOnly: false });
+    });
+
+    it('merges a patch, persists it and notifies once', async () => {
+      const d = deps();
+      const view = await createCoreHandlers(d)['settings:update']({ closeToTray: false });
+      expect(view).toMatchObject({ closeToTray: false, editorCommand: 'code', readOnly: false });
+      expect(d.settings.getSettings().closeToTray).toBe(false);
+      expect(d.onSettingsChanged).toHaveBeenCalledTimes(1);
+      expect(d.onSettingsChanged).toHaveBeenCalledWith(expect.objectContaining({ closeToTray: false }));
+    });
+
+    it('refuses an editor command that does not exist, without echoing it', async () => {
+      const d = deps();
+      vi.mocked(d.platform.commandExists).mockResolvedValueOnce(false);
+      const error = await createCoreHandlers(d)['settings:update']({ editorCommand: 'nonexistent-editor' }).catch((e) => e);
+      expect(error).toMatchObject({ code: 'NOT_FOUND', message: 'That editor command was not found on PATH' });
+      expect(String(error.message)).not.toContain('nonexistent-editor');
+      expect(d.settings.getSettings().editorCommand).toBe('code');
+    });
+
+    it('accepts an editor it cannot check, and skips the check when the editor is unchanged', async () => {
+      const d = deps();
+      vi.mocked(d.platform.commandExists).mockResolvedValueOnce(null);
+      await createCoreHandlers(d)['settings:update']({ editorCommand: 'cursor' });
+      expect(d.settings.getSettings().editorCommand).toBe('cursor');
+      await createCoreHandlers(d)['settings:update']({ editorCommand: 'cursor', closeToTray: false });
+      expect(d.platform.commandExists).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects on a read-only store without notifying', async () => {
+      const d = deps({ settings: memorySettings(true) });
+      await expect(createCoreHandlers(d)['settings:update']({ closeToTray: false })).rejects.toMatchObject({
+        code: 'INTERNAL',
+      });
+      expect(d.onSettingsChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processes', () => {
+    it('lists processes from the manager', async () => {
+      const d = deps();
+      const summary = {
+        projectId: 'p1', script: 'dev', state: 'running' as const, pid: 1, startedAt: 1, exit: null,
+        crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false,
+      };
+      vi.mocked(d.processes.list).mockReturnValue([summary]);
+      expect(await createCoreHandlers(d)['processes:list']()).toEqual([summary]);
+    });
+
+    it('stops everything, or one project with its workspaces', async () => {
+      const d = deps();
+      const handlers = createCoreHandlers(d);
+      await handlers['processes:stopAll']({});
+      expect(d.processes.stopAll).toHaveBeenLastCalledWith(undefined);
+      await handlers['processes:stopAll']({ projectId: 'r1' });
+      const filter = vi.mocked(d.processes.stopAll).mock.calls.at(-1)?.[0];
+      expect(['r1', 'r1::a', 'r10', 'r2'].map((id) => filter?.(id))).toEqual([true, true, false, false]);
+    });
+
+    it('refuses to remove a workspace package without stopping anything', async () => {
+      const d = deps();
+      await expect(createCoreHandlers(d)['projects:remove']({ id: 'r1::packages/api' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+      });
+      expect(d.processes.stopAll).not.toHaveBeenCalled();
+    });
+
+    it('removes a stored project even when its detection is not available', async () => {
+      const d = deps();
+      vi.mocked(d.projects.getDetected).mockImplementation(() => {
+        throw new NestboxError('NOT_FOUND', 'Project not found');
+      });
+      await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
+      expect(d.projects.remove).toHaveBeenCalledWith('r1');
+    });
+
+    it('stops and forgets a project\'s processes before removing it', async () => {
+      const order: string[] = [];
+      const d = deps();
+      vi.mocked(d.processes.stopAll).mockImplementation(async () => void order.push('stopAll'));
+      vi.mocked(d.processes.forget).mockImplementation(() => void order.push('forget'));
+      vi.mocked(d.projects.remove).mockImplementation(() => void order.push('remove'));
+      await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
+      expect(order).toEqual(['stopAll', 'forget', 'remove']);
+      const filter = vi.mocked(d.processes.stopAll).mock.calls[0]?.[0];
+      expect(filter?.('r1::packages/api')).toBe(true);
+      expect(filter?.('r2')).toBe(false);
+    });
   });
 });

@@ -9,7 +9,7 @@ export function EmptyState() {
     <div className="flex flex-1 flex-col items-center justify-center gap-5 p-8 text-center">
       <div className="flex items-center gap-3">
         <NestboxMark className="size-12" />
-        <span className="text-3xl font-bold tracking-tight text-fg">nestbox</span>
+        <span className="text-3xl font-bold tracking-tight text-fg">NestBox</span>
       </div>
       <div>
         <h1 className="text-base font-semibold text-fg">No projects yet</h1>

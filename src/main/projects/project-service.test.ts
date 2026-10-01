@@ -7,8 +7,9 @@ import { createWin32Adapter } from '../platform/win32';
 import { createMemoryBackend } from '../store/backend';
 import { StoreService } from '../store/store-service';
 import { ProjectService } from './project-service';
+import { noopRunner } from '../platform/testing';
 
-const win32 = createWin32Adapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' });
+const win32 = createWin32Adapter({ runner: noopRunner, getEditorCommand: () => 'code' });
 
 function fakeDetect(input: DetectInput): DetectedProject {
   const folder = input.path.split('\\').pop() ?? input.path;
@@ -44,7 +45,8 @@ function emptyDetected(): DetectedProject {
 
 function setup(initial?: unknown) {
   const backend = createMemoryBackend(initial ?? {});
-  const store = new StoreService(backend, createMemoryLogger());
+  const logger = createMemoryLogger();
+  const store = new StoreService(backend, logger);
   let n = 0;
   const onChanged = vi.fn();
   const detect = vi.fn(async (input: DetectInput) => fakeDetect(input));
@@ -57,8 +59,9 @@ function setup(initial?: unknown) {
     detect,
     newId: () => `id-${++n}`,
     onChanged,
+    logger,
   });
-  return { service, store, backend, onChanged, detect, isDirectory };
+  return { service, store, backend, onChanged, detect, isDirectory, logger };
 }
 
 describe('ProjectService.add', () => {
@@ -98,6 +101,72 @@ describe('ProjectService.add', () => {
     const { service, isDirectory } = setup();
     isDirectory.mockResolvedValueOnce(false);
     await expect(service.add('C:\\Nope')).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+});
+
+const twoProjects = {
+  schemaVersion: 2,
+  settings: {},
+  projects: [
+    { id: 'p1', name: 'Shop', path: 'C:\\Dev\\Shop' },
+    { id: 'p2', name: 'Blog', path: 'C:\\Dev\\Blog' },
+  ],
+};
+
+describe('ProjectService startup', () => {
+  it('does not block on detection: init starts it in the background', async () => {
+    const { service, detect } = setup(twoProjects);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    detect.mockImplementation(async (input: DetectInput) => {
+      await gate;
+      return fakeDetect(input);
+    });
+    const init = service.init();
+    let settled = false;
+    void init.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(detect).toHaveBeenCalledTimes(2);
+    release();
+    await init;
+  });
+
+  it('list() joins the in-flight detection instead of detecting again', async () => {
+    const { service, detect } = setup(twoProjects);
+    const init = service.init();
+    const listed = await service.list();
+    await init;
+    expect(listed.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(detect).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps going when one project fails to detect and logs only its id', async () => {
+    const { service, detect, logger } = setup(twoProjects);
+    detect.mockImplementation(async (input: DetectInput) => {
+      if (input.id === 'p1') throw new Error('EACCES C:\\Dev\\Shop secret');
+      return fakeDetect(input);
+    });
+    await service.init();
+    expect(service.getDetected('p2').id).toBe('p2');
+    expect(logger.entries).toContainEqual({ level: 'warn', message: 'detection failed', fields: { projectId: 'p1' } });
+    expect(JSON.stringify(logger.entries)).not.toContain('secret');
+  });
+
+  it('refresh runs a fresh detection after an in-flight one', async () => {
+    const { service, detect } = setup(twoProjects);
+    const init = service.init();
+    await service.refresh('p1');
+    await init;
+    expect(detect.mock.calls.filter(([i]) => i.id === 'p1')).toHaveLength(2);
+  });
+
+  it('add rejects, stores nothing and does not notify when detection throws', async () => {
+    const { service, store, detect, onChanged } = setup();
+    detect.mockRejectedValueOnce(new Error('boom'));
+    await expect(service.add('C:\\Dev\\Shop')).rejects.toThrow('boom');
+    expect(store.getProjects()).toEqual([]);
+    expect(onChanged).not.toHaveBeenCalled();
   });
 });
 
@@ -208,5 +277,39 @@ describe('ProjectService lookups and edits', () => {
     const s = await service.refresh('id-1::packages/api');
     expect(detect).toHaveBeenCalledWith({ id: 'id-1', path: 'C:\\Dev\\Shop', name: 'shop' });
     expect(s.id).toBe('id-1');
+  });
+});
+
+describe('ProjectService run groups and tool settings', () => {
+  const group = { name: 'dev', entries: [{ relPath: '', script: 'api' }, { relPath: 'packages/api', script: 'dev' }] };
+
+  it('stores run groups on a root project and notifies', async () => {
+    const { service, onChanged, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    onChanged.mockClear();
+    expect(service.setRunGroups('id-1', [group])).toEqual([group]);
+    expect(service.getRunGroups('id-1')).toEqual([group]);
+    expect(store.getProjects()[0]?.runGroups).toEqual([group]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses run groups on a workspace and invalid groups', async () => {
+    const { service, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    expect(() => service.setRunGroups('id-1::packages/api', [group])).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(() => service.setRunGroups('id-1', [{ name: '', entries: [] }])).toThrow();
+    expect(store.getProjects()[0]?.runGroups).toEqual([]);
+  });
+
+  it('round-trips tool settings per tool id', async () => {
+    const { service, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    expect(service.getToolSettings('id-1', 'scripts')).toBeUndefined();
+    service.setToolSettings('id-1', 'scripts', { autoRestart: [] });
+    expect(service.getToolSettings('id-1', 'scripts')).toEqual({ autoRestart: [] });
+    expect(service.getToolSettings('id-1', 'toString')).toBeUndefined();
+    expect(store.getProjects()[0]?.toolSettings).toEqual({ scripts: { autoRestart: [] } });
   });
 });

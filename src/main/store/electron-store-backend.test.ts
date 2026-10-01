@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultStoreData } from '@shared/types';
+import { CURRENT_SCHEMA_VERSION, defaultStoreData } from '@shared/types';
 
 // electron-store only touches app.getPath/getVersion and ipcMain.on at construction time.
 vi.mock('electron', () => {
@@ -36,6 +36,6 @@ describe('electron-store backend corruption chain', () => {
 
     backend.write(defaultStoreData());
     const written = JSON.parse(readFileSync(file, 'utf8')) as { schemaVersion: number };
-    expect(written.schemaVersion).toBe(1);
+    expect(written.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   });
 });

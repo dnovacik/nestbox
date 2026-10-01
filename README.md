@@ -1,4 +1,4 @@
-# nestbox
+# NestBox
 
 A local developer toolbox for Node.js and TypeScript projects: run scripts and read their logs, free stuck ports, keep `.env` files in order, serve a build, and hand a project to Claude Code.
 

@@ -7,6 +7,7 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
     id: 'darwin',
     listListeningPorts: async () => notImplemented('listListeningPorts'),
     killTree: async () => notImplemented('killTree'),
+    listProcesses: async () => notImplemented('listProcesses'),
     spawnScript: () => notImplemented('spawnScript'),
     openTerminal: async () => notImplemented('openTerminal'),
     openInEditor: async () => notImplemented('openInEditor'),
@@ -14,5 +15,7 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
     normalizePath: normalizePosixPath,
     samePath: (a, b) => normalizePosixPath(a) === normalizePosixPath(b),
     windowChrome: () => ({ titleBarStyle: 'hiddenInset' }),
+    notificationAppId: () => null,
+    commandExists: async () => null,
   };
 }

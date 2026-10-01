@@ -1,6 +1,18 @@
 import type { Session, WebContents } from 'electron';
 
-export function hardenWebContents(contents: WebContents, isAllowedUrl: (url: string) => boolean): void {
+/** The parts of WebContents that hardening touches; structural so it can be tested without Electron. */
+export type WebContentsLike = Pick<WebContents, 'on' | 'setWindowOpenHandler'>;
+
+interface AppLike {
+  on(event: 'web-contents-created', listener: (event: unknown, contents: WebContentsLike) => void): unknown;
+}
+
+/** Applies hardenWebContents to every webContents the app creates, not only the main window's. */
+export function hardenAllWebContents(app: AppLike, isAllowedUrl: (url: string) => boolean): void {
+  app.on('web-contents-created', (_event, contents) => hardenWebContents(contents, isAllowedUrl));
+}
+
+export function hardenWebContents(contents: WebContentsLike, isAllowedUrl: (url: string) => boolean): void {
   contents.on('will-navigate', (event, url) => {
     if (!isAllowedUrl(url)) event.preventDefault();
   });

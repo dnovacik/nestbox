@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ProjectSummarySchema } from './detected';
 import type { InvokeChannel } from './ipc-names';
+import { ProcessSummarySchema } from './processes';
+import { SettingsPatchSchema, SettingsViewSchema } from './settings';
 import { ToolSummarySchema } from './tool';
 import { AppInfoSchema, ProjectNameSchema } from './types';
 
@@ -35,6 +37,11 @@ export const channels = {
     // Validated against the tool's own contract by the tool host.
     output: z.unknown(),
   },
+  'settings:get': { input: NoInput, output: SettingsViewSchema },
+  'settings:update': { input: SettingsPatchSchema, output: SettingsViewSchema },
+  'processes:list': { input: NoInput, output: z.array(ProcessSummarySchema) },
+  /** One project and its workspace packages, or every process when projectId is omitted. */
+  'processes:stopAll': { input: z.strictObject({ projectId: Id.optional() }), output: z.void() },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;
 
 type Spec<C extends InvokeChannel> = (typeof channels)[C];

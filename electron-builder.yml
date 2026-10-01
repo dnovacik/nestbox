@@ -1,5 +1,5 @@
 appId: dev.nestbox.app
-productName: Nestbox
+productName: NestBox
 directories:
   buildResources: resources
   output: release/${version}

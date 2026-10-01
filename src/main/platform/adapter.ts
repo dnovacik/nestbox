@@ -9,6 +9,13 @@ export interface PortEntry {
   command: string | null;
 }
 
+export interface ProcessInfo {
+  pid: number;
+  parentPid: number;
+  /** When the process started, in epoch ms. */
+  startTime: number;
+}
+
 export interface SpawnOpts {
   cwd: string;
   command: string;
@@ -27,9 +34,26 @@ export interface WindowChrome {
   titleBarOverlay?: OverlayColors;
 }
 
+export interface ExecResult {
+  /** null when the process was killed by the timeout or a signal. */
+  code: number | null;
+  /** Capped at 64 KiB. */
+  stdout: string;
+}
+
+export interface PipedSpawnOpts {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  verbatim?: boolean;
+}
+
 export interface CommandRunner {
   /** Starts a detached process and resolves once it has spawned. Rejects (e.g. ENOENT) if it cannot start. */
   launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }): Promise<void>;
+  /** Runs to completion with a hidden window and no shell. Rejects only if it cannot start. */
+  exec(file: string, args: readonly string[], opts?: { timeoutMs?: number }): Promise<ExecResult>;
+  /** A long-running child with piped stdout/stderr, ignored stdin and a hidden window. */
+  spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
 }
 
 export interface PlatformDeps {
@@ -41,6 +65,11 @@ export interface PlatformAdapter {
   readonly id: PlatformId;
   listListeningPorts(): Promise<PortEntry[]>;
   killTree(pid: number): Promise<void>;
+  /**
+   * Every running process with its parent and start time (the start time tells a reused PID apart); null
+   * when the list cannot be read. Used by the orphan check at startup.
+   */
+  listProcesses(): Promise<ProcessInfo[] | null>;
   spawnScript(opts: SpawnOpts): ChildProcess;
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
@@ -49,6 +78,10 @@ export interface PlatformAdapter {
   normalizePath(p: string): string;
   samePath(a: string, b: string): boolean;
   windowChrome(colors: OverlayColors): WindowChrome;
+  /** The AppUserModelID Windows needs for toast notifications (matches electron-builder's appId); null elsewhere. */
+  notificationAppId(): string | null;
+  /** Whether a command (name on PATH, or a path) exists; null when it cannot be checked. */
+  commandExists(command: string): Promise<boolean | null>;
 }
 
 export function notImplemented(method: string): never {

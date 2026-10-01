@@ -30,7 +30,7 @@ The app exists to do the things a browser cannot: read the filesystem, spawn and
 
 ## Name and logo
 
-- Display name "Nestbox"; wordmark "nestbox" in lowercase, geometric sans.
+- Display name and wordmark "NestBox" (owner's decision, M1 review); npm/CLI name stays `nestbox`.
 - Logo: a nest box drawn as one solid shape whose round entrance hole doubles as a status light.
 - Tray states (hole colour): green = all processes running, amber = a script is starting, red = a process crashed, grey = nothing running.
 - Tray icon: monochrome shape (`.ico` on Windows, template image on macOS); the hole carries the only colour.
@@ -110,7 +110,9 @@ export interface ToolContext {
   shared: { get(key: string): unknown; publish(key: string, value: unknown): void };
   emit(event: string, payload: unknown): void;
   platform: PlatformAdapter;              // OS-specific port and process calls
+  settings: { get(): S; update(fn: (s: S) => S): S }; // the tool's slice of toolSettings
 }
+// Tools that need core services (ProcessManager, dialogs) are built by factories: createScriptsTool(deps).
 
 // renderer/tools/<id>/index.tsx
 export interface RendererTool {
@@ -153,6 +155,8 @@ export interface PlatformAdapter {
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
   resolveShellEnv(): Promise<NodeJS.ProcessEnv>;  // PATH as the user's shell sees it
+  processStartTime(pid: number): Promise<number | null>; // tells a reused PID apart (orphan cleanup)
+  notificationAppId(): string | null;             // Windows AppUserModelID for toasts
 }
 
 export const platform: PlatformAdapter =
@@ -294,19 +298,19 @@ type Project = {
   path: string;
   tags: string[];
   pinned: boolean;
-  runGroups: { name: string; scripts: string[] }[];
+  runGroups: { name: string; entries: { relPath: string; script: string }[] }[]; // relPath '' = root package
   envProfiles: { name: string; file: string }[];
   staticServer?: { folder: string; port: number; spa: boolean; https: boolean };
   toolSettings: Record<string, unknown>; // per tool id, owned by the tool
 };
 
-type AppSettings = {
-  schemaVersion: number;
+type AppSettings = { // schemaVersion lives at the store root, next to settings and projects
   theme: 'system' | 'light' | 'dark';
   editorCommand: string; // e.g. 'code'
   terminalApp: string;   // e.g. 'wt', 'iTerm'
   logBufferLines: number;
   closeToTray: boolean;  // closing the window keeps the app in the tray
+  trayIconTheme: 'auto' | 'dark-taskbar' | 'light-taskbar';
 };
 ```
 

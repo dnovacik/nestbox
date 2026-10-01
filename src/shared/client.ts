@@ -1,6 +1,7 @@
 import type { NestboxBridge } from './bridge';
 import type { ChannelInput, ChannelOutput } from './channels';
 import { NestboxError } from './errors';
+import type { SettingsPatch } from './settings';
 import type { EventChannel, InvokeChannel } from './ipc-names';
 import type { ToolId, ToolMethodInput, ToolMethodName, ToolMethodOutput } from './tools';
 
@@ -27,6 +28,14 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       refresh: (id: string) => call('projects:refresh', { id }),
       openInEditor: (id: string) => call('projects:openInEditor', { id }),
       openTerminal: (id: string) => call('projects:openTerminal', { id }),
+    },
+    processes: {
+      list: () => call('processes:list'),
+      stopAll: (projectId?: string) => call('processes:stopAll', projectId === undefined ? {} : { projectId }),
+    },
+    settings: {
+      get: () => call('settings:get'),
+      update: (patch: SettingsPatch) => call('settings:update', patch),
     },
     tools: {
       list: (projectId: string) => call('tools:list', { projectId }),

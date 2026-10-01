@@ -1,14 +1,18 @@
-import { useProjects, useProjectsChangedSubscription } from '@/lib/queries';
+import { useNavigateSubscription } from '@/lib/navigate';
+import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { EmptyState } from './EmptyState';
 import { findProjectNode } from './find-project';
 import { ProjectView } from './ProjectView';
+import { SettingsDialog } from './SettingsDialog';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
 
 export function App() {
   useProjectsChangedSubscription();
+  useProcessesChangedSubscription();
+  useNavigateSubscription();
   const { data: projects = [], isPending } = useProjects();
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);
@@ -23,6 +27,7 @@ export function App() {
         </main>
       </div>
       <StatusBar projectCount={projects.length} />
+      <SettingsDialog />
     </div>
   );
 }

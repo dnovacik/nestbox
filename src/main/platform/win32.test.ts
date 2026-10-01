@@ -1,7 +1,10 @@
+import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import type { CommandRunner } from './adapter';
+import { type ExecCall, type ExecScript, noopRunner, scriptedExec } from './testing';
 import { createWin32Adapter } from './win32';
+import { cmdInvocation } from './win32-escape';
 
 interface Call {
   file: string;
@@ -9,10 +12,16 @@ interface Call {
   opts: { cwd?: string; verbatim?: boolean; hidden?: boolean } | undefined;
 }
 
-function fakeRunner(failFiles: string[] = []): CommandRunner & { calls: Call[] } {
+function fakeRunner(failFiles: string[] = [], script: ExecScript = {}): CommandRunner & { calls: Call[]; execCalls: ExecCall[] } {
   const calls: Call[] = [];
+  const { calls: execCalls, exec } = scriptedExec(script);
   return {
     calls,
+    execCalls,
+    exec: vi.fn(exec),
+    spawn: vi.fn(() => {
+      throw new Error('spawn not expected');
+    }),
     launch: vi.fn(async (file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }) => {
       calls.push({ file, args, opts });
       if (failFiles.includes(file)) {
@@ -82,6 +91,59 @@ describe('win32 openInEditor', () => {
   });
 });
 
+describe('win32 openInEditor pre-check', () => {
+  it('checks the editor with where.exe before launching', async () => {
+    const runner = fakeRunner();
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a');
+    expect(runner.execCalls).toEqual([{ file: 'where.exe', args: ['/q', 'code'] }]);
+    expect(runner.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports NOT_FOUND with a helpful message when the editor is not on PATH', async () => {
+    const runner = fakeRunner([], { 'where.exe': { code: 1, stdout: '' } });
+    await expect(
+      createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a'),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Editor command "code" was not found on PATH. Change it in Settings.',
+    });
+    expect(runner.launch).not.toHaveBeenCalled();
+  });
+
+  it('checks an editor given as a path with the dir:pattern form', async () => {
+    const runner = fakeRunner();
+    const editor = 'C:\\Tools\\ed it\\code.cmd';
+    await createWin32Adapter({ runner, getEditorCommand: () => editor }).openInEditor('C:\\a');
+    expect(runner.execCalls[0]).toEqual({ file: 'where.exe', args: ['/q', 'C:\\Tools\\ed it:code.cmd'] });
+  });
+
+  it('skips the check when where.exe itself cannot run', async () => {
+    const runner = fakeRunner([], { 'where.exe': Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) });
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a');
+    expect(runner.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates the path before running where.exe', async () => {
+    const runner = fakeRunner();
+    await expect(
+      createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a"b'),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.execCalls).toEqual([]);
+  });
+});
+
+describe('win32 commandExists', () => {
+  it.each([
+    [{ code: 0, stdout: '' }, true],
+    [{ code: 1, stdout: '' }, false],
+    [new Error('ENOENT'), null],
+  ] as const)('maps where.exe %j to %s', async (result, expected) => {
+    const runner = fakeRunner([], { 'where.exe': result });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).commandExists('cursor')).toBe(expected);
+    expect(runner.execCalls).toEqual([{ file: 'where.exe', args: ['/q', 'cursor'] }]);
+  });
+});
+
 describe('win32 openTerminal', () => {
   it.each(Object.entries(PATHS))('opens Windows Terminal with an escaped -d for %s paths', async (_n, path) => {
     const runner = fakeRunner();
@@ -135,6 +197,7 @@ describe('win32 openTerminal', () => {
 
   it('reports INTERNAL when both wt and the cmd fallback fail', async () => {
     const runner: CommandRunner = {
+      ...noopRunner,
       launch: vi.fn(async (file: string) => {
         if (file === 'wt.exe') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
         throw new Error('boom');
@@ -145,7 +208,7 @@ describe('win32 openTerminal', () => {
   });
 
   it('does not fall back on errors other than ENOENT', async () => {
-    const runner: CommandRunner = { launch: vi.fn().mockRejectedValue(new Error('EACCES')) };
+    const runner: CommandRunner = { ...noopRunner, launch: vi.fn().mockRejectedValue(new Error('EACCES')) };
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
     await expect(adapter.openTerminal('C:\\a')).rejects.toBeInstanceOf(NestboxError);
     expect(runner.launch).toHaveBeenCalledTimes(1);
@@ -167,15 +230,98 @@ describe('win32 other members', () => {
     });
   });
 
+  it('uses the installer appId for notifications', () => {
+    expect(adapter.notificationAppId()).toBe('dev.nestbox.app');
+  });
+
   it('returns a copy of the inherited environment', async () => {
     const env = await adapter.resolveShellEnv();
     expect(env).toEqual(process.env);
     expect(env).not.toBe(process.env);
   });
 
-  it('stubs M1/M2 members with NOT_IMPLEMENTED', async () => {
+  it('stubs M2 members with NOT_IMPLEMENTED', async () => {
     await expect(adapter.listListeningPorts()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    await expect(adapter.killTree(1)).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    expect(() => adapter.spawnScript({ cwd: 'C:\\', command: 'pnpm', args: [], env: {} })).toThrow(NestboxError);
+  });
+});
+
+describe('win32 spawnScript', () => {
+  it('runs the package manager through cmd.exe with escaped arguments', () => {
+    const runner = fakeRunner();
+    const child = {} as ChildProcess;
+    vi.mocked(runner.spawn).mockReturnValue(child);
+    const env = { PATH: 'x', FORCE_COLOR: '1' };
+    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code' }).spawnScript({
+      cwd: 'C:\\a b',
+      command: 'pnpm',
+      args: ['run', 'dev:api'],
+      env,
+    });
+    expect(result).toBe(child);
+    const inv = cmdInvocation('pnpm', ['run', 'dev:api']);
+    expect(inv.args).toEqual(['/d', '/s', '/c', '"pnpm ^"run^" ^"dev:api^""']);
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', inv.args, { cwd: 'C:\\a b', env, verbatim: true });
+  });
+
+  it('rejects a script name with a quote before spawning', () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    expect(() => adapter.spawnScript({ cwd: 'C:\\', command: 'pnpm', args: ['run', 'a"b'], env: {} })).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(runner.spawn).not.toHaveBeenCalled();
+  });
+});
+
+describe('win32 killTree', () => {
+  it('runs taskkill for the whole tree', async () => {
+    const runner = fakeRunner();
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321);
+    expect(runner.execCalls).toEqual([{ file: 'taskkill.exe', args: ['/PID', '4321', '/T', '/F'] }]);
+  });
+
+  it('treats "process not found" (128) as success', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': { code: 128, stdout: '' } });
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321)).resolves.toBeUndefined();
+  });
+
+  it('reports other failures as INTERNAL without the output', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': { code: 1, stdout: 'ERROR: Access is denied.' } });
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321)).rejects.toMatchObject({
+      code: 'INTERNAL',
+      message: 'Could not stop the process tree',
+    });
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects pid %s without running anything', async (pid) => {
+    const runner = fakeRunner();
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(pid)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+    expect(runner.execCalls).toEqual([]);
+  });
+});
+
+describe('win32 listProcesses', () => {
+  const script =
+    "Get-CimInstance Win32_Process | ForEach-Object { if ($_.CreationDate) { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().ToString('o') } }";
+
+  it('lists every process with its parent and start time through one PowerShell call', async () => {
+    const stdout = '4 0 2026-10-01T09:00:00.0000000Z\r\n4321 812 2026-10-01T10:00:00.1234567Z\r\njunk\r\n';
+    const runner = fakeRunner([], { 'powershell.exe': { code: 0, stdout } });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listProcesses()).toEqual([
+      { pid: 4, parentPid: 0, startTime: Date.parse('2026-10-01T09:00:00.000Z') },
+      { pid: 4321, parentPid: 812, startTime: Date.parse('2026-10-01T10:00:00.123Z') },
+    ]);
+    expect(runner.execCalls).toEqual([{ file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] }]);
+  });
+
+  it.each([
+    ['a non-zero exit', { code: 1, stdout: '' }],
+    ['no processes in the output', { code: 0, stdout: 'nope' }],
+    ['a failure to start', new Error('ENOENT')],
+  ])('returns null on %s', async (_label, result) => {
+    const runner = fakeRunner([], { 'powershell.exe': result });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listProcesses()).toBeNull();
   });
 });

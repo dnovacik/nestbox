@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronRight, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAddProject } from '@/lib/queries';
+import { aggregateState, belongsTo, type AggregateState } from '@shared/processes';
+import { StateDot } from '@/components/StateDot';
+import { useAddProject, useProcesses } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import type { DetectedProject, ProjectSummary } from '@shared/detected';
@@ -17,6 +19,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
   const setFilter = useUiStore((s) => s.setFilter);
   const addProject = useAddProject();
   const visible = filterProjects(projects, filter);
+  const filtering = filter.trim() !== '';
   const pinned = visible.filter((p) => p.pinned);
   const others = visible.filter((p) => !p.pinned);
 
@@ -34,9 +37,22 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
           />
         </div>
         {pinned.length > 0 && (
-          <ProjectSection title="Pinned" count={pinned.length} projects={pinned} selectedId={selectedId} />
+          <ProjectSection title="Pinned" count={String(pinned.length)} projects={pinned} selectedId={selectedId} />
         )}
-        <ProjectSection title="All projects" count={projects.length} projects={others} selectedId={selectedId} />
+        <ProjectSection
+          title="All projects"
+          count={filtering ? `${visible.length} of ${projects.length}` : String(projects.length)}
+          projects={others}
+          selectedId={selectedId}
+        />
+        {filtering && visible.length === 0 && (
+          <div className="space-y-2 px-2 text-xs text-fg-muted">
+            <p>No projects match “{filter.trim()}”.</p>
+            <Button variant="ghost" size="sm" onClick={() => setFilter('')}>
+              Clear filter
+            </Button>
+          </div>
+        )}
       </div>
       <div className="border-t border-line p-3">
         <Button
@@ -54,7 +70,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
   );
 }
 
-function ProjectSection({ title, count, projects, selectedId }: SidebarProps & { title: string; count: number }) {
+function ProjectSection({ title, count, projects, selectedId }: SidebarProps & { title: string; count: string }) {
   return (
     <section aria-label={title}>
       <h2 className="mb-1.5 flex items-center justify-between px-2 text-[10px] font-semibold tracking-wider text-fg-muted uppercase">
@@ -74,10 +90,22 @@ function ProjectItem({ project, selectedId }: { project: ProjectSummary; selecte
   const collapsed = useUiStore((s) => s.collapsed[project.id] ?? false);
   const toggleCollapsed = useUiStore((s) => s.toggleCollapsed);
   const workspaces = project.detected.workspaces;
+  const { data: processes = [] } = useProcesses();
+  const stateOf = (projectId: string, withWorkspaces: boolean): AggregateState =>
+    aggregateState(
+      processes
+        .filter((p) => (withWorkspaces ? belongsTo(p.projectId, projectId) : p.projectId === projectId))
+        .map((p) => p.state),
+    );
   return (
     <li>
       <div className="flex items-center">
-        <ProjectRow detected={project.detected} label={project.name} selected={selectedId === project.id} />
+        <ProjectRow
+          detected={project.detected}
+          label={project.name}
+          selected={selectedId === project.id}
+          state={stateOf(project.id, collapsed)}
+        />
         {workspaces.length > 0 && (
           <button
             type="button"
@@ -94,7 +122,7 @@ function ProjectItem({ project, selectedId }: { project: ProjectSummary; selecte
         <ul className="mt-0.5 ml-4 space-y-0.5 border-l border-line pl-2">
           {workspaces.map((ws) => (
             <li key={ws.id}>
-              <ProjectRow detected={ws} label={ws.name} selected={selectedId === ws.id} />
+              <ProjectRow detected={ws} label={ws.name} selected={selectedId === ws.id} state={stateOf(ws.id, false)} />
             </li>
           ))}
         </ul>
@@ -103,12 +131,20 @@ function ProjectItem({ project, selectedId }: { project: ProjectSummary; selecte
   );
 }
 
-function ProjectRow({ detected, label, selected }: { detected: DetectedProject; label: string; selected: boolean }) {
+interface ProjectRowProps {
+  detected: DetectedProject;
+  label: string;
+  selected: boolean;
+  state: AggregateState;
+}
+
+function ProjectRow({ detected, label, selected, state }: ProjectRowProps) {
   const select = useUiStore((s) => s.select);
   return (
     <button
       type="button"
       aria-current={selected ? 'page' : undefined}
+      title={state === 'idle' ? undefined : `${label}: ${state}`}
       onClick={() => select(detected.id)}
       className={cn(
         'flex min-w-0 flex-1 items-center gap-2.5 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors',
@@ -116,8 +152,7 @@ function ProjectRow({ detected, label, selected }: { detected: DetectedProject; 
         detected.missing && 'opacity-60',
       )}
     >
-      {/* M1: dot colour reflects process state (running/starting/crashed). */}
-      <span aria-hidden className="size-2 shrink-0 rounded-full bg-idle" />
+      <StateDot state={state} />
       <span className="truncate">{label}</span>
       {detected.missing && <span className="ml-auto text-[10px] text-err">missing</span>}
     </button>
