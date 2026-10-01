@@ -1,7 +1,7 @@
 # Nestbox M1 (Scripts and logs): Design Notes
 
 Date: 2026-10-01
-Status: Draft, awaiting the owner's approval
+Status: Approved 2026-10-01
 Source of truth: `docs/nestbox-spec.md`. These notes cover only the spec's gaps for M1, plus the M0 review follow-ups listed in `docs/superpowers/HANDOFF.md`. They build on `2026-10-01-nestbox-m0-design.md` and don't restate it.
 
 ## Scope
