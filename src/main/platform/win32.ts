@@ -142,9 +142,14 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
     },
 
     async openTerminal(cwd, command) {
-      if (command !== undefined) assertCmdSafe(command);
+      if (command !== undefined) {
+        assertCmdSafe(command);
+        // The cmd fallback goes through `cmd /c start … cmd /k`, which expands %VAR% twice. Commands
+        // here are NestBox-built (`claude`, `claude --continue`), so % is simply refused.
+        if (command.includes('%')) throw new NestboxError('VALIDATION', 'Terminal commands cannot contain %');
+      }
       const wtArgs = ['-d', escapeWtArg(cwd)];
-      if (command !== undefined) wtArgs.push('cmd.exe', '/k', escapeWtArg(command));
+      if (command !== undefined) wtArgs.push('cmd.exe', '/d', '/k', escapeWtArg(command));
       try {
         await deps.runner.launch('wt.exe', wtArgs);
         return;

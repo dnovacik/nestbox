@@ -80,6 +80,7 @@ export interface PlatformAdapter {
    */
   listProcesses(): Promise<ProcessInfo[] | null>;
   spawnScript(opts: SpawnOpts): ChildProcess;
+  /** Opens a terminal in cwd, optionally running command (NestBox-built only: no quotes, newlines or %). */
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
   resolveShellEnv(): Promise<NodeJS.ProcessEnv>;

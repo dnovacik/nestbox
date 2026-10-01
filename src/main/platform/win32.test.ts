@@ -146,6 +146,16 @@ describe('win32 commandExists', () => {
   });
 });
 
+describe('win32 openInEditor with a path that has spaces', () => {
+  it('passes the editor path through cmd with its spaces escaped', async () => {
+    const runner = fakeRunner();
+    const editor = 'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd';
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => editor });
+    await adapter.openInEditor('C:\\Dev\\Shop');
+    expect(runner.calls[0]?.args[3]).toBe('"C:\\Program^ Files\\Microsoft^ VS^ Code\\bin\\code.cmd ^"C:\\Dev\\Shop^""');
+  });
+});
+
 describe('win32 openTerminal', () => {
   it.each(Object.entries(PATHS))('opens Windows Terminal with an escaped -d for %s paths', async (_n, path) => {
     const runner = fakeRunner();
@@ -163,7 +173,7 @@ describe('win32 openTerminal', () => {
     const runner = fakeRunner();
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
     await adapter.openTerminal('C:\\a', 'echo one; echo two');
-    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/k', 'echo one\\; echo two']);
+    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/d', '/k', 'echo one\\; echo two']);
   });
 
   it.each(Object.entries(PATHS))('falls back to cmd /K with the path as cwd for %s paths', async (_n, path) => {
@@ -188,6 +198,20 @@ describe('win32 openTerminal', () => {
       args: ['/d /c start "" cmd.exe /d /s /k "echo one; echo two"'],
       opts: { cwd: 'C:\\a', verbatim: true },
     });
+  });
+
+  it('opens Claude Code and continues the last session', async () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.openTerminal('C:\\a', 'claude --continue');
+    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/d', '/k', 'claude --continue']);
+  });
+
+  it('rejects % in a command: the start fallback would expand %VAR% twice', async () => {
+    const runner = fakeRunner(['wt.exe']);
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await expect(adapter.openTerminal('C:\\a', 'echo %PATH%')).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.launch).not.toHaveBeenCalled();
   });
 
   it('rejects an unsafe command with VALIDATION and never calls the runner', async () => {
