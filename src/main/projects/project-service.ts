@@ -2,6 +2,7 @@ import { type DetectedProject, findDetected, type ProjectSummary, splitProjectId
 import { NestboxError } from '@shared/errors';
 import { type Project, ProjectSchema } from '@shared/types';
 import type { DetectInput } from '../detection/detect-project';
+import type { Logger } from '../logger';
 import type { StoreService } from '../store/store-service';
 
 export interface ProjectServiceDeps {
@@ -13,6 +14,7 @@ export interface ProjectServiceDeps {
   detect(input: DetectInput): Promise<DetectedProject>;
   newId(): string;
   onChanged(): void;
+  logger: Logger;
 }
 
 const MAX_NAME_LENGTH = 100;
@@ -29,8 +31,19 @@ export class ProjectService {
 
   constructor(private readonly deps: ProjectServiceDeps) {}
 
+  /** Detections in progress by root id; list() and refresh() join them instead of starting another. */
+  private readonly inflight = new Map<string, Promise<DetectedProject>>();
+
+  /**
+   * Starts detecting every stored project in the background. Never rejects: a failure is logged by
+   * project id and that project is detected again on the next list(). Callers need not await it.
+   */
   async init(): Promise<void> {
-    await Promise.all(this.deps.store.getProjects().map((p) => this.detectAndCache(p)));
+    const projects = [...this.deps.store.getProjects()];
+    const results = await Promise.allSettled(projects.map((p) => this.detectAndCache(p)));
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') this.deps.logger.warn('detection failed', { projectId: projects[i]?.id ?? null });
+    });
   }
 
   async list(): Promise<ProjectSummary[]> {
@@ -83,6 +96,8 @@ export class ProjectService {
 
   async refresh(id: string): Promise<ProjectSummary> {
     const project = this.requireRoot(splitProjectId(id).rootId);
+    // A detection started before this refresh may predate the change the user is refreshing for.
+    await this.inflight.get(project.id)?.catch(() => undefined);
     const detected = await this.detectAndCache(project);
     if (!this.deps.store.getProjects().some((p) => p.id === project.id)) {
       throw new NestboxError('NOT_FOUND', 'Project not found');
@@ -112,13 +127,21 @@ export class ProjectService {
     return this.toSummary(project, this.getDetected(id));
   }
 
-  private async detectAndCache(project: Project): Promise<DetectedProject> {
-    const detected = await this.deps.detect({ id: project.id, path: project.path, name: project.name });
-    // The project may have been removed while detection was running.
-    if (this.deps.store.getProjects().some((p) => p.id === project.id)) {
-      this.detected.set(project.id, detected);
-    }
-    return detected;
+  private detectAndCache(project: Project): Promise<DetectedProject> {
+    const running = this.inflight.get(project.id);
+    if (running) return running;
+    const detection = this.deps
+      .detect({ id: project.id, path: project.path, name: project.name })
+      .then((detected) => {
+        // The project may have been removed while detection was running.
+        if (this.deps.store.getProjects().some((p) => p.id === project.id)) {
+          this.detected.set(project.id, detected);
+        }
+        return detected;
+      })
+      .finally(() => this.inflight.delete(project.id));
+    this.inflight.set(project.id, detection);
+    return detection;
   }
 
   private assertNotDuplicate(path: string): void {

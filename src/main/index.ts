@@ -39,7 +39,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => app.quit()); // M1: hide to tray when closeToTray is set
 
-  void app.whenReady().then(async () => {
+  void app.whenReady().then(() => {
     const store = new StoreService(createElectronStoreBackend(app.getPath('userData')), logger);
     const platform = createPlatformAdapter({
       runner: spawnRunner,
@@ -60,8 +60,10 @@ if (!app.requestSingleInstanceLock()) {
         }),
       newId: randomUUID,
       onChanged: () => emit('projects:changed'),
+      logger,
     });
-    await projects.init();
+    // Not awaited: the window opens while detection runs; projects:list joins the in-flight work.
+    void projects.init();
 
     const toolHost = createToolHost({
       tools: mainTools,
