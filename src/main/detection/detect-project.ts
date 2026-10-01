@@ -8,7 +8,10 @@ import { readGitInfo } from './git-head';
 import { detectPackageManager } from './package-manager';
 import { findWorkspaceDirs } from './workspaces';
 
-export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml';
+export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root';
+
+/** `.env`, `.env.local`, `.env.production.local`, … but not `.envrc`. */
+export const ENV_FILE_PATTERN = /^\.env(\..+)?$/;
 
 export interface DetectInput {
   id: string;
@@ -92,6 +95,7 @@ function missingProject(target: DirTarget): DetectedProject {
     packageJson: null,
     packageManager: null,
     envFiles: [],
+    envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
     dockerCompose: null,
@@ -108,9 +112,23 @@ async function detectDir(
   if (!(await isDirectory(target.path))) {
     return { detected: missingProject(target), rawPackageJson: null };
   }
-  const entries: Dirent[] = await readdir(target.path, { withFileTypes: true }).catch(() => []);
+  const entries: Dirent[] = await readdir(target.path, { withFileTypes: true }).catch(() => {
+    options.onWarning?.(target.relPath || '.', 'unreadable');
+    return [];
+  });
   const files = new Set(entries.filter((e) => e.isFile()).map((e) => e.name));
   const dirs = new Set(entries.filter((e) => e.isDirectory()).map((e) => e.name));
+  const envNames = entries.filter((e) => ENV_FILE_PATTERN.test(e.name)).map((e) => e.name);
+  const envSymlinks: string[] = [];
+  const envFiles: string[] = [];
+  for (const name of envNames) {
+    const entry = entries.find((e) => e.name === name);
+    if (entry?.isFile()) envFiles.push(name);
+    else if (entry?.isSymbolicLink() && (await isFile(join(target.path, name)))) {
+      envFiles.push(name);
+      envSymlinks.push(name);
+    }
+  }
 
   const pkg = files.has('package.json')
     ? await readPackageJson(join(target.path, 'package.json'), label(target, 'package.json'), options)
@@ -125,7 +143,8 @@ async function detectDir(
     missing: false,
     packageJson: pkg?.info ?? null,
     packageManager: target.inheritedPackageManager ?? detectPackageManager(files),
-    envFiles: [...files].filter((n) => n.startsWith('.env')).sort(),
+    envFiles: envFiles.sort(),
+    envSymlinks: envSymlinks.sort(),
     workspaces: [],
     prismaSchema: await detectPrisma(target.path),
     dockerCompose: COMPOSE_FILES.find((f) => files.has(f)) ?? null,

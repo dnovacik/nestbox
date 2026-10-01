@@ -6,7 +6,7 @@ import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
   id: 'p1', rootId: 'p1', path: 'C:\\Dev\\R&D Shop', relPath: '', name: 'shop', missing: false,
-  packageJson: null, packageManager: null, envFiles: [], workspaces: [], prismaSchema: null,
+  packageJson: null, packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null,
   dockerCompose: null, git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   ...over,

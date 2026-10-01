@@ -22,7 +22,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
     missing: false,
     packageJson: null,
     packageManager: 'pnpm',
-    envFiles: [],
+    envFiles: [], envSymlinks: [],
     workspaces: [
       { ...emptyDetected(), id: `${input.id}::packages/api`, rootId: input.id, relPath: 'packages/api', name: 'api', path: `${input.path}\\packages\\api` },
     ],
@@ -37,7 +37,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
 function emptyDetected(): DetectedProject {
   return {
     id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false, packageJson: null,
-    packageManager: null, envFiles: [], workspaces: [], prismaSchema: null, dockerCompose: null,
+    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null,
     git: null, buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   };

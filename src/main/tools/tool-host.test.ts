@@ -14,7 +14,7 @@ import { noopRunner } from '../platform/testing';
 
 const project: DetectedProject = {
   id: 'p1', rootId: 'p1', path: '/p', relPath: '', name: 'shop', missing: false,
-  packageJson: { name: 'shop', scripts: {} }, packageManager: 'pnpm', envFiles: [], workspaces: [],
+  packageJson: { name: 'shop', scripts: {} }, packageManager: 'pnpm', envFiles: [], envSymlinks: [], workspaces: [],
   prismaSchema: null, dockerCompose: null, git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
 };

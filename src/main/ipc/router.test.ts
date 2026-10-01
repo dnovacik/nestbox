@@ -171,7 +171,7 @@ function summary(): ProjectSummary {
     id: 'a', name: 'New', path: 'C:\\a', pinned: false, tags: [],
     detected: {
       id: 'a', rootId: 'a', path: 'C:\\a', relPath: '', name: 'New', missing: false, packageJson: null,
-      packageManager: null, envFiles: [], workspaces: [], prismaSchema: null, dockerCompose: null,
+      packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null,
       git: null, buildOutput: null,
       claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
     },

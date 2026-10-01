@@ -1,3 +1,4 @@
+import { symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeTree, removeTree } from './test-fixtures';
@@ -62,5 +63,33 @@ describe('findWorkspaceDirs', () => {
       'sibling/package.json': PKG,
     });
     expect(await findWorkspaceDirs(join(dir, 'proj'), {})).toEqual(['packages/a']);
+  });
+
+  it('skips a symlinked package that resolves outside the root, with a warning', async (ctx) => {
+    const outside = await makeTree({ 'package.json': PKG });
+    try {
+      dir = await makeTree({ 'package.json': PKG, 'packages/api/package.json': PKG, packages: null });
+      try {
+        // 'junction' makes a directory link without a privilege on Windows; it is ignored elsewhere.
+        await symlink(outside, join(dir, 'packages', 'linked'), 'junction');
+      } catch {
+        ctx.skip();
+      }
+      const onWarning = vi.fn();
+      expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] }, { onWarning })).toEqual(['packages/api']);
+      expect(onWarning).toHaveBeenCalledWith('packages/linked', 'outside-root');
+    } finally {
+      await removeTree(outside);
+    }
+  });
+
+  it('keeps a symlinked package that resolves inside the root', async (ctx) => {
+    dir = await makeTree({ 'package.json': PKG, 'libs/real/package.json': PKG, packages: null });
+    try {
+      await symlink(join(dir, 'libs', 'real'), join(dir, 'packages', 'alias'), 'junction');
+    } catch {
+      ctx.skip();
+    }
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual(['packages/alias']);
   });
 });

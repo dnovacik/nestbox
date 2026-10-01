@@ -11,7 +11,7 @@ export function makeDetectedForTest(over: Partial<DetectedProject> = {}): Detect
     missing: false,
     packageJson: { name: 'shop', scripts: {} },
     packageManager: 'pnpm',
-    envFiles: [],
+    envFiles: [], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
     dockerCompose: null,
