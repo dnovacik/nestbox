@@ -100,3 +100,33 @@ describe('detectProject', () => {
     expect((await detectProject({ id: 'p', path: dir })).git).toEqual({ branch: 'main', head: null });
   });
 });
+
+describe('detectProject workspaces', () => {
+  it('nests workspace packages with derived ids and the root package manager', async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }),
+      'pnpm-lock.yaml': '',
+      'packages/api/package.json': JSON.stringify({ name: '@mono/api', scripts: { dev: 'tsx watch' } }),
+      'packages/api/.env.example': 'PORT=',
+      'packages/web/package.json': JSON.stringify({ name: '@mono/web' }),
+    });
+    const d = await detectProject({ id: 'root', path: dir });
+    expect(d.workspaces.map((w) => [w.id, w.relPath, w.name, w.packageManager])).toEqual([
+      ['root::packages/api', 'packages/api', '@mono/api', 'pnpm'],
+      ['root::packages/web', 'packages/web', '@mono/web', 'pnpm'],
+    ]);
+    expect(d.workspaces[0]?.envFiles).toEqual(['.env.example']);
+    expect(d.workspaces[0]?.workspaces).toEqual([]);
+    expect(d.workspaces[0]?.rootId).toBe('root');
+  });
+
+  it('labels warnings from workspace packages with their relative path', async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
+      'packages/bad/package.json': '{oops',
+    });
+    const onWarning = vi.fn();
+    await detectProject({ id: 'root', path: dir }, { onWarning });
+    expect(onWarning).toHaveBeenCalledWith('packages/bad/package.json', 'invalid-json');
+  });
+});
