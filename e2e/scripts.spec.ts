@@ -59,15 +59,15 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   await page.getByRole('button', { name: 'Start serve' }).click();
   await expect(page.getByRole('log', { name: 'serve output' })).toContainText('listening', { timeout: 30_000 });
   const serverPid = await readPid(project);
-  // Give the background start-time lookup (PowerShell) time to reach the ledger.
-  await page.waitForTimeout(3_000);
 
   // Kill only the main process, like ending electron.exe in Task Manager's Details tab. Its children
   // (cmd.exe, npm, the server) are not part of a job, so they keep running.
   const mainPid = app.process().pid;
   if (mainPid === undefined) throw new Error('no main pid');
   process.kill(mainPid, 'SIGKILL');
-  await expect.poll(() => closed, { timeout: 10_000 }).toBe(true);
+  // Playwright's 'close' event does not fire for a killed main process: watch the PID instead.
+  await expect.poll(() => isAlive(mainPid), { timeout: 10_000 }).toBe(false);
+  closed = true;
   expect(isAlive(serverPid)).toBe(true);
 
   ({ app, page } = await launch(project, { userData }));

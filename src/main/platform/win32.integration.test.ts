@@ -25,7 +25,8 @@ async function waitUntil(check: () => boolean, ms = 10_000): Promise<void> {
 describe.runIf(process.platform === 'win32')('win32 process control (integration)', () => {
   const adapter = createWin32Adapter({ runner: spawnRunner, getEditorCommand: () => 'code' });
   const dir = mkdtempSync(join(tmpdir(), 'nestbox-tree-'));
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  // A process still using the folder as its cwd keeps it locked for a moment after it is killed.
+  afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
 
   it('spawns through cmd.exe, reads the start time and kills the process', async () => {
     const child = adapter.spawnScript({
@@ -35,13 +36,18 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
       env: process.env,
     });
     await new Promise((r) => child.once('spawn', r));
+    const spawnedAt = Date.now();
     const pid = child.pid ?? 0;
-    const started = await adapter.processStartTime(pid);
-    expect(started).not.toBeNull();
-    expect(Math.abs((started ?? 0) - Date.now())).toBeLessThan(10_000);
-    await adapter.killTree(pid);
+    try {
+      // A cold PowerShell on a CI runner can take over 10 s.
+      const started = await adapter.processStartTime(pid);
+      expect(started).not.toBeNull();
+      expect(Math.abs((started ?? 0) - spawnedAt)).toBeLessThan(3_000);
+    } finally {
+      await adapter.killTree(pid);
+    }
     await waitUntil(() => !isAlive(pid));
-  }, 30_000);
+  }, 60_000);
 
   it('kills grandchildren too', async () => {
     writeFileSync(join(dir, 'leaf.js'), 'console.log(process.pid); setInterval(() => {}, 1000);');

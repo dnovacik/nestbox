@@ -53,7 +53,8 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
         const { code, stdout } = await deps.runner.exec(
           'powershell.exe',
           ['-NoProfile', '-NonInteractive', '-Command', script],
-          { timeoutMs: 10_000 },
+          // A cold PowerShell can take over 10 s; this only runs at startup (orphan check).
+          { timeoutMs: 30_000 },
         );
         if (code !== 0) return null;
         // .NET's round-trip format has 7 fractional digits; Date.parse wants at most 3.

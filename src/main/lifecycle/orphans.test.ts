@@ -4,8 +4,8 @@ import { findOrphans } from './orphans';
 const entry = (pid: number, startTime: number | null) => ({ pid, startTime, projectId: 'p1', script: 'dev' });
 
 describe('findOrphans', () => {
-  it('returns entries whose start time still matches', async () => {
-    const startTimeOf = vi.fn(async (pid: number) => (pid === 1 ? 10_500 : 15_000));
+  it('returns entries whose start time still matches the recorded spawn time', async () => {
+    const startTimeOf = vi.fn(async (pid: number) => (pid === 1 ? 7_600 : 14_000));
     expect(await findOrphans([entry(1, 10_000), entry(2, 10_000)], startTimeOf)).toEqual([entry(1, 10_000)]);
   });
 

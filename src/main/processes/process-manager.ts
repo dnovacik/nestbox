@@ -45,7 +45,7 @@ export type ProcessEvent =
   | { type: 'crashed'; summary: ProcessSummary; final: boolean };
 
 export interface ProcessManagerDeps {
-  platform: Pick<PlatformAdapter, 'spawnScript' | 'killTree' | 'processStartTime' | 'resolveShellEnv'>;
+  platform: Pick<PlatformAdapter, 'spawnScript' | 'killTree' | 'resolveShellEnv'>;
   ledger: Pick<PidLedger, 'add' | 'remove'>;
   /** Buffer capacity for a script's log, read when its buffer is created. */
   bufferLines(): number;
@@ -338,16 +338,9 @@ export class ProcessManager {
         this.changed();
       }
     });
-    // Recorded at once; the start time (a PowerShell call on Windows) is filled in when it arrives,
-    // so start() never waits for it. Until then the entry is never offered as an orphan.
-    const record = { pid, projectId: entry.req.projectId, script: entry.req.script };
-    this.deps.ledger.add({ ...record, startTime: null });
-    void this.deps.platform
-      .processStartTime(pid)
-      .catch(() => null)
-      .then((startTime) => {
-        if (startTime !== null && run === entry.run && !closed) this.deps.ledger.add({ ...record, startTime });
-      });
+    // The spawn time stands in for the OS creation time (they differ by milliseconds). Asking the OS
+    // (PowerShell on Windows) can take over 10 s on a cold machine, so it is left to the orphan check.
+    this.deps.ledger.add({ pid, startTime: this.now(), projectId: entry.req.projectId, script: entry.req.script });
     this.changed();
   }
 

@@ -1,7 +1,10 @@
 import type { LedgerEntry } from '../processes/pid-ledger';
 
-/** A recorded process counts as the same process only if its start time matches this closely. */
-export const START_TIME_TOLERANCE_MS = 1_000;
+/**
+ * A recorded process counts as the same process only if its OS creation time is this close to the
+ * recorded spawn time (which is taken a few milliseconds after creation).
+ */
+export const START_TIME_TOLERANCE_MS = 3_000;
 
 /**
  * The recorded processes that are still running as the same process. A PID alone proves nothing (Windows

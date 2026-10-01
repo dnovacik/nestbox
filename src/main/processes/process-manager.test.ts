@@ -51,32 +51,23 @@ describe('ProcessManager start', () => {
     expect(platform.spawnScript).toHaveBeenCalledWith(expect.objectContaining({ command: 'npm' }));
   });
 
-  it('records the PID before start resolves, without waiting for the start time', async () => {
+  it('records the PID with the spawn time before start resolves, without asking the OS', async () => {
     const { pm, platform, ledger } = setup();
-    let answer!: (ms: number | null) => void;
-    platform.processStartTime.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    vi.setSystemTime(1_700_000_000_000);
     const summary = await pm.start(req());
     expect(summary).toMatchObject({ state: 'starting', pid: 1000 });
-    expect(ledger.add).toHaveBeenCalledWith({ pid: 1000, startTime: null, projectId: 'p1', script: 'dev' });
-    answer(1_700_000_000_000);
-    await flushIo();
-    expect(ledger.add).toHaveBeenLastCalledWith({ pid: 1000, startTime: 1_700_000_000_000, projectId: 'p1', script: 'dev' });
+    expect(ledger.add).toHaveBeenCalledTimes(1);
+    expect(ledger.add).toHaveBeenCalledWith({ pid: 1000, startTime: 1_700_000_000_000, projectId: 'p1', script: 'dev' });
+    // The OS lookup (PowerShell on Windows) can take seconds; it is only used by the orphan check.
+    expect(platform.processStartTime).not.toHaveBeenCalled();
   });
 
-  it('keeps a null start time when it cannot be read, and never records a closed process', async () => {
+  it('never records a process that closed before it spawned', async () => {
     const { pm, platform, ledger } = setup();
-    platform.processStartTime.mockRejectedValueOnce(new Error('no powershell'));
+    platform.failNextSpawn();
     await pm.start(req());
     await flushIo();
-    expect(ledger.add).toHaveBeenCalledTimes(1);
-    let answer!: (ms: number | null) => void;
-    platform.processStartTime.mockImplementationOnce(() => new Promise((r) => (answer = r)));
-    await pm.start(req({ script: 'quick' }));
-    platform.last().exit(0);
-    await flushIo();
-    answer(5);
-    await flushIo();
-    expect(ledger.add).not.toHaveBeenCalledWith(expect.objectContaining({ script: 'quick', startTime: 5 }));
+    expect(ledger.add).not.toHaveBeenCalled();
   });
 
   it('promotes starting to running after 3 s', async () => {

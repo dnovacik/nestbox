@@ -5,7 +5,7 @@ import type { Logger } from '../logger';
 
 export const LedgerEntrySchema = z.object({
   pid: z.number().int().positive(),
-  /** epoch ms from processStartTime; null when it could not be read (such entries are never killed). */
+  /** Spawn time in epoch ms, compared with the OS creation time by the orphan check. null entries are never killed. */
   startTime: z.number().nullable(),
   projectId: z.string(),
   script: z.string(),

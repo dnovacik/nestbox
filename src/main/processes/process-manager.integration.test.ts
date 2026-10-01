@@ -16,7 +16,6 @@ const platform: ProcessManagerDeps['platform'] = {
   killTree: async (pid) => {
     process.kill(pid);
   },
-  processStartTime: async () => Date.now(),
   resolveShellEnv: async () => ({ ...process.env }),
 };
 
