@@ -1,13 +1,16 @@
 import { act, screen } from '@testing-library/react';
+import { useMemo } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { LogLineStore } from './line-store';
+import { scriptLogSource } from '@/tools/scripts/script-log-source';
 import { useLogStream } from './use-log-stream';
 
 function Probe() {
-  const { lines, status } = useLogStream('p1', 'dev');
+  const source = useMemo(() => scriptLogSource('p1', 'dev'), []);
+  const { lines, status } = useLogStream(source);
   return (
     <div>
       <span data-testid="status">{status}</span>

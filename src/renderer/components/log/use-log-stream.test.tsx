@@ -1,15 +1,17 @@
 import { act, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { LogLine, LogSnapshot } from '@shared/processes';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
+import { scriptLogSource } from '@/tools/scripts/script-log-source';
 import { useLogStream } from './use-log-stream';
 
 const l = (seq: number, text = `line ${seq}`): LogLine => ({ seq, ts: seq, stream: 'stdout', text });
 
 function Probe({ projectId = 'p1', script = 'dev', id = 'a' }: { projectId?: string; script?: string | null; id?: string }) {
-  const { lines, status, clear } = useLogStream(projectId, script);
+  const source = useMemo(() => (script === null ? null : scriptLogSource(projectId, script)), [projectId, script]);
+  const { lines, status, clear } = useLogStream(source);
   return (
     <div>
       <span data-testid={`status-${id}`}>{status}</span>

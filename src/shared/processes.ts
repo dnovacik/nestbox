@@ -72,3 +72,6 @@ export const NavigateSchema = z.object({
   script: z.string().optional(),
 });
 export type Navigate = z.infer<typeof NavigateSchema>;
+
+/** Most seqs a log export may name; a larger filtered export is refused in the renderer. */
+export const MAX_EXPORT_SEQS = 100_000;
