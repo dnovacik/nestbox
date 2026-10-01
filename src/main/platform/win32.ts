@@ -83,6 +83,16 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       return deps.runner.spawn(inv.file, inv.args, { cwd: opts.cwd, env: opts.env, verbatim: true });
     },
 
+    spawnCommand(opts) {
+      const inv = cmdInvocation(opts.command, opts.args);
+      return deps.runner.spawn(inv.file, inv.args, {
+        cwd: opts.cwd,
+        env: opts.env,
+        verbatim: true,
+        ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }),
+      });
+    },
+
     async killTree(pid) {
       assertPid(pid);
       const { code } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { timeoutMs: 10_000 });

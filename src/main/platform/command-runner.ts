@@ -48,12 +48,18 @@ export const spawnRunner: CommandRunner = {
   },
 
   spawn(file, args, opts) {
-    return spawn(file, [...args], {
+    const child = spawn(file, [...args], {
       cwd: opts.cwd,
       env: opts.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [opts.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       windowsHide: true,
       windowsVerbatimArguments: opts.verbatim ?? false,
     });
+    if (opts.stdin !== undefined) {
+      // A child that exits before reading everything closes the pipe: that's not our error to report.
+      child.stdin?.on('error', () => undefined);
+      child.stdin?.end(opts.stdin);
+    }
+    return child;
   },
 };

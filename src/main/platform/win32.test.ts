@@ -267,6 +267,36 @@ describe('win32 other members', () => {
   });
 });
 
+describe('win32 spawnCommand', () => {
+  it('runs the command through cmd.exe and hands stdin to the runner', () => {
+    const runner = fakeRunner();
+    const child = {} as ChildProcess;
+    vi.mocked(runner.spawn).mockReturnValue(child);
+    const env = { PATH: 'x' };
+    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code' }).spawnCommand({
+      cwd: 'C:\\a',
+      command: 'claude',
+      args: ['-p'],
+      env,
+      stdin: 'what does "this" do?',
+    });
+    expect(result).toBe(child);
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', cmdInvocation('claude', ['-p']).args, {
+      cwd: 'C:\\a',
+      env,
+      verbatim: true,
+      stdin: 'what does "this" do?',
+    });
+  });
+
+  it('refuses quotes in the command line itself', () => {
+    const adapter = createWin32Adapter({ runner: fakeRunner(), getEditorCommand: () => 'code' });
+    expect(() => adapter.spawnCommand({ cwd: 'C:\\', command: 'claude', args: ['"x"'], env: {} })).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+  });
+});
+
 describe('win32 spawnScript', () => {
   it('runs the package manager through cmd.exe with escaped arguments', () => {
     const runner = fakeRunner();

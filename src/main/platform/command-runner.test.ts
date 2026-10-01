@@ -49,4 +49,16 @@ describe('spawnRunner.spawn', () => {
     expect(out.trim()).toBe(process.cwd());
     expect(err.trim()).toBe('ok');
   });
+
+  it('writes stdin when asked and closes it', async () => {
+    const child = spawnRunner.spawn(node, ['-e', 'process.stdin.pipe(process.stdout)'], {
+      cwd: process.cwd(),
+      env: process.env,
+      stdin: 'say "hi"\nand bye',
+    });
+    let out = '';
+    child.stdout?.on('data', (c: Buffer) => (out += c.toString()));
+    await new Promise((r) => child.once('close', r));
+    expect(out).toBe('say "hi"\nand bye');
+  });
 });

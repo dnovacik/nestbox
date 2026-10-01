@@ -10,6 +10,7 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
     killTree: async () => notImplemented('killTree'),
     listProcesses: async () => notImplemented('listProcesses'),
     spawnScript: () => notImplemented('spawnScript'),
+    spawnCommand: () => notImplemented('spawnCommand'),
     openTerminal: async () => notImplemented('openTerminal'),
     openInEditor: async () => notImplemented('openInEditor'),
     resolveShellEnv: async () => notImplemented('resolveShellEnv'),
