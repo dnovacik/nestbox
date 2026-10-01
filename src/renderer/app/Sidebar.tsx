@@ -19,6 +19,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
   const setFilter = useUiStore((s) => s.setFilter);
   const addProject = useAddProject();
   const visible = filterProjects(projects, filter);
+  const filtering = filter.trim() !== '';
   const pinned = visible.filter((p) => p.pinned);
   const others = visible.filter((p) => !p.pinned);
 
@@ -36,9 +37,22 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
           />
         </div>
         {pinned.length > 0 && (
-          <ProjectSection title="Pinned" count={pinned.length} projects={pinned} selectedId={selectedId} />
+          <ProjectSection title="Pinned" count={String(pinned.length)} projects={pinned} selectedId={selectedId} />
         )}
-        <ProjectSection title="All projects" count={projects.length} projects={others} selectedId={selectedId} />
+        <ProjectSection
+          title="All projects"
+          count={filtering ? `${visible.length} of ${projects.length}` : String(projects.length)}
+          projects={others}
+          selectedId={selectedId}
+        />
+        {filtering && visible.length === 0 && (
+          <div className="space-y-2 px-2 text-xs text-fg-muted">
+            <p>No projects match “{filter.trim()}”.</p>
+            <Button variant="ghost" size="sm" onClick={() => setFilter('')}>
+              Clear filter
+            </Button>
+          </div>
+        )}
       </div>
       <div className="border-t border-line p-3">
         <Button
@@ -56,7 +70,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
   );
 }
 
-function ProjectSection({ title, count, projects, selectedId }: SidebarProps & { title: string; count: number }) {
+function ProjectSection({ title, count, projects, selectedId }: SidebarProps & { title: string; count: string }) {
   return (
     <section aria-label={title}>
       <h2 className="mb-1.5 flex items-center justify-between px-2 text-[10px] font-semibold tracking-wider text-fg-muted uppercase">

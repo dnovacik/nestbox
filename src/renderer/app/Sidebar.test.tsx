@@ -56,6 +56,18 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: /gone/ })).toHaveTextContent('missing');
   });
 
+  it('shows the filtered count and a no-match hint that clears the filter', async () => {
+    renderSidebar();
+    const all = screen.getByRole('region', { name: 'All projects' });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Filter projects' }), 'sho');
+    expect(within(all).getByText('1 of 3')).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Filter projects' }), 'zzz');
+    expect(screen.getByText('No projects match “shozzz”.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(screen.getByRole('textbox', { name: 'Filter projects' })).toHaveValue('');
+    expect(within(all).getByText('3')).toBeInTheDocument();
+  });
+
   describe('process state dots', () => {
     const dotOf = (name: string) => screen.getByRole('button', { name }).querySelector('[data-state]');
 

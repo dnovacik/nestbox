@@ -171,7 +171,10 @@ export function useProjectsChangedSubscription(): void {
   useEffect(
     () =>
       api.on('projects:changed', () => {
+        // Detection results feed tool lists and tool data (scripts, facts), so all three go stale together.
         void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+        void queryClient.invalidateQueries({ queryKey: ['tools'] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.toolCalls });
       }),
     [queryClient],
   );

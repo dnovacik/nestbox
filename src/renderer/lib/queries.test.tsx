@@ -1,13 +1,13 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import { useUiStore } from '@/state/ui-store';
 import { installMockBridge } from '@/test/mock-bridge';
 import { makeSummary } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { AppSettingsSchema } from '@shared/types';
-import { useAddProject, useSettings, useUpdateSettings } from './queries';
+import { useAddProject, useProjectsChangedSubscription, useSettings, useUpdateSettings } from './queries';
 
 function AddButton() {
   const add = useAddProject();
@@ -92,5 +92,20 @@ describe('settings hooks', () => {
     await screen.findByText('tray: true');
     await userEvent.click(screen.getByRole('button', { name: 'off' }));
     expect(await screen.findByText('Settings are read-only; changes cannot be saved')).toBeInTheDocument();
+  });
+});
+
+function ChangedSubscriber() {
+  useProjectsChangedSubscription();
+  return null;
+}
+
+describe('useProjectsChangedSubscription', () => {
+  it('invalidates projects, tool lists and tool data', () => {
+    const bridge = installMockBridge({});
+    const { client } = renderWithProviders(<ChangedSubscriber />);
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    act(() => bridge.emit('projects:changed'));
+    expect(spy.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['projects'], ['tools'], ['tool']]);
   });
 });

@@ -151,7 +151,7 @@ describe('tabs and tools', () => {
     const tab = await screen.findByRole('tab', { name: 'Overview' });
     expect(tab).toHaveAttribute('aria-selected', 'true');
     const card = await screen.findByRole('region', { name: 'Project info' });
-    expect(within(card).getByText('pnpm')).toBeInTheDocument();
+    expect(await within(card).findByText('pnpm')).toBeInTheDocument();
     expect(within(card).getByText('2 scripts')).toBeInTheDocument();
   });
 

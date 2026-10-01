@@ -5,7 +5,7 @@ import { getRendererTool } from '@/tools/registry';
 import type { ProjectNode } from './find-project';
 import { OverviewGrid } from './OverviewGrid';
 import { ProjectHeader } from './ProjectHeader';
-import { OVERVIEW_TAB, ToolTabs } from './ToolTabs';
+import { OVERVIEW_TAB, panelId, tabId, ToolTabs } from './ToolTabs';
 
 export function ProjectView({ node }: { node: ProjectNode }) {
   const projectId = node.detected.id;
@@ -20,8 +20,13 @@ export function ProjectView({ node }: { node: ProjectNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ProjectHeader node={node} />
-      {!missing && <ToolTabs tools={tools} active={active} onSelect={(tab) => setActiveTab(projectId, tab)} />}
-      <div className={tool?.fullHeight ? 'min-h-0 flex-1 overflow-hidden p-4' : 'min-h-0 flex-1 overflow-y-auto p-6'}>
+      {!missing && (
+        <ToolTabs projectId={projectId} tools={tools} active={active} onSelect={(tab) => setActiveTab(projectId, tab)} />
+      )}
+      <div
+        {...(missing ? {} : { role: 'tabpanel', id: panelId(projectId), 'aria-labelledby': tabId(projectId, active), tabIndex: 0 })}
+        className={tool?.fullHeight ? 'min-h-0 flex-1 overflow-hidden p-4' : 'min-h-0 flex-1 overflow-y-auto p-6'}
+      >
         {missing ? (
           <p className="text-sm text-fg-muted">
             The project folder no longer exists at <span className="font-mono text-fg">{node.detected.path}</span>.
