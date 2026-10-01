@@ -6,6 +6,8 @@ import { subscribeToolEvent } from '@/lib/tool-events';
 import { LogLineStore } from './line-store';
 
 const DEFAULT_CAP = 50_000;
+/** A failed snapshot (e.g. the project is still being detected) is retried after this long. */
+export const RETRY_MS = 2_000;
 const EMPTY: readonly LogLine[] = [];
 
 interface Shared {
@@ -28,6 +30,7 @@ function acquire(projectId: string, script: string, cap: number): Shared {
   }
   const store = new LogLineStore(cap);
   let disposed = false;
+  let retry: ReturnType<typeof setTimeout> | undefined;
   const shared: Shared = { store, refs: 1, status: 'loading', statusListeners: new Set(), dispose: () => {} };
   const setStatus = (status: Shared['status']): void => {
     shared.status = status;
@@ -47,6 +50,7 @@ function acquire(projectId: string, script: string, cap: number): Shared {
     } catch {
       if (disposed) return;
       setStatus('error');
+      retry = setTimeout(() => void fetch(mode), RETRY_MS);
     }
   };
   // Subscribe before fetching, so no batch emitted after the snapshot can be missed.
@@ -55,6 +59,7 @@ function acquire(projectId: string, script: string, cap: number): Shared {
   });
   shared.dispose = () => {
     disposed = true;
+    clearTimeout(retry);
     off();
   };
   streams.set(key, shared);

@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { MAX_EXPORT_SEQS } from '@shared/tools/scripts/contract';
 import { cn } from '@/lib/utils';
-import { contextsOf, type LogFilters, NO_FILTERS, searchHits, structuredFilterActive, visibleLines } from './filters';
+import { type LogFilters, NO_FILTERS, searchHits, structuredFilterActive, visibleLines } from './filters';
 import type { LinkMatch } from './links';
+import { structuredOf } from './structured';
+import type { LogLine } from '@shared/processes';
 import { LogRow } from './LogRow';
 import { LogToolbar } from './LogToolbar';
 import { useExportLogs, useOpenFileAt } from './use-scripts';
@@ -23,6 +25,30 @@ export interface LogPaneProps {
 const ROW_HEIGHT = 20;
 const BOTTOM_SLACK = 4;
 
+/**
+ * Contexts seen so far, updated from new lines only (the full buffer can hold a million lines and
+ * changes every 50 ms). Contexts of cleared lines stay listed, which is harmless.
+ */
+function useContexts(lines: readonly LogLine[]): string[] {
+  const seen = useRef({ set: new Set<string>(), upto: 0, list: [] as string[] });
+  return useMemo(() => {
+    const state = seen.current;
+    let added = false;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      if (!line || line.seq <= state.upto) break;
+      const context = structuredOf(line)?.context;
+      if (context && !state.set.has(context)) {
+        state.set.add(context);
+        added = true;
+      }
+    }
+    state.upto = Math.max(state.upto, lines.at(-1)?.seq ?? 0);
+    if (added) state.list = [...state.set].sort();
+    return state.list;
+  }, [lines]);
+}
+
 export function LogPane({ projectId, script, scripts, onScriptChange, active, onActivate }: LogPaneProps) {
   const { lines, status, clear } = useLogStream(projectId, script);
   const [filters, setFilters] = useState<LogFilters>(NO_FILTERS);
@@ -36,7 +62,7 @@ export function LogPane({ projectId, script, scripts, onScriptChange, active, on
 
   const visible = useMemo(() => visibleLines(lines, filters), [lines, filters]);
   const hits = useMemo(() => searchHits(visible, query), [visible, query]);
-  const contexts = useMemo(() => contextsOf(lines), [lines]);
+  const contexts = useContexts(lines);
   const currentHit = hits.length > 0 ? hits[Math.min(hitIndex, hits.length - 1)] : undefined;
 
   const virtualizer = useVirtualizer({
@@ -123,7 +149,7 @@ export function LogPane({ projectId, script, scripts, onScriptChange, active, on
       {script === null ? (
         <p className="p-4 text-xs text-fg-muted">Pick a script to see its output.</p>
       ) : status === 'error' ? (
-        <p className="p-4 text-xs text-err">Couldn't load the output of {script}.</p>
+        <p className="p-4 text-xs text-err">Couldn't load the output of {script}. Retrying…</p>
       ) : (
         <div
           ref={scrollRef}

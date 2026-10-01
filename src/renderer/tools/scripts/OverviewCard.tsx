@@ -1,5 +1,5 @@
 import { aggregateState, belongsTo, isLive } from '@shared/processes';
-import { WORKSPACE_ID_SEPARATOR } from '@shared/detected';
+import { splitProjectId } from '@shared/detected';
 import { StateDot } from '@/components/StateDot';
 import { Button } from '@/components/ui/button';
 import { useProcesses } from '@/lib/queries';
@@ -22,7 +22,7 @@ export function ScriptsCard({ projectId }: ToolPanelProps) {
             <li key={`${p.projectId}/${p.script}`} className="flex items-center gap-2">
               <StateDot state={aggregateState([p.state])} />
               <span className="truncate font-mono text-fg">
-                {p.projectId === projectId ? p.script : `${p.projectId.split(WORKSPACE_ID_SEPARATOR)[1] ?? ''} · ${p.script}`}
+                {p.projectId === projectId ? p.script : `${splitProjectId(p.projectId).relPath} · ${p.script}`}
               </span>
               <span className="ml-auto text-fg-muted">{p.state}</span>
             </li>

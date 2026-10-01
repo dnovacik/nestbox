@@ -53,9 +53,16 @@ export class LogLineStore {
     return status;
   }
 
+  /** Lines queued while waiting for a snapshot; bounded by the cap. */
+  get pendingSize(): number {
+    return this.pending.length;
+  }
+
   append(batch: readonly LogLine[]): ApplyStatus {
     if (!this.ready) {
       this.pending.push(...batch);
+      // Only the newest `cap` lines could ever be shown; older ones would be dropped on apply anyway.
+      if (this.pending.length > this.cap) this.pending = this.pending.slice(-this.cap);
       return 'ok';
     }
     const status = this.appendContiguous(batch);

@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useProcesses } from '@/lib/queries';
-import { WORKSPACE_ID_SEPARATOR } from '@shared/detected';
+import { workspaceId } from '@shared/detected';
 import { useRunGroupActions, useScriptList } from './use-scripts';
 
 const sameEntry = (a: RunGroupEntry, b: RunGroupEntry): boolean => a.relPath === b.relPath && a.script === b.script;
@@ -109,8 +109,7 @@ export function RunGroups({ projectId }: { projectId: string }) {
   if (!data?.runGroups || !data.packages) return null;
   const packages = data.packages;
 
-  const processIdOf = (entry: RunGroupEntry) =>
-    entry.relPath === '' ? projectId : `${projectId}${WORKSPACE_ID_SEPARATOR}${entry.relPath}`;
+  const processIdOf = (entry: RunGroupEntry) => (entry.relPath === '' ? projectId : workspaceId(projectId, entry.relPath));
   const liveIn = (group: RunGroup) =>
     group.entries.some((e) => processes.some((p) => p.projectId === processIdOf(e) && p.script === e.script && isLive(p.state)));
 
