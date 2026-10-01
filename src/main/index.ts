@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,7 +26,6 @@ import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
-import { otherInstanceRunning, parseInstanceRecord, serializeInstanceRecord } from './lifecycle/instance-record';
 import { handleOrphans } from './lifecycle/orphan-prompt';
 import { createQuitController, SHUTDOWN_TIMEOUT_MS } from './lifecycle/quit-controller';
 import { crashNotice } from './tray/crash-notifier';
@@ -42,39 +40,11 @@ const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER
 const userDataOverride = app.isPackaged ? undefined : process.env['NESTBOX_USER_DATA_DIR'];
 if (userDataOverride) app.setPath('userData', userDataOverride);
 
-const instanceFile = join(app.getPath('userData'), 'instance.json');
-
-if (app.requestSingleInstanceLock()) {
-  startPrimary(true);
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
 } else {
-  // Usually another NestBox has the lock and has just been asked to show its window. But scripts started
-  // by a NestBox that was killed inherit the lock (see instance-record.ts), so check the lock is not stale.
-  let text: string | null = null;
-  try {
-    text = readFileSync(instanceFile, 'utf8');
-  } catch {
-    // no record: nothing has run with this profile yet, or it was deleted
-  }
-  void otherInstanceRunning(parseInstanceRecord(text), {
-    ownPid: process.pid,
-    isAlive,
-    startTimeOf: (pid) => createPlatformAdapter({ runner: spawnRunner, getEditorCommand: () => '' }).processStartTime(pid),
-  }).then((running) => (running ? app.quit() : startPrimary(false)));
-}
-
-/** Runs NestBox. Without the lock (a stale one held by orphans), it retries once the orphan prompt is answered. */
-function startPrimary(hasLock: boolean): void {
   let mainWindow: BrowserWindow | null = null;
   const logger = createConsoleLogger();
-  if (!hasLock) logger.warn('single-instance lock is stale, starting without it');
-  try {
-    writeFileSync(
-      instanceFile,
-      serializeInstanceRecord({ pid: process.pid, startTime: Math.round(Date.now() - process.uptime() * 1000) }),
-    );
-  } catch {
-    logger.warn('instance record not written');
-  }
 
   /** Brings the window back from the tray, the taskbar or behind other windows. */
   const showWindow = (): void => {
@@ -354,19 +324,7 @@ function startPrimary(hasLock: boolean): void {
           return result.response === 0;
         },
         logger,
-      }).then(() => {
-        if (!hasLock) logger.info('single-instance lock retried', { acquired: app.requestSingleInstanceLock() });
       });
     });
   });
-}
-
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM: it exists but belongs to someone else.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
-  }
 }

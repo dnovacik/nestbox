@@ -1,7 +1,4 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { addProjectAndOpenScripts, copyFixture, isAlive, launch, messageBoxes, readPid } from './helpers';
 
 let app: ElectronApplication;
@@ -64,29 +61,14 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   const serverPid = await readPid(project);
 
   // Kill only the main process, like ending electron.exe in Task Manager's Details tab. Its children
-  // (cmd.exe, npm, the server) are not part of a job, so they keep running.
-  const mainPid = app.process().pid;
-  if (mainPid === undefined) throw new Error('no main pid');
+  // (cmd.exe, npm, the server) are not part of a job, so they keep running. app.process() is only a
+  // launcher on Windows (the real main process is its child), so ask the app for its own PID.
+  const mainPid = await app.evaluate(() => process.pid);
   process.kill(mainPid, 'SIGKILL');
   // Playwright's 'close' event does not fire for a killed main process: watch the PID instead.
   await expect.poll(() => isAlive(mainPid), { timeout: 10_000 }).toBe(false);
   closed = true;
   expect(isAlive(serverPid)).toBe(true);
-  // The orphans inherit the single-instance lock (the userData 'lockfile'), so it stays held: the relaunch
-  // must notice the lock is stale and start anyway. Logged to diagnose CI if this regresses.
-  const lock = join(userData, 'lockfile');
-  if (existsSync(lock)) {
-    const tree = execFileSync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-Command',
-        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd' } | Select-Object ProcessId,ParentProcessId,Name | Format-Table -AutoSize | Out-String -Width 200",
-      ],
-      { encoding: 'utf8' },
-    );
-    console.log(`lockfile still present after the kill; server ${serverPid}\n${tree}`);
-  }
 
   ({ app, page } = await launch(project, { userData }));
   track(app);
@@ -95,8 +77,4 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
     .poll(() => messageBoxes(app), { timeout: 30_000 })
     .toContainEqual('1 script from the last session is still running');
   await expect.poll(() => isAlive(serverPid), { timeout: 10_000 }).toBe(false);
-  // With the orphans gone the lock is free again, and NestBox takes it.
-  await expect
-    .poll(() => app.evaluate(({ app: electronApp }) => electronApp.hasSingleInstanceLock()), { timeout: 10_000 })
-    .toBe(true);
 });

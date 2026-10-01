@@ -25,8 +25,15 @@ async function waitUntil(check: () => boolean, ms = 10_000): Promise<void> {
 describe.runIf(process.platform === 'win32')('win32 process control (integration)', () => {
   const adapter = createWin32Adapter({ runner: spawnRunner, getEditorCommand: () => 'code' });
   const dir = mkdtempSync(join(tmpdir(), 'nestbox-tree-'));
-  // A process still using the folder as its cwd keeps it locked for a moment after it is killed.
-  afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  // Each test waits for its tree to close, but Windows can keep the folder busy a little longer (a
+  // virus scan, a handle being released). It is a temp folder, so cleanup is best effort.
+  afterAll(() => {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch {
+      // left for the OS to clean up
+    }
+  });
 
   it('spawns through cmd.exe, reads the start time and kills the process', async () => {
     const child = adapter.spawnScript({
@@ -35,6 +42,7 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
       args: ['-e', 'setInterval(() => {}, 1000)'],
       env: process.env,
     });
+    const closed = new Promise((r) => child.once('close', r));
     await new Promise((r) => child.once('spawn', r));
     const spawnedAt = Date.now();
     const pid = child.pid ?? 0;
@@ -47,6 +55,7 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
       await adapter.killTree(pid);
     }
     await waitUntil(() => !isAlive(pid));
+    await closed;
   }, 60_000);
 
   it('kills grandchildren too', async () => {
@@ -56,6 +65,8 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
       "require('child_process').spawn(process.execPath, [require('path').join(__dirname, 'leaf.js')], { stdio: 'inherit' }); setInterval(() => {}, 1000);",
     );
     const child = adapter.spawnScript({ cwd: dir, command: process.execPath, args: ['tree.js'], env: process.env });
+    // 'close' waits for every process sharing the output pipes, so the whole tree has exited.
+    const closed = new Promise((r) => child.once('close', r));
     const leafPid = await new Promise<number>((resolve) => {
       child.stdout?.on('data', (chunk: Buffer) => {
         const n = Number.parseInt(chunk.toString(), 10);
@@ -65,5 +76,6 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     expect(isAlive(leafPid)).toBe(true);
     await adapter.killTree(child.pid ?? 0);
     await waitUntil(() => !isAlive(leafPid));
+    await closed;
   }, 30_000);
 });
