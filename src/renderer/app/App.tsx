@@ -1,4 +1,4 @@
-import { useProjects, useProjectsChangedSubscription } from '@/lib/queries';
+import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { EmptyState } from './EmptyState';
 import { findProjectNode } from './find-project';
@@ -9,6 +9,7 @@ import { TitleBar } from './TitleBar';
 
 export function App() {
   useProjectsChangedSubscription();
+  useProcessesChangedSubscription();
   const { data: projects = [], isPending } = useProjects();
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);

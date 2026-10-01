@@ -1,10 +1,11 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { useUiStore } from '@/state/ui-store';
 import { installMockBridge } from '@/test/mock-bridge';
-import { makeDetected, makeSummary } from '@/test/fixtures';
+import { makeDetected, makeProcess, makeSummary } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
+import { useProcessesChangedSubscription } from '@/lib/queries';
 import { Sidebar } from './Sidebar';
 
 const ws = makeDetected({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packages/api', name: '@mono/api' });
@@ -54,4 +55,44 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'shop' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: /gone/ })).toHaveTextContent('missing');
   });
+
+  describe('process state dots', () => {
+    const dotOf = (name: string) => screen.getByRole('button', { name }).querySelector('[data-state]');
+
+    it('shows each row\'s own state, and a collapsed root includes its workspaces', async () => {
+      installMockBridge({
+        'processes:list': () => [
+          makeProcess({ projectId: 'p2', state: 'running' }),
+          makeProcess({ projectId: 'p1::packages/api', state: 'crashed' }),
+        ],
+      });
+      renderWithProviders(<Sidebar projects={[mono, shop]} selectedId={null} />);
+      await waitFor(() => expect(dotOf('shop')).toHaveAttribute('data-state', 'running'));
+      expect(screen.getByRole('button', { name: 'shop' })).toHaveAttribute('title', 'shop: running');
+      expect(dotOf('mono')).toHaveAttribute('data-state', 'idle');
+      expect(dotOf('@mono/api')).toHaveAttribute('data-state', 'crashed');
+      await userEvent.click(screen.getByRole('button', { name: 'Collapse mono' }));
+      expect(dotOf('mono')).toHaveAttribute('data-state', 'crashed');
+    });
+
+    it('refetches on processes:changed', async () => {
+      let state: 'starting' | 'running' = 'starting';
+      const bridge = installMockBridge({ 'processes:list': () => [makeProcess({ projectId: 'p2', state })] });
+      renderWithProviders(
+        <>
+          <ProcessesSubscriber />
+          <Sidebar projects={[shop]} selectedId={null} />
+        </>,
+      );
+      await waitFor(() => expect(dotOf('shop')).toHaveAttribute('data-state', 'starting'));
+      state = 'running';
+      bridge.emit('processes:changed');
+      await waitFor(() => expect(dotOf('shop')).toHaveAttribute('data-state', 'running'));
+    });
+  });
 });
+
+function ProcessesSubscriber() {
+  useProcessesChangedSubscription();
+  return null;
+}

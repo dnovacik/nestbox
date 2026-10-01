@@ -1,4 +1,5 @@
 import type { DetectedProject, ProjectSummary } from '@shared/detected';
+import type { ProcessSummary } from '@shared/processes';
 
 export function makeDetected(over: Partial<DetectedProject> = {}): DetectedProject {
   return {
@@ -31,5 +32,21 @@ export function makeSummary(over: Partial<ProjectSummary> = {}): ProjectSummary 
     tags: [],
     ...over,
     detected,
+  };
+}
+
+export function makeProcess(over: Partial<ProcessSummary> = {}): ProcessSummary {
+  return {
+    projectId: 'p1',
+    script: 'dev',
+    state: 'running',
+    pid: 1000,
+    startedAt: 1,
+    exit: null,
+    crashCount: 0,
+    autoRestart: false,
+    nextRestartAt: null,
+    gaveUp: false,
+    ...over,
   };
 }

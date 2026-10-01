@@ -11,6 +11,7 @@ export const queryKeys = {
   projects: ['projects'] as const,
   appInfo: ['app-info'] as const,
   settings: ['settings'] as const,
+  processes: ['processes'] as const,
   tools: (projectId: string) => ['tools', projectId] as const,
   toolCalls: ['tool'] as const,
   tool: (toolId: string, projectId: string, method: string) => ['tool', toolId, projectId, method] as const,
@@ -26,6 +27,31 @@ export function useProjects() {
 
 export function useAppInfo() {
   return useQuery({ queryKey: queryKeys.appInfo, queryFn: () => api.app.getInfo(), staleTime: Infinity });
+}
+
+export function useProcesses() {
+  return useQuery({ queryKey: queryKeys.processes, queryFn: () => api.processes.list() });
+}
+
+export function useStopAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (projectId: string) => api.processes.stopAll(projectId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.processes }),
+    onError: showError,
+  });
+}
+
+/** Main pushes processes:changed (throttled) whenever a process changes state. */
+export function useProcessesChangedSubscription(): void {
+  const queryClient = useQueryClient();
+  useEffect(
+    () =>
+      api.on('processes:changed', () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.processes });
+      }),
+    [queryClient],
+  );
 }
 
 export function useSettings() {

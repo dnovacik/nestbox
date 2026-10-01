@@ -5,7 +5,7 @@ import type { DetectedProject, ProjectSummary } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { useUiStore } from '@/state/ui-store';
 import { installMockBridge, type MockHandlers } from '@/test/mock-bridge';
-import { makeDetected, makeSummary } from '@/test/fixtures';
+import { makeDetected, makeProcess, makeSummary } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { App } from './App';
 
@@ -93,6 +93,33 @@ describe('project header', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(bridge.callsTo('projects:remove')).toEqual([{ id: 'p1' }]));
+  });
+
+  it('offers Stop all only while the project or a workspace has live processes', async () => {
+    const bridge = setup({
+      'processes:list': () => [makeProcess({ projectId: 'p1::packages/api', state: 'running' })],
+      'processes:stopAll': () => undefined,
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Stop all' }));
+    await waitFor(() => expect(bridge.callsTo('processes:stopAll')).toEqual([{ projectId: 'p1' }]));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('has no Stop all without live processes', async () => {
+    setup({ 'processes:list': () => [makeProcess({ state: 'crashed' })] });
+    await screen.findByRole('button', { name: 'Project actions' });
+    expect(screen.queryByRole('button', { name: 'Stop all' })).toBeNull();
+  });
+
+  it('says how many scripts a remove will stop', async () => {
+    setup({
+      'processes:list': () => [makeProcess(), makeProcess({ projectId: 'p1::packages/api', script: 'api' })],
+    });
+    await screen.findByRole('button', { name: 'Stop all' });
+    await openMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/2 running scripts will be stopped\./)).toBeInTheDocument();
   });
 
   it('pins from the menu', async () => {

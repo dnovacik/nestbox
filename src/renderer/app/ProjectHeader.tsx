@@ -1,4 +1,5 @@
-import { ExternalLink, Folder, GitBranch, MoreHorizontal, SquareTerminal } from 'lucide-react';
+import { ExternalLink, Folder, GitBranch, MoreHorizontal, Square, SquareTerminal } from 'lucide-react';
+import { belongsTo, isLive } from '@shared/processes';
 import { useRef, useState } from 'react';
 import {
   AlertDialog,
@@ -20,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  useProcesses,
+  useStopAll,
   useOpenInEditor,
   useOpenTerminal,
   useRefreshProject,
@@ -41,6 +44,11 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
   const rename = useRenameProject();
   const remove = useRemoveProject();
   const setPinned = useSetPinned();
+  const stopAll = useStopAll();
+  const { data: processes = [] } = useProcesses();
+  const live = (projectId: string) => processes.filter((p) => isLive(p.state) && belongsTo(p.projectId, projectId)).length;
+  const liveHere = live(detected.id);
+  const liveInRoot = live(summary.id);
   const ref = detected.git?.branch ?? detected.git?.head ?? null;
 
   return (
@@ -100,6 +108,17 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {liveHere > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={stopAll.isPending}
+              onClick={() => stopAll.mutate(detected.id)}
+            >
+              <Square className="text-err" />
+              Stop all
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -170,6 +189,8 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
             <AlertDialogTitle>Remove “{summary.name}” from Nestbox?</AlertDialogTitle>
             <AlertDialogDescription>
               Nestbox forgets this project and its settings. The folder on disk is not touched.
+              {liveInRoot > 0 &&
+                ` ${liveInRoot} running ${liveInRoot === 1 ? 'script' : 'scripts'} will be stopped.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
