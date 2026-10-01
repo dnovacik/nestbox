@@ -41,7 +41,7 @@ describe('SettingsDialog', () => {
     setup();
     const dialog = await open();
     expect(await within(dialog).findByRole('switch', { name: 'Close to tray' })).toBeChecked();
-    expect(within(dialog).getByRole('combobox', { name: 'Tray icon theme' })).toHaveValue('dark-taskbar');
+    expect(within(dialog).getByRole('combobox', { name: 'Tray icon theme' })).toHaveTextContent('Dark taskbar');
     expect(within(dialog).getByRole('spinbutton', { name: 'Log buffer' })).toHaveValue(50000);
     expect(within(dialog).getByRole('textbox', { name: 'Editor command' })).toHaveValue('code');
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -51,7 +51,8 @@ describe('SettingsDialog', () => {
     const bridge = setup();
     const dialog = await open();
     await userEvent.click(await within(dialog).findByRole('switch', { name: 'Close to tray' }));
-    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tray icon theme' }), 'auto');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Tray icon theme' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Automatic' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(bridge.callsTo('settings:update')).toEqual([{ closeToTray: false, trayIconTheme: 'auto' }]);

@@ -28,7 +28,7 @@
 **Cloud-session notes**
 
 - Superpowers isn't installed in cloud sessions: the same steps are followed by hand.
-- `ui.shadcn.com` was blocked by the network policy, so `components/ui/dialog.tsx` and `switch.tsx` are hand-written (new-york style). Regenerate them with the CLI when it is reachable.
+- `ui.shadcn.com` was blocked by the network policy, so `components/ui/dialog.tsx`, `switch.tsx` and `select.tsx` are hand-written (new-york style). Regenerate them with the CLI when it is reachable.
 - The Electron binary can be installed (`node node_modules/electron/install.js`), and the built app runs under `xvfb-run`. On Linux the platform adapter is the macOS stub, so scripts cannot start, but the UI and IPC can be checked with Playwright.
 
 **M1 follow-ups (from M0 reviews): all done in PR #2**

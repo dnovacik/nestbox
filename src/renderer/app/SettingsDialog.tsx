@@ -11,13 +11,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 
-const selectClass =
-  'h-8 rounded-md border border-line bg-app px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50';
 
 const THEMES: { value: TrayIconTheme; label: string }[] = [
   { value: 'auto', label: 'Automatic' },
@@ -77,18 +76,18 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
           <Switch id="settings-close-to-tray" checked={closeToTray} onCheckedChange={setCloseToTray} disabled={readOnly} />
         </Row>
         <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
-          <select
-            id="settings-tray-theme"
-            className={selectClass}
-            value={trayIconTheme}
-            onChange={(e) => setTrayIconTheme(e.target.value as TrayIconTheme)}
-          >
-            {THEMES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          <Select value={trayIconTheme} onValueChange={(value) => setTrayIconTheme(value as TrayIconTheme)} disabled={readOnly}>
+            <SelectTrigger id="settings-tray-theme" size="sm" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {THEMES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Row>
         <Row label="Log buffer" htmlFor="settings-log-buffer" hint="Lines kept per script, 1 000–1 000 000. Applies to scripts started afterwards.">
           <Input

@@ -1,12 +1,13 @@
 import { ArrowDownToLine, ChevronDown, ChevronUp, Download, Eraser, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { type LogFilters, structuredFilterActive } from './filters';
 import { type Level, LEVELS } from './structured';
 
-export const selectClass =
-  'h-7 rounded-md border border-line bg-app px-2 text-xs text-fg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none';
+/** Radix reserves '' for "no value", so "All contexts" needs a value of its own. */
+const ALL_CONTEXTS = '\u0000all';
 
 interface LogToolbarProps {
   scripts: string[];
@@ -40,19 +41,18 @@ export function LogToolbar(props: LogToolbarProps) {
   return (
     <div className="flex flex-col gap-2 border-b border-line px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="Script"
-          className={cn(selectClass, 'font-mono')}
-          value={props.script ?? ''}
-          onChange={(e) => props.onScriptChange(e.target.value)}
-        >
-          {props.script === null && <option value="">Pick a script…</option>}
-          {props.scripts.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <Select value={props.script ?? undefined} onValueChange={props.onScriptChange}>
+          <SelectTrigger size="sm" aria-label="Script" className="h-7 max-w-48 font-mono text-xs">
+            <SelectValue placeholder="Pick a script…" />
+          </SelectTrigger>
+          <SelectContent>
+            {props.scripts.map((s) => (
+              <SelectItem key={s} value={s} className="font-mono text-xs">
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative min-w-40 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-2 left-2 size-3.5 text-fg-muted" />
           <Input
@@ -119,19 +119,24 @@ export function LogToolbar(props: LogToolbarProps) {
             </button>
           ))}
         </div>
-        <select
-          aria-label="Context"
-          className={selectClass}
-          value={filters.context ?? ''}
-          onChange={(e) => onFiltersChange({ ...filters, context: e.target.value === '' ? null : e.target.value })}
+        <Select
+          value={filters.context ?? ALL_CONTEXTS}
+          onValueChange={(value) => onFiltersChange({ ...filters, context: value === ALL_CONTEXTS ? null : value })}
         >
-          <option value="">All contexts</option>
-          {props.contexts.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" aria-label="Context" className="h-7 max-w-48 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_CONTEXTS} className="text-xs">
+              All contexts
+            </SelectItem>
+            {props.contexts.map((c) => (
+              <SelectItem key={c} value={c} className="text-xs">
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Input
           aria-label="Request id"
           placeholder="Request id"

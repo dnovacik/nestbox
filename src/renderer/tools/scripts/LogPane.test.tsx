@@ -92,7 +92,8 @@ describe('LogPane', () => {
   it('filters by context', async () => {
     setup([pino(30, 'a', { context: 'Http' }), pino(30, 'b', { context: 'Db' })]);
     await screen.findByText('a');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Context' }), 'Db');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Context' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Db' }));
     expect(screen.queryByText('a')).toBeNull();
     expect(screen.getByText('b')).toBeInTheDocument();
   });
@@ -168,7 +169,8 @@ describe('LogPane', () => {
   it('switches scripts from the picker', async () => {
     const { onScriptChange } = setup([line('a')]);
     await screen.findByText('a');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Script' }), 'build');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Script' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'build' }));
     expect(onScriptChange).toHaveBeenCalledWith('build');
   });
 
