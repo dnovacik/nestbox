@@ -74,6 +74,24 @@ describe('migration v1 → v2', () => {
     ]);
   });
 
+  it('fits v1 groups into the v2 limits instead of resetting the store', () => {
+    const raw = fixture();
+    const projects = raw['projects'] as Record<string, unknown>[];
+    const first = projects[0];
+    if (!first) throw new Error('fixture has no project');
+    first['runGroups'] = [
+      { name: `  ${'n'.repeat(80)}  `, scripts: Array.from({ length: 60 }, (_, i) => `s${i}`) },
+      { name: '   ', scripts: ['a'] },
+      { name: 'long script', scripts: ['x'.repeat(201), 'ok'] },
+    ];
+    const out = migrate(raw, 2) as StoreData;
+    expect(StoreDataSchema.safeParse(out).success).toBe(true);
+    const groups = out.projects[0]?.runGroups ?? [];
+    expect(groups.map((g) => g.name)).toEqual(['n'.repeat(60), 'long script']);
+    expect(groups[0]?.entries).toHaveLength(50);
+    expect(groups[1]?.entries).toEqual([{ relPath: '', script: 'ok' }]);
+  });
+
   it('migrates a v1 file end to end through StoreService', () => {
     const backend = createMemoryBackend(fixture());
     const store = new StoreService(backend, createMemoryLogger());

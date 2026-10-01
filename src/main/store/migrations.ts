@@ -5,8 +5,8 @@ export type Migration = (data: Record<string, unknown>) => Record<string, unknow
 
 /**
  * v1 → v2 (M1): adds settings.trayIconTheme and turns run groups from `{ name, scripts: string[] }`
- * into package-aware `{ name, entries: { relPath, script }[] }`. Malformed groups are dropped
- * rather than failing the whole store.
+ * into package-aware `{ name, entries: { relPath, script }[] }`. Groups are fitted into the v2 limits,
+ * and malformed ones dropped, rather than failing (and resetting) the whole store.
  */
 const migrateV1toV2: Migration = (data) => {
   const settings = isRecord(data['settings']) ? data['settings'] : {};
@@ -21,8 +21,13 @@ const migrateV1toV2: Migration = (data) => {
         ...project,
         runGroups: groups.flatMap((group) => {
           if (!isRecord(group) || typeof group['name'] !== 'string' || !Array.isArray(group['scripts'])) return [];
-          const scripts = group['scripts'].filter((s): s is string => typeof s === 'string' && s.length > 0);
-          return [{ name: group['name'], entries: scripts.map((script) => ({ relPath: '', script })) }];
+          // v2 limits (RunGroupSchema): trimmed name of 1–60 characters, at most 50 entries of ≤ 200 characters.
+          const name = group['name'].trim().slice(0, 60).trim();
+          if (name === '') return [];
+          const scripts = group['scripts']
+            .filter((s): s is string => typeof s === 'string' && s.length > 0 && s.length <= 200)
+            .slice(0, 50);
+          return [{ name, entries: scripts.map((script) => ({ relPath: '', script })) }];
         }),
       };
     }),
