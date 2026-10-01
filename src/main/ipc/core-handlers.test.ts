@@ -43,6 +43,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     settings: memorySettings(),
     onSettingsChanged: vi.fn(),
     processes: { list: vi.fn(() => []), stopAll: vi.fn(async () => {}), forget: vi.fn() },
+    openExternal: vi.fn(async () => {}),
     ports: {
       list: vi.fn(async () => ({ rows: [], scannedAt: 1, stale: false })),
       kill: vi.fn(async () => ({ result: 'killed' as const, processName: 'node.exe' })),
@@ -199,5 +200,22 @@ describe('core handlers', () => {
       expect(await handlers['ports:waitFree']({ port: 3000, timeoutMs: 5_000 })).toBe(true);
       expect(d.ports.waitUntilFree).toHaveBeenCalledWith(3000, 5_000);
     });
+  });
+
+  describe('app:openExternal', () => {
+    it('opens http and https links', async () => {
+      const d = deps();
+      await createCoreHandlers(d)['app:openExternal']({ url: 'https://example.com/docs?x=1' });
+      expect(d.openExternal).toHaveBeenCalledWith('https://example.com/docs?x=1');
+    });
+
+    it.each(['file:///C:/Windows/system32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'not a url', 'http//x'])(
+      'refuses %j',
+      async (url) => {
+        const d = deps();
+        await expect(createCoreHandlers(d)['app:openExternal']({ url })).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(d.openExternal).not.toHaveBeenCalled();
+      },
+    );
   });
 });

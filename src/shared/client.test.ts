@@ -49,6 +49,12 @@ describe('nestbox client', () => {
     ]);
   });
 
+  it('builds the openExternal payload', async () => {
+    const bridge = bridgeReturning({ ok: true, data: undefined });
+    await createNestboxClient(() => bridge).app.openExternal('https://example.com');
+    expect(bridge.invoke).toHaveBeenCalledWith('app:openExternal', { url: 'https://example.com' });
+  });
+
   it('resolves the bridge lazily', async () => {
     const holder: { bridge?: NestboxBridge } = {};
     const client = createNestboxClient(() => {

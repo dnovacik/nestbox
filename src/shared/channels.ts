@@ -18,6 +18,8 @@ interface ChannelSpec {
 
 export const channels = {
   'app:getInfo': { input: NoInput, output: AppInfoSchema },
+  /** http(s) links only, opened in the default browser (Markdown links, "Open in browser"). */
+  'app:openExternal': { input: z.strictObject({ url: z.string().min(1).max(4096) }), output: z.void() },
   'dialog:pickFolder': { input: NoInput, output: z.string().nullable() },
   'projects:list': { input: NoInput, output: z.array(ProjectSummarySchema) },
   'projects:add': { input: z.strictObject({ path: z.string().min(1).max(4096) }), output: ProjectSummarySchema },

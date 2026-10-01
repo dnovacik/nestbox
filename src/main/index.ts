@@ -3,7 +3,7 @@ import { watch } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, Tray } from 'electron';
+import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
 import type { EventChannel } from '@shared/ipc-names';
 import { brandAsset } from './assets';
@@ -257,6 +257,7 @@ if (!app.requestSingleInstanceLock()) {
         ports,
         onSettingsChanged: () => tray?.refresh(),
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
+        openExternal: (url) => shell.openExternal(url),
         pickFolder: async () => {
           const options = { properties: ['openDirectory' as const], title: 'Add project folder' };
           const result = mainWindow

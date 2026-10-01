@@ -15,6 +15,8 @@ export interface CoreHandlerDeps {
   toolHost: ToolHost;
   platform: Pick<PlatformAdapter, 'openInEditor' | 'openTerminal' | 'commandExists'>;
   appInfo(): AppInfo;
+  /** Electron's shell.openExternal; only ever called with an http(s) URL. */
+  openExternal(url: string): Promise<void>;
   pickFolder(): Promise<string | null>;
   isDirectory(path: string): Promise<boolean>;
   processes: Pick<ProcessManager, 'list' | 'stopAll' | 'forget'>;
@@ -39,6 +41,16 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
 
   return {
     'app:getInfo': async () => deps.appInfo(),
+    'app:openExternal': async ({ url }) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new NestboxError('VALIDATION', 'Not a web link');
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new NestboxError('VALIDATION', 'Not a web link');
+      await deps.openExternal(parsed.href);
+    },
     'dialog:pickFolder': () => deps.pickFolder(),
     'projects:list': () => deps.projects.list(),
     'projects:add': ({ path }) => deps.projects.add(path),
