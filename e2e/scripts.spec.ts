@@ -4,15 +4,20 @@ import { addProjectAndOpenScripts, copyFixture, isAlive, launch, readPid } from 
 let app: ElectronApplication;
 let page: Page;
 let project: string;
+let closed = false;
 
 test.beforeEach(async () => {
   project = await copyFixture('npm-app');
   ({ app, page } = await launch(project));
+  closed = false;
+  app.on('close', () => {
+    closed = true;
+  });
 });
 
 test.afterEach(async () => {
-  // The quit test closes the app itself.
-  if (app.process().exitCode === null) await app.close();
+  // The quit test closes the app itself; app.process() is gone after a close, so track the event.
+  if (!closed) await app.close();
 });
 
 test('runs a script, shows its output and stops the whole tree', async () => {
