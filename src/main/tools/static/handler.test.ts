@@ -68,8 +68,15 @@ describe('static handler', () => {
     expect(await res.text()).not.toContain('hunter2');
   });
 
-  it.each(['/.env', '/%2Eenv', '/a/%2e%2e/.env', '/assets/..%5C.env', '/%E0%A4%A'])('flags hidden or broken paths: %s', (path) => {
-    expect(isHiddenPath(path)).toBe(true);
+  it.each(['/.env', '/%2Eenv', '/a/%2e%2e/.env', '/assets/..%5C.env', '/%E0%A4%A', '/ENV~1', '/GIT~1/config', '/env%7E1'])(
+    'flags hidden or broken paths: %s',
+    (path) => {
+      expect(isHiddenPath(path)).toBe(true);
+    },
+  );
+
+  it.each(['/', '/index.html', '/assets/app.js', '/docs/v2~beta/', '/a.b/c'])('lets ordinary paths through: %s', (path) => {
+    expect(isHiddenPath(path)).toBe(false);
   });
 
   it('never falls back to index.html for a dotfile either', async () => {

@@ -22,8 +22,12 @@ export interface StaticHandlerOptions {
   onRequest(entry: RequestLog): void;
 }
 
+/** A Windows 8.3 short name (`ENV~1` is `.env` on NTFS volumes that keep short names). */
+const SHORT_NAME = /~\d/;
+
 /**
- * True for a path with a dot-segment (`/.env`, `/.git/config`, `/a/../b`), percent-encoded or not.
+ * True for a path with a dot-segment (`/.env`, `/.git/config`, `/a/../b`), percent-encoded or not, or a
+ * segment that looks like an 8.3 short name, which could name a dotfile by another spelling.
  * Checked before sirv: its dev mode ignores `dotfiles: false`, and .env must never be served.
  */
 export function isHiddenPath(path: string): boolean {
@@ -33,7 +37,7 @@ export function isHiddenPath(path: string): boolean {
   } catch {
     return true;
   }
-  return decoded.split(/[\\/]/).some((segment) => segment.startsWith('.'));
+  return decoded.split(/[\\/]/).some((segment) => segment.startsWith('.') || SHORT_NAME.test(segment));
 }
 
 function notFound(res: ServerResponse): void {
