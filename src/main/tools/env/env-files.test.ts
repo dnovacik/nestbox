@@ -49,6 +49,32 @@ describe('env file access', () => {
     await expect(files.write(dir, name, '', null)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
+  it('lists env files live, marking symlinks read-only, ignoring folders and other names', async (ctx) => {
+    await writeFile(join(dir, '.env'), '');
+    await writeFile(join(dir, '.env.local'), '');
+    await writeFile(join(dir, '.envrc'), '');
+    await writeFile(join(dir, 'real.env'), '');
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(dir, '.env.d'));
+    let linked = true;
+    try {
+      await symlink(join(dir, 'real.env'), join(dir, '.env.shared'), 'file');
+    } catch {
+      linked = false;
+    }
+    const listed = await files.list(dir);
+    expect(listed.filter((f) => f.name !== '.env.shared')).toEqual([
+      { name: '.env', readOnly: false },
+      { name: '.env.local', readOnly: false },
+    ]);
+    if (!linked) ctx.skip();
+    expect(listed.find((f) => f.name === '.env.shared')).toEqual({ name: '.env.shared', readOnly: true });
+  });
+
+  it('lists nothing for a folder that is gone', async () => {
+    expect(await files.list(join(dir, 'missing'))).toEqual([]);
+  });
+
   it('reports a missing file as NOT_FOUND', async () => {
     await expect(files.read(dir, '.env')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

@@ -1,4 +1,4 @@
-import { lstat, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NestboxError } from '@shared/errors';
@@ -8,6 +8,8 @@ import { ENV_FILE_PATTERN } from '../../detection/detect-project';
 export const MAX_ENV_FILE_BYTES = 1024 * 1024;
 
 export interface EnvFileAccess {
+  /** The env files in dir right now, sorted (detection results can be stale). Symlinks are read-only. */
+  list(dir: string): Promise<{ name: string; readOnly: boolean }[]>;
   /** Text (UTF-8) and a version token (mtime and size). NOT_FOUND when the file does not exist. */
   read(dir: string, name: string): Promise<{ text: string; version: string }>;
   /**
@@ -23,12 +25,16 @@ function assertName(name: string): void {
   }
 }
 
-const versionOf = (s: { mtimeMs: number; size: number }) => `${Math.round(s.mtimeMs)}:${s.size}`;
+/**
+ * Changes whenever the file does: atomic writes give it a new inode, and other writers change the
+ * nanosecond mtime or the size. Never derived from the contents.
+ */
+const versionOf = (s: { ino: bigint; mtimeNs: bigint; size: bigint }) => `${s.ino}:${s.mtimeNs}:${s.size}`;
 
 /** lstat, or null when the file does not exist. */
 async function lstatOrNull(path: string) {
   try {
-    return await lstat(path);
+    return await lstat(path, { bigint: true });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw new NestboxError('INTERNAL', 'Could not read the env file');
@@ -37,13 +43,26 @@ async function lstatOrNull(path: string) {
 
 export function createEnvFileAccess(): EnvFileAccess {
   return {
+    async list(dir) {
+      const dirents = await readdir(dir, { withFileTypes: true }).catch(() => []);
+      const out: { name: string; readOnly: boolean }[] = [];
+      for (const d of dirents) {
+        if (!ENV_FILE_PATTERN.test(d.name)) continue;
+        if (d.isFile()) out.push({ name: d.name, readOnly: false });
+        else if (d.isSymbolicLink() && (await stat(join(dir, d.name)).catch(() => null))?.isFile()) {
+          out.push({ name: d.name, readOnly: true });
+        }
+      }
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    },
+
     async read(dir, name) {
       assertName(name);
       const path = join(dir, name);
       // stat (not lstat): a symlinked env file can be read, only not written.
-      const info = await stat(path).catch(() => null);
+      const info = await stat(path, { bigint: true }).catch(() => null);
       if (!info?.isFile()) throw new NestboxError('NOT_FOUND', 'The env file does not exist');
-      if (info.size > MAX_ENV_FILE_BYTES) throw new NestboxError('VALIDATION', 'The env file is too large');
+      if (info.size > BigInt(MAX_ENV_FILE_BYTES)) throw new NestboxError('VALIDATION', 'The env file is too large');
       const text = await readFile(path, 'utf8').catch(() => {
         throw new NestboxError('INTERNAL', 'Could not read the env file');
       });
@@ -71,7 +90,7 @@ export function createEnvFileAccess(): EnvFileAccess {
         await rm(temp, { force: true }).catch(() => undefined);
         throw new NestboxError('INTERNAL', 'Could not write the env file');
       }
-      return { version: versionOf(await stat(path)) };
+      return { version: versionOf(await stat(path, { bigint: true })) };
     },
   };
 }
