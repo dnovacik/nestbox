@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DetectedProject } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { defineContract } from '@shared/tool';
+import { createRouter, type CoreHandlers } from '../ipc/router';
 import { createMemoryLogger } from '../logger';
 import { createDarwinAdapter } from '../platform/darwin';
 import { projectInfoTool } from './project-info';
@@ -86,5 +87,33 @@ describe('tool host', () => {
     const { h } = host(() => ({ ...project, packageManager: null }));
     expect(h.list('p1').map((t) => t.id)).toEqual(['project-info']);
     await expect(h.invoke('echo', 'p1', 'echo', { text: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('never puts input values in errors or logs when a handler throws', async () => {
+    const secret = 'postgres://user:hunter2@db/prod';
+    const leaky = defineMainTool({
+      id: 'leaky', name: 'Leaky', icon: 'x', settingsSchema: z.object({}), appliesTo: () => true,
+      contract: defineContract({ run: { input: z.strictObject({ value: z.string() }), output: z.void() } }),
+      handlers: {
+        run: async (_ctx, input) => {
+          throw new Error(`boom ${input.value}`);
+        },
+      },
+    });
+    const logger = createMemoryLogger();
+    const h = createToolHost({
+      tools: [leaky],
+      getProject: () => project,
+      shared: createSharedContext(),
+      platform: createDarwinAdapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' }),
+      emit: vi.fn(),
+      logger,
+    });
+    const handlers = { 'tools:invoke': ({ toolId, projectId, method, input }) => h.invoke(toolId, projectId, method, input) } as Partial<CoreHandlers> as CoreHandlers;
+    const dispatch = createRouter({ handlers, isTrustedSender: () => true, logger });
+    const env = await dispatch('tools:invoke', 'file:///x', { toolId: 'leaky', projectId: 'p1', method: 'run', input: { value: secret } });
+    expect(env).toMatchObject({ ok: false, error: { code: 'INTERNAL' } });
+    expect(JSON.stringify(env)).not.toContain('hunter2');
+    expect(JSON.stringify(logger.entries)).not.toContain('hunter2');
   });
 });

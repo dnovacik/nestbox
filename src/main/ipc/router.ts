@@ -16,8 +16,30 @@ export interface RouterDeps {
   now?: () => number;
 }
 
+/** Upper bound on a payload's JSON length; checked before Zod parsing. */
+export const MAX_PAYLOAD_CHARS = 2 * 1024 * 1024;
+
+/** JSON length of the payload, or null when it cannot be serialised (cycles, BigInt). */
+function payloadSize(payload: unknown): number | null {
+  if (payload === undefined) return 0;
+  try {
+    return JSON.stringify(payload)?.length ?? 0;
+  } catch {
+    return null;
+  }
+}
+
 export function createRouter(deps: RouterDeps): Dispatch {
   const now = deps.now ?? (() => performance.now());
+
+  /** Fails closed: a sender check that throws counts as untrusted. */
+  function trusted(url: string): boolean {
+    try {
+      return deps.isTrustedSender(url);
+    } catch {
+      return false;
+    }
+  }
 
   async function run<C extends InvokeChannel>(channel: C, payload: unknown): Promise<IpcEnvelope<ChannelOutput<C>>> {
     const spec = channels[channel];
@@ -45,10 +67,15 @@ export function createRouter(deps: RouterDeps): Dispatch {
   return async (channel, senderUrl, payload) => {
     const started = now();
     let envelope: IpcEnvelope<unknown>;
-    if (!deps.isTrustedSender(senderUrl)) {
+    const size = payloadSize(payload);
+    if (!trusted(senderUrl)) {
       envelope = fail('FORBIDDEN', 'Untrusted sender');
     } else if (!isInvokeChannel(channel)) {
       envelope = fail('NOT_FOUND', 'Unknown channel');
+    } else if (size === null) {
+      envelope = fail('VALIDATION', 'Payload cannot be serialised');
+    } else if (size > MAX_PAYLOAD_CHARS) {
+      envelope = fail('VALIDATION', 'Payload too large');
     } else {
       envelope = await run(channel, payload);
     }
