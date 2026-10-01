@@ -1,0 +1,33 @@
+import { useProjects, useProjectsChangedSubscription } from '@/lib/queries';
+import { useUiStore } from '@/state/ui-store';
+import { EmptyState } from './EmptyState';
+import { findProjectNode } from './find-project';
+import { ProjectView } from './ProjectView';
+import { Sidebar } from './Sidebar';
+import { StatusBar } from './StatusBar';
+import { TitleBar } from './TitleBar';
+
+export function App() {
+  useProjectsChangedSubscription();
+  const { data: projects = [], isPending } = useProjects();
+  const selectedId = useUiStore((s) => s.selectedProjectId);
+  const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);
+
+  return (
+    <div className="flex h-full flex-col bg-app text-fg">
+      <TitleBar node={node} />
+      <div className="flex min-h-0 flex-1">
+        <Sidebar projects={projects} selectedId={node?.detected.id ?? null} />
+        {isPending ? (
+          // No <main> until the first projects fetch resolves, so the landmark only appears with real content.
+          <div className="flex min-w-0 flex-1 flex-col" />
+        ) : (
+          <main className="flex min-w-0 flex-1 flex-col">
+            {node ? <ProjectView key={node.detected.id} node={node} /> : <EmptyState />}
+          </main>
+        )}
+      </div>
+      <StatusBar projectCount={projects.length} />
+    </div>
+  );
+}
