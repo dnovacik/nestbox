@@ -1,4 +1,5 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { addProjectAndOpenScripts, copyFixture, isAlive, launch, messageBoxes, readPid } from './helpers';
@@ -73,9 +74,30 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   expect(isAlive(serverPid)).toBe(true);
   // The single-instance lock is the userData 'lockfile' (delete-on-close). Relaunching before Windows
   // has released it makes the new instance quit at once, so wait for it to go.
-  await expect
-    .poll(() => existsSync(join(userData, 'lockfile')), { timeout: 15_000, message: 'single-instance lock released' })
-    .toBe(false);
+  // TEMPORARY diagnostics: find out who keeps the lock after the main process is gone.
+  const lock = join(userData, 'lockfile');
+  const deadline = Date.now() + 8_000;
+  while (existsSync(lock) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
+  if (existsSync(lock)) {
+    const ps = (cmd: string) => {
+      try {
+        return execFileSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8' });
+      } catch (e) {
+        return String(e);
+      }
+    };
+    console.log(`[diag] lock held after main exit; server ${serverPid}`);
+    console.log(
+      ps(
+        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd|crashpad' } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | Format-Table -AutoSize -Wrap | Out-String -Width 400",
+      ),
+    );
+    execFileSync('taskkill.exe', ['/PID', String(serverPid), '/T', '/F']);
+    await new Promise((r) => setTimeout(r, 2_000));
+    console.log(`[diag] lock after killing the server: ${existsSync(lock) ? 'still held' : 'released'}`);
+    console.log(ps("Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd|crashpad' } | Select-Object ProcessId,ParentProcessId,Name | Format-Table -AutoSize | Out-String -Width 400"));
+  }
+  expect(existsSync(lock), 'single-instance lock released').toBe(false);
 
   ({ app, page } = await launch(project, { userData }));
   track(app);
