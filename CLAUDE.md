@@ -1,4 +1,4 @@
-# Nestbox
+# NestBox
 
 Electron + React desktop toolbox for Node/TypeScript projects. Windows first, macOS later (no Linux).
 Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/superpowers/`. Visual reference: `docs/design/DESIGN-NOTES.md` (the prototype is look-only; the spec wins).

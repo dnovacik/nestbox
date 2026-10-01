@@ -69,11 +69,11 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
     >
       {readOnly && (
         <p className="rounded-md border border-warn/30 bg-warn/10 p-2 text-xs text-warn">
-          Settings are read-only because the settings file couldn't be saved or comes from a newer Nestbox.
+          Settings are read-only because the settings file couldn't be saved or comes from a newer NestBox.
         </p>
       )}
       <fieldset disabled={readOnly} className="space-y-4">
-        <Row label="Close to tray" htmlFor="settings-close-to-tray" hint="Closing the window keeps Nestbox and your scripts running in the tray.">
+        <Row label="Close to tray" htmlFor="settings-close-to-tray" hint="Closing the window keeps NestBox and your scripts running in the tray.">
           <Switch id="settings-close-to-tray" checked={closeToTray} onCheckedChange={setCloseToTray} disabled={readOnly} />
         </Row>
         <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
@@ -134,7 +134,7 @@ export function SettingsDialog() {
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Nestbox keeps these on this computer only.</DialogDescription>
+          <DialogDescription>NestBox keeps these on this computer only.</DialogDescription>
         </DialogHeader>
         {data ? (
           <SettingsForm key={JSON.stringify(data)} initial={data} onDone={() => setOpen(false)} />

@@ -10,7 +10,7 @@ const crashed = (over: Partial<ProcessSummary>): ProcessSummary => ({
 
 describe('crashNotice', () => {
   it('names the script, project and exit code', () => {
-    expect(crashNotice(crashed({}), 'shop')).toEqual({ title: 'Nestbox', body: 'api crashed in shop (exit 1)' });
+    expect(crashNotice(crashed({}), 'shop')).toEqual({ title: 'NestBox', body: 'api crashed in shop (exit 1)' });
   });
 
   it('reports signals, failed starts and giving up', () => {

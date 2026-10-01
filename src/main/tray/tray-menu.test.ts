@@ -84,7 +84,7 @@ describe('buildTrayMenu', () => {
     const a = actions();
     const menu = buildTrayMenu(model, a);
     const labels = menu.map((m) => m.label ?? m.type);
-    expect(labels).toEqual(['shop', 'separator', 'Run groups', 'Open in VS Code', 'separator', 'Show Nestbox', 'Quit Nestbox']);
+    expect(labels).toEqual(['shop', 'separator', 'Run groups', 'Open in VS Code', 'separator', 'Show NestBox', 'Quit NestBox']);
     click(sub(menu[2])[0]);
     expect(a.startRunGroup).toHaveBeenCalledWith('p1', 'dev');
     expect(sub(menu[3]).map((m) => m.label)).toEqual(['shop', 'blog']);
@@ -106,9 +106,9 @@ describe('buildTrayMenu', () => {
 
 describe('tray helpers', () => {
   it('builds the tooltip', () => {
-    expect(trayTooltip([])).toBe('Nestbox');
-    expect(trayTooltip([proc({}), proc({ state: 'starting' })])).toBe('Nestbox: 2 running');
-    expect(trayTooltip([proc({ state: 'crashed' }), proc({}), proc({})])).toBe('Nestbox: 1 crashed, 2 running');
+    expect(trayTooltip([])).toBe('NestBox');
+    expect(trayTooltip([proc({}), proc({ state: 'starting' })])).toBe('NestBox: 2 running');
+    expect(trayTooltip([proc({ state: 'crashed' }), proc({}), proc({})])).toBe('NestBox: 1 crashed, 2 running');
   });
 
   it('resolves the icon theme', () => {

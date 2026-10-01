@@ -175,7 +175,7 @@ if (!app.requestSingleInstanceLock()) {
           defaultId: 0,
           cancelId: 1,
           message: `Stop ${n} running ${n === 1 ? 'script' : 'scripts'} and quit?`,
-          detail: 'Nestbox stops the scripts it started before quitting.',
+          detail: 'NestBox stops the scripts it started before quitting.',
         };
         const result = mainWindow ? await dialog.showMessageBox(mainWindow, options) : await dialog.showMessageBox(options);
         return result.response === 0;

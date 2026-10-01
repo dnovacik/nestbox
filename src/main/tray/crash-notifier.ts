@@ -7,7 +7,7 @@ import { MAX_CRASHES } from '../processes/process-manager';
  */
 export function crashNotice(summary: ProcessSummary, projectLabel: string): { title: string; body: string } {
   const who = `${summary.script} crashed in ${projectLabel}`;
-  if (summary.gaveUp) return { title: 'Nestbox', body: `${who} and gave up after ${MAX_CRASHES} crashes` };
+  if (summary.gaveUp) return { title: 'NestBox', body: `${who} and gave up after ${MAX_CRASHES} crashes` };
   const exit = summary.exit;
   const how =
     exit?.code !== null && exit?.code !== undefined
@@ -15,5 +15,5 @@ export function crashNotice(summary: ProcessSummary, projectLabel: string): { ti
       : exit?.signal
         ? `killed by ${exit.signal}`
         : 'could not start';
-  return { title: 'Nestbox', body: `${who} (${how})` };
+  return { title: 'NestBox', body: `${who} (${how})` };
 }

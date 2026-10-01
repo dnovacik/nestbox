@@ -92,8 +92,8 @@ export function buildTrayMenu(model: TrayModel, actions: TrayActions): MenuItemC
           submenu: model.projects.map((p) => ({ label: p.name, click: () => actions.openInEditor(p.id) })),
         },
     { type: 'separator' },
-    { label: 'Show Nestbox', click: actions.show },
-    { label: 'Quit Nestbox', click: actions.quit },
+    { label: 'Show NestBox', click: actions.show },
+    { label: 'Quit NestBox', click: actions.quit },
   ];
 }
 
@@ -101,7 +101,7 @@ export function trayTooltip(processes: readonly ProcessSummary[]): string {
   const crashed = processes.filter((p) => p.state === 'crashed').length;
   const running = processes.filter((p) => p.state === 'starting' || p.state === 'running').length;
   const parts = [...(crashed > 0 ? [`${crashed} crashed`] : []), ...(running > 0 ? [`${running} running`] : [])];
-  return parts.length === 0 ? 'Nestbox' : `Nestbox: ${parts.join(', ')}`;
+  return parts.length === 0 ? 'NestBox' : `NestBox: ${parts.join(', ')}`;
 }
 
 export type TrayIconSet = 'dark-taskbar' | 'light-taskbar';

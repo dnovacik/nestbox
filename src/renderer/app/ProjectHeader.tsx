@@ -186,9 +186,9 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
       <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove “{summary.name}” from Nestbox?</AlertDialogTitle>
+            <AlertDialogTitle>Remove “{summary.name}” from NestBox?</AlertDialogTitle>
             <AlertDialogDescription>
-              Nestbox forgets this project and its settings. The folder on disk is not touched.
+              NestBox forgets this project and its settings. The folder on disk is not touched.
               {liveInRoot > 0 &&
                 ` ${liveInRoot} running ${liveInRoot === 1 ? 'script' : 'scripts'} will be stopped.`}
             </AlertDialogDescription>

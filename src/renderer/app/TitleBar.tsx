@@ -18,7 +18,7 @@ export function TitleBar({ node }: { node: ProjectNode | null }) {
     >
       <div className="flex items-center gap-2">
         <NestboxMark className="size-4" />
-        <span className="text-xs font-bold tracking-wide text-fg">nestbox</span>
+        <span className="text-xs font-bold tracking-wide text-fg">NestBox</span>
         {info && (
           <span className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
             v{info.version}

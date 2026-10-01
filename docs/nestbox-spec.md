@@ -30,7 +30,7 @@ The app exists to do the things a browser cannot: read the filesystem, spawn and
 
 ## Name and logo
 
-- Display name "Nestbox"; wordmark "nestbox" in lowercase, geometric sans.
+- Display name and wordmark "NestBox" (owner's decision, M1 review); npm/CLI name stays `nestbox`.
 - Logo: a nest box drawn as one solid shape whose round entrance hole doubles as a status light.
 - Tray states (hole colour): green = all processes running, amber = a script is starting, red = a process crashed, grey = nothing running.
 - Tray icon: monochrome shape (`.ico` on Windows, template image on macOS); the hole carries the only colour.
