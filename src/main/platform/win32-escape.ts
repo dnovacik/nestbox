@@ -37,6 +37,16 @@ export function escapeCmdCommand(command: string): string {
 /** Characters that cannot be passed safely through cmd.exe and a .cmd shim's `%*` re-parse. */
 const UNSAFE_FOR_CMD = /["\r\n\0]/;
 
+/** Throws VALIDATION if the value contains `"`, CR, LF or NUL. */
+export function assertCmdSafe(value: string): void {
+  if (UNSAFE_FOR_CMD.test(value)) {
+    throw new NestboxError(
+      'VALIDATION',
+      'Argument contains a character that cannot be passed safely to cmd.exe',
+    );
+  }
+}
+
 /**
  * Arguments for spawning `command args...` through cmd.exe. Spawn with windowsVerbatimArguments: true.
  * For paths and Nestbox-built tokens only. Throws on `"`, CR, LF and NUL, because a .cmd shim
@@ -46,12 +56,8 @@ export function cmdInvocation(
   command: string,
   args: readonly string[],
 ): { file: 'cmd.exe'; args: string[] } {
-  if (UNSAFE_FOR_CMD.test(command) || args.some((a) => UNSAFE_FOR_CMD.test(a))) {
-    throw new NestboxError(
-      'VALIDATION',
-      'Argument contains a character that cannot be passed safely to cmd.exe',
-    );
-  }
+  assertCmdSafe(command);
+  args.forEach(assertCmdSafe);
   const line = [escapeCmdCommand(command), ...args.map(escapeCmdArg)].join(' ');
   return { file: 'cmd.exe', args: ['/d', '/s', '/c', `"${line}"`] };
 }

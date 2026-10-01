@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NestboxError } from '@shared/errors';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cmdInvocation, escapeCmdArg, escapeWtArg, quoteWindowsArg } from './win32-escape';
+import { assertCmdSafe, cmdInvocation, escapeCmdArg, escapeWtArg, quoteWindowsArg } from './win32-escape';
 
 const TRICKY = [
   'C:\\Users\\me\\My Projects\\shop',
@@ -111,5 +111,12 @@ describe.runIf(process.platform === 'win32')('cmd.exe round-trip', () => {
     for (const p of TRICKY) {
       expect(roundTrip(join(dir, 'echo-args.cmd'), [p])).toEqual([p]);
     }
+  });
+});
+
+describe('assertCmdSafe', () => {
+  it('throws VALIDATION for a quote and passes for escapable metacharacters', () => {
+    expect(() => assertCmdSafe('a"b')).toThrow(NestboxError);
+    expect(() => assertCmdSafe('C:\\dev\\R&D')).not.toThrow();
   });
 });

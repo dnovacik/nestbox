@@ -61,10 +61,17 @@ describe('win32 openInEditor', () => {
     expect(runner.calls[0]?.args[3]).toBe('"code ^"-g^" ^"C:\\a\\b.ts:12^""');
   });
 
-  it('reports a NOT_FOUND error when the editor cannot start', async () => {
+  it('reports an INTERNAL error when cmd.exe cannot start', async () => {
     const runner = fakeRunner(['cmd.exe']);
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
-    await expect(adapter.openInEditor('C:\\a')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(adapter.openInEditor('C:\\a')).rejects.toMatchObject({ code: 'INTERNAL' });
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects invalid line %s with VALIDATION', async (line) => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await expect(adapter.openInEditor('C:\\a', line)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.launch).not.toHaveBeenCalled();
   });
 
   it('rejects an unsafe path with VALIDATION and never calls the runner', async () => {
@@ -102,6 +109,35 @@ describe('win32 openTerminal', () => {
     expect(runner.calls[1]).toEqual({ file: 'cmd.exe', args: ['/d', '/k'], opts: { cwd: path } });
     // the path must never be spliced into the cmd command line
     expect(runner.calls[1]?.args.join(' ')).not.toContain(path);
+  });
+
+  it('falls back to cmd /s /k with the command line verbatim and the path as cwd', async () => {
+    const runner = fakeRunner(['wt.exe']);
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.openTerminal('C:\\a', 'echo one; echo two');
+    expect(runner.calls[1]).toEqual({
+      file: 'cmd.exe',
+      args: ['/d', '/s', '/k', '"echo one; echo two"'],
+      opts: { cwd: 'C:\\a', verbatim: true },
+    });
+  });
+
+  it('rejects an unsafe command with VALIDATION and never calls the runner', async () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await expect(adapter.openTerminal('C:\\a', 'x"y')).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.launch).not.toHaveBeenCalled();
+  });
+
+  it('reports INTERNAL when both wt and the cmd fallback fail', async () => {
+    const runner: CommandRunner = {
+      launch: vi.fn(async (file: string) => {
+        if (file === 'wt.exe') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+        throw new Error('boom');
+      }),
+    };
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await expect(adapter.openTerminal('C:\\a')).rejects.toMatchObject({ code: 'INTERNAL' });
   });
 
   it('does not fall back on errors other than ENOENT', async () => {
