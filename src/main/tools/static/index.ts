@@ -15,7 +15,7 @@ import {
   type StaticSettings,
 } from '@shared/tools/static/contract';
 import type { Logger } from '../../logger';
-import { RingBuffer } from '../../processes/ring-buffer';
+import { BatchedLog } from '../batched-log';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import type { CertStore } from './cert-store';
 import { createStaticHandler, type RequestLog } from './handler';
@@ -30,7 +30,6 @@ export interface StaticToolDeps {
 }
 
 const LOG_LINES = 2_000;
-const LOG_BATCH_MS = 50;
 
 type Ctx = ToolContext<StaticSettings>;
 
@@ -46,11 +45,7 @@ interface Running {
 
 interface ProjectState {
   running: Running | null;
-  logs: RingBuffer<LogLine>;
-  seq: number;
-  pending: LogLine[];
-  timer: ReturnType<typeof setTimeout> | undefined;
-  emit: Ctx['emit'];
+  logs: BatchedLog;
 }
 
 /** ANSI colour per status class, so the log viewer shows errors at a glance. */
@@ -67,24 +62,18 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
 
   function stateOf(ctx: Ctx): ProjectState {
     const existing = states.get(ctx.project.id);
+    const emit = (lines: LogLine[]) => ctx.emit('logs', { lines });
     if (existing) {
-      existing.emit = ctx.emit;
+      existing.logs.emit = emit;
       return existing;
     }
-    const created: ProjectState = { running: null, logs: new RingBuffer(LOG_LINES), seq: 0, pending: [], timer: undefined, emit: ctx.emit };
+    const created: ProjectState = { running: null, logs: new BatchedLog(LOG_LINES, emit) };
     states.set(ctx.project.id, created);
     return created;
   }
 
   function log(state: ProjectState, text: string, stream: LogLine['stream']): void {
-    const line: LogLine = { seq: ++state.seq, ts: Date.now(), stream, text };
-    state.logs.push(line);
-    state.pending.push(line);
-    state.timer ??= setTimeout(() => {
-      state.timer = undefined;
-      const lines = state.pending.splice(0);
-      if (lines.length > 0) state.emit('logs', { lines });
-    }, LOG_BATCH_MS);
+    state.logs.push(stream, text);
   }
 
   const configOf = (ctx: Ctx): ServerConfig =>
@@ -205,24 +194,19 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
         const inside = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
         return { folder: inside ? rel.split('\\').join('/') : picked };
       },
-      getLogs: async (ctx: Ctx, { afterSeq }) => {
-        const state = stateOf(ctx);
-        const lines = afterSeq === undefined ? state.logs.toArray() : state.logs.after(afterSeq);
-        return { lines, firstSeq: state.logs.toArray()[0]?.seq ?? state.seq + 1, lastSeq: state.seq };
-      },
+      getLogs: async (ctx: Ctx, { afterSeq }) => stateOf(ctx).logs.snapshot(afterSeq),
       clearLogs: async (ctx: Ctx) => {
         stateOf(ctx).logs.clear();
       },
     },
     async dispose() {
       await Promise.all([...states.values()].map((s) => stopState(s)));
-      for (const s of states.values()) clearTimeout(s.timer);
+      for (const s of states.values()) s.logs.dispose();
     },
     forgetProject(rootId) {
       for (const [id, s] of states) {
         if (!belongsTo(id, rootId)) continue;
-        void stopState(s);
-        clearTimeout(s.timer);
+        void stopState(s).then(() => s.logs.dispose());
         states.delete(id);
       }
     },
