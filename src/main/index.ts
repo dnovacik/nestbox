@@ -308,7 +308,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.once('ready-to-show', () => {
       void handleOrphans({
         ledger,
-        startTimeOf: (pid) => platform.processStartTime(pid),
+        listProcesses: () => platform.listProcesses(),
         killTree: (pid) => platform.killTree(pid),
         projectLabel,
         ask: async (message, detail) => {

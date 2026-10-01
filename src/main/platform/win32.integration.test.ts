@@ -35,7 +35,7 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     }
   });
 
-  it('spawns through cmd.exe, reads the start time and kills the process', async () => {
+  it('spawns through cmd.exe, lists it with its start time and kills the process', async () => {
     const child = adapter.spawnScript({
       cwd: dir,
       command: process.execPath,
@@ -48,9 +48,10 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     const pid = child.pid ?? 0;
     try {
       // A cold PowerShell on a CI runner can take over 10 s.
-      const started = await adapter.processStartTime(pid);
-      expect(started).not.toBeNull();
-      expect(Math.abs((started ?? 0) - spawnedAt)).toBeLessThan(3_000);
+      const processes = await adapter.listProcesses();
+      const root = processes?.find((p) => p.pid === pid);
+      expect(root?.parentPid).toBe(process.pid);
+      expect(Math.abs((root?.startTime ?? 0) - spawnedAt)).toBeLessThan(3_000);
     } finally {
       await adapter.killTree(pid);
     }

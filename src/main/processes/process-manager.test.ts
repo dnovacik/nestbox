@@ -59,7 +59,7 @@ describe('ProcessManager start', () => {
     expect(ledger.add).toHaveBeenCalledTimes(1);
     expect(ledger.add).toHaveBeenCalledWith({ pid: 1000, startTime: 1_700_000_000_000, projectId: 'p1', script: 'dev' });
     // The OS lookup (PowerShell on Windows) can take seconds; it is only used by the orphan check.
-    expect(platform.processStartTime).not.toHaveBeenCalled();
+    expect(platform.listProcesses).not.toHaveBeenCalled();
   });
 
   it('never records a process that closed before it spawned', async () => {

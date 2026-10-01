@@ -302,31 +302,26 @@ describe('win32 killTree', () => {
   });
 });
 
-describe('win32 processStartTime', () => {
-  const script = "(Get-Process -Id 4321 -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')";
+describe('win32 listProcesses', () => {
+  const script =
+    "Get-CimInstance Win32_Process | ForEach-Object { if ($_.CreationDate) { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().ToString('o') } }";
 
-  it('reads the start time through PowerShell', async () => {
-    const runner = fakeRunner([], { 'powershell.exe': { code: 0, stdout: '2026-10-01T10:00:00.1234567Z\r\n' } });
-    const ms = await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(4321);
-    expect(ms).toBe(Date.parse('2026-10-01T10:00:00.123Z'));
-    expect(runner.execCalls).toEqual([
-      { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] },
+  it('lists every process with its parent and start time through one PowerShell call', async () => {
+    const stdout = '4 0 2026-10-01T09:00:00.0000000Z\r\n4321 812 2026-10-01T10:00:00.1234567Z\r\njunk\r\n';
+    const runner = fakeRunner([], { 'powershell.exe': { code: 0, stdout } });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listProcesses()).toEqual([
+      { pid: 4, parentPid: 0, startTime: Date.parse('2026-10-01T09:00:00.000Z') },
+      { pid: 4321, parentPid: 812, startTime: Date.parse('2026-10-01T10:00:00.123Z') },
     ]);
+    expect(runner.execCalls).toEqual([{ file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] }]);
   });
 
   it.each([
     ['a non-zero exit', { code: 1, stdout: '' }],
-    ['unparseable output', { code: 0, stdout: 'nope' }],
+    ['no processes in the output', { code: 0, stdout: 'nope' }],
     ['a failure to start', new Error('ENOENT')],
   ])('returns null on %s', async (_label, result) => {
     const runner = fakeRunner([], { 'powershell.exe': result });
-    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(4321)).toBeNull();
-  });
-
-  it('rejects an invalid pid', async () => {
-    const runner = fakeRunner();
-    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(0)).rejects.toMatchObject({
-      code: 'VALIDATION',
-    });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listProcesses()).toBeNull();
   });
 });

@@ -9,6 +9,13 @@ export interface PortEntry {
   command: string | null;
 }
 
+export interface ProcessInfo {
+  pid: number;
+  parentPid: number;
+  /** When the process started, in epoch ms. */
+  startTime: number;
+}
+
 export interface SpawnOpts {
   cwd: string;
   command: string;
@@ -58,8 +65,11 @@ export interface PlatformAdapter {
   readonly id: PlatformId;
   listListeningPorts(): Promise<PortEntry[]>;
   killTree(pid: number): Promise<void>;
-  /** When the process started, in epoch ms; null when it is gone or cannot be read. Used to tell a reused PID apart. */
-  processStartTime(pid: number): Promise<number | null>;
+  /**
+   * Every running process with its parent and start time (the start time tells a reused PID apart); null
+   * when the list cannot be read. Used by the orphan check at startup.
+   */
+  listProcesses(): Promise<ProcessInfo[] | null>;
   spawnScript(opts: SpawnOpts): ChildProcess;
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;

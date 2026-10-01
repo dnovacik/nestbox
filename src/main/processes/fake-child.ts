@@ -69,7 +69,7 @@ export function fakePlatform() {
     killTree: vi.fn(async (pid: number): Promise<void> => {
       children.find((c) => c.pid === pid)?.exit(1);
     }),
-    processStartTime: vi.fn(async (): Promise<number | null> => 1_700_000_000_000),
+    listProcesses: vi.fn(async () => []),
     resolveShellEnv: vi.fn(async (): Promise<NodeJS.ProcessEnv> => ({ PATH: 'x', SECRET: 'do-not-log' })),
   };
 }

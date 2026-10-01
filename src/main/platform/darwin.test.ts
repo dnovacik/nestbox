@@ -23,6 +23,6 @@ describe('darwin stub', () => {
     await expect(adapter.openInEditor('/a')).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
     await expect(adapter.openTerminal('/a')).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
     await expect(adapter.resolveShellEnv()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    await expect(adapter.processStartTime(1)).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+    await expect(adapter.listProcesses()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
   });
 });

@@ -1,5 +1,5 @@
 import { NestboxError } from '@shared/errors';
-import { type CommandRunner, type ExecResult, notImplemented, type PlatformAdapter, type PlatformDeps } from './adapter';
+import { type CommandRunner, type ExecResult, notImplemented, type PlatformAdapter, type PlatformDeps, type ProcessInfo } from './adapter';
 import { normalizeWin32Path } from './paths';
 import { assertCmdSafe, cmdInvocation, escapeWtArg } from './win32-escape';
 
@@ -46,9 +46,10 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       if (code !== 0 && code !== 128) throw new NestboxError('INTERNAL', 'Could not stop the process tree');
     },
 
-    async processStartTime(pid) {
-      assertPid(pid);
-      const script = `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`;
+    async listProcesses() {
+      // CreationDate is null for the System Idle process.
+      const script =
+        "Get-CimInstance Win32_Process | ForEach-Object { if ($_.CreationDate) { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().ToString('o') } }";
       try {
         const { code, stdout } = await deps.runner.exec(
           'powershell.exe',
@@ -57,9 +58,17 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
           { timeoutMs: 30_000 },
         );
         if (code !== 0) return null;
-        // .NET's round-trip format has 7 fractional digits; Date.parse wants at most 3.
-        const ms = Date.parse(stdout.trim().replace(/(\.\d{3})\d+/, '$1'));
-        return Number.isFinite(ms) ? ms : null;
+        const processes: ProcessInfo[] = [];
+        for (const line of stdout.split(/\r?\n/)) {
+          const match = /^(\d+) (\d+) (\S+)$/.exec(line.trim());
+          if (!match) continue;
+          // .NET's round-trip format has 7 fractional digits; Date.parse wants at most 3.
+          const startTime = Date.parse((match[3] ?? '').replace(/(\.\d{3})\d+/, '$1'));
+          if (Number.isFinite(startTime)) {
+            processes.push({ pid: Number(match[1]), parentPid: Number(match[2]), startTime });
+          }
+        }
+        return processes.length > 0 ? processes : null;
       } catch {
         return null;
       }
