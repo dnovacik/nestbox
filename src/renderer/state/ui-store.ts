@@ -10,6 +10,8 @@ export interface ScriptPanes {
 export const DEFAULT_PANES: ScriptPanes = { scripts: [null], active: 0 };
 
 export interface UiData {
+  /** What main shows: the selected project, or the machine-wide Ports page. */
+  view: 'project' | 'ports';
   selectedProjectId: string | null;
   /** Active tab per project id; 'overview' when unset. */
   activeTab: Record<string, string>;
@@ -22,7 +24,9 @@ export interface UiData {
 }
 
 export interface UiState extends UiData {
+  /** Selects a project and shows it (leaving the Ports page). */
   select(id: string | null): void;
+  showPorts(): void;
   setActiveTab(projectId: string, tab: string): void;
   setFilter(filter: string): void;
   toggleCollapsed(projectId: string): void;
@@ -36,6 +40,7 @@ export interface UiState extends UiData {
 }
 
 export const initialUiState: UiData = {
+  view: 'project',
   selectedProjectId: null,
   activeTab: {},
   filter: '',
@@ -51,7 +56,8 @@ export const useUiStore = create<UiState>()((set) => {
     set((s) => ({ scriptPanes: { ...s.scriptPanes, [projectId]: fn(panesOf(s, projectId)) } }));
   return {
     ...initialUiState,
-    select: (id) => set({ selectedProjectId: id }),
+    select: (id) => set({ selectedProjectId: id, view: 'project' }),
+    showPorts: () => set({ view: 'ports' }),
     setActiveTab: (projectId, tab) => set((s) => ({ activeTab: { ...s.activeTab, [projectId]: tab } })),
     setFilter: (filter) => set({ filter }),
     toggleCollapsed: (projectId) =>

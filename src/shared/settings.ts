@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AppSettingsSchema, TRAY_ICON_THEMES } from './types';
+import { AppSettingsSchema, TRAY_ICON_THEMES, WatchedPortsSchema } from './types';
 
 /** Editor command as the user types it. Rejects what cannot pass safely through cmd.exe (see assertCmdSafe). */
 export const EditorCommandSchema = z
@@ -17,7 +17,21 @@ export const SettingsPatchSchema = z.strictObject({
   trayIconTheme: z.enum(TRAY_ICON_THEMES).optional(),
   logBufferLines: LogBufferLinesSchema.optional(),
   editorCommand: EditorCommandSchema.optional(),
+  watchedPorts: WatchedPortsSchema.optional(),
 });
+
+/** "3000, 5173" → [3000, 5173] (duplicates dropped, order kept); null when any entry is not a valid port. */
+export function parsePortList(text: string): number[] | null {
+  const parts = text.split(',').map((p) => p.trim()).filter((p) => p !== '');
+  const ports: number[] = [];
+  for (const part of parts) {
+    if (!/^\d{1,5}$/.test(part)) return null;
+    const port = Number(part);
+    if (port < 1 || port > 65_535) return null;
+    if (!ports.includes(port)) ports.push(port);
+  }
+  return WatchedPortsSchema.safeParse(ports).success ? ports : null;
+}
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 
 export const SettingsViewSchema = AppSettingsSchema.extend({ readOnly: z.boolean() });

@@ -11,7 +11,7 @@ export function makeDetected(over: Partial<DetectedProject> = {}): DetectedProje
     missing: false,
     packageJson: { name: 'shop', scripts: { dev: 'vite', build: 'vite build' } },
     packageManager: 'pnpm',
-    envFiles: ['.env', '.env.example'],
+    envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
     dockerCompose: null,

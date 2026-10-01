@@ -3,6 +3,7 @@ import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
 import type { AppInfo, AppSettings } from '@shared/types';
 import type { PlatformAdapter } from '../platform/adapter';
+import type { PortService } from '../ports/port-service';
 import type { ProcessManager } from '../processes/process-manager';
 import type { ProjectService } from '../projects/project-service';
 import type { StoreService } from '../store/store-service';
@@ -18,6 +19,7 @@ export interface CoreHandlerDeps {
   isDirectory(path: string): Promise<boolean>;
   processes: Pick<ProcessManager, 'list' | 'stopAll' | 'forget'>;
   settings: Pick<StoreService, 'getSettings' | 'updateSettings' | 'isReadOnly'>;
+  ports: Pick<PortService, 'list' | 'kill' | 'waitUntilFree'>;
   /** Called after a successful settings:update (tray theme and friends react here). */
   onSettingsChanged(settings: AppSettings): void;
 }
@@ -50,6 +52,7 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
       await deps.processes.stopAll(ofProject);
       deps.processes.forget(ofProject);
       deps.projects.remove(id);
+      deps.toolHost.forgetProject(id);
     },
     'projects:rename': async ({ id, name }) => deps.projects.rename(id, name),
     'projects:setPinned': async ({ id, pinned }) => deps.projects.setPinned(id, pinned),
@@ -66,6 +69,9 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'processes:stopAll': async ({ projectId }) => {
       await deps.processes.stopAll(projectId === undefined ? undefined : (p) => belongsTo(p, projectId));
     },
+    'ports:list': () => deps.ports.list(),
+    'ports:kill': (input) => deps.ports.kill(input),
+    'ports:waitFree': ({ port, timeoutMs }) => deps.ports.waitUntilFree(port, timeoutMs),
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {
       const editor = patch.editorCommand;

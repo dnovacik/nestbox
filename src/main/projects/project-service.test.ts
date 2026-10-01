@@ -6,7 +6,7 @@ import { createMemoryLogger } from '../logger';
 import { createWin32Adapter } from '../platform/win32';
 import { createMemoryBackend } from '../store/backend';
 import { StoreService } from '../store/store-service';
-import { ProjectService } from './project-service';
+import { DETECTION_WAIT_MS, ProjectService } from './project-service';
 import { noopRunner } from '../platform/testing';
 
 const win32 = createWin32Adapter({ runner: noopRunner, getEditorCommand: () => 'code' });
@@ -22,7 +22,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
     missing: false,
     packageJson: null,
     packageManager: 'pnpm',
-    envFiles: [],
+    envFiles: [], envSymlinks: [],
     workspaces: [
       { ...emptyDetected(), id: `${input.id}::packages/api`, rootId: input.id, relPath: 'packages/api', name: 'api', path: `${input.path}\\packages\\api` },
     ],
@@ -37,7 +37,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
 function emptyDetected(): DetectedProject {
   return {
     id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false, packageJson: null,
-    packageManager: null, envFiles: [], workspaces: [], prismaSchema: null, dockerCompose: null,
+    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null,
     git: null, buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   };
@@ -196,6 +196,47 @@ describe('ProjectService lookups and edits', () => {
     expect(service.getDetected('id-1::packages/api').name).toBe('api');
     expect(() => service.getDetected('id-1::nope')).toThrow(NestboxError);
     expect(() => service.getDetected('missing')).toThrow(NestboxError);
+  });
+
+  it('getDetectedAsync waits for a detection still in flight', async () => {
+    const { service, detect } = setup({
+      schemaVersion: 1,
+      settings: {},
+      projects: [{ id: 'p1', name: 'Shop', path: 'C:\\Dev\\Shop' }],
+    });
+    let finish = (): void => {};
+    detect.mockImplementationOnce(
+      (input: DetectInput) => new Promise<DetectedProject>((resolve) => (finish = () => resolve(fakeDetect(input)))),
+    );
+    const init = service.init();
+    expect(() => service.getDetected('p1')).toThrow(NestboxError);
+    const pending = service.getDetectedAsync('p1::packages/api');
+    finish();
+    expect((await pending).name).toBe('api');
+    await init;
+  });
+
+  it('getDetectedAsync throws NOT_FOUND for unknown ids without waiting', async () => {
+    const { service } = setup();
+    await expect(service.getDetectedAsync('nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('getDetectedAsync gives up after the wait limit', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, detect } = setup({
+        schemaVersion: 1,
+        settings: {},
+        projects: [{ id: 'p1', name: 'Shop', path: 'C:\\Dev\\Shop' }],
+      });
+      detect.mockImplementationOnce(() => new Promise<DetectedProject>(() => {}));
+      void service.init();
+      const pending = expect(service.getDetectedAsync('p1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await vi.advanceTimersByTimeAsync(DETECTION_WAIT_MS);
+      await pending;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renames, keeping the detected name in sync', async () => {

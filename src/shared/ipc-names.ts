@@ -15,6 +15,9 @@ export const INVOKE_CHANNELS = [
   'settings:update',
   'processes:list',
   'processes:stopAll',
+  'ports:list',
+  'ports:kill',
+  'ports:waitFree',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 

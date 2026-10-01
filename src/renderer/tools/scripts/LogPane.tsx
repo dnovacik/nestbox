@@ -6,7 +6,10 @@ import { cn } from '@/lib/utils';
 import { type LogFilters, NO_FILTERS, searchHits, structuredFilterActive, visibleLines } from './filters';
 import type { LinkMatch } from './links';
 import { structuredOf } from './structured';
-import type { LogLine } from '@shared/processes';
+import { isLive, type LogLine } from '@shared/processes';
+import { useProcesses } from '@/lib/queries';
+import { addrInUsePort } from './addr-in-use';
+import { AddrInUseBanner } from './AddrInUseBanner';
 import { LogRow } from './LogRow';
 import { LogToolbar } from './LogToolbar';
 import { useExportLogs, useOpenFileAt } from './use-scripts';
@@ -61,6 +64,10 @@ export function LogPane({ projectId, script, scripts, onScriptChange, active, on
   const openFileAt = useOpenFileAt(projectId);
 
   const visible = useMemo(() => visibleLines(lines, filters), [lines, filters]);
+  const { data: processes = [] } = useProcesses();
+  const live = processes.some((p) => p.projectId === projectId && p.script === script && isLive(p.state));
+  // Only while the script is down: a running script's every log batch would otherwise rescan the buffer.
+  const busyPort = useMemo(() => (live ? null : addrInUsePort(lines)), [live, lines]);
   const hits = useMemo(() => searchHits(visible, query), [visible, query]);
   const contexts = useContexts(lines);
   const currentHit = hits.length > 0 ? hits[Math.min(hitIndex, hits.length - 1)] : undefined;
@@ -146,6 +153,7 @@ export function LogPane({ projectId, script, scripts, onScriptChange, active, on
         onClear={() => void clear()}
         onExport={onExport}
       />
+      {script !== null && busyPort !== null && !live && <AddrInUseBanner projectId={projectId} script={script} port={busyPort} />}
       {script === null ? (
         <p className="p-4 text-xs text-fg-muted">Pick a script to see its output.</p>
       ) : status === 'error' ? (

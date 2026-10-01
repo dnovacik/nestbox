@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, join, posix, relative, resolve } from 'node:path';
 import { glob } from 'tinyglobby';
 import { parse as parseYaml } from 'yaml';
@@ -75,5 +75,14 @@ export async function findWorkspaceDirs(
   );
   const dirs = new Set(manifests.map((file) => posix.dirname(file.replace(/\\/g, '/'))));
   dirs.delete('.');
-  return [...dirs].filter((dir) => insideRoot(root, dir)).sort();
+  const realRoot = await realpath(root).catch(() => resolve(root));
+  const kept: string[] = [];
+  for (const dir of [...dirs].filter((d) => insideRoot(root, d)).sort()) {
+    // A symlinked (or junctioned) folder can point anywhere: only keep it when its target is inside the root.
+    const real = await realpath(join(root, ...dir.split('/'))).catch(() => null);
+    if (real === null) continue;
+    if (insideRoot(realRoot, real)) kept.push(dir);
+    else options.onWarning?.(dir, 'outside-root');
+  }
+  return kept;
 }

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { watch } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, type BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, Tray } from 'electron';
+import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
 import type { EventChannel } from '@shared/ipc-names';
 import { brandAsset } from './assets';
@@ -22,8 +23,11 @@ import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
 import { createPidLedger } from './processes/pid-ledger';
 import { ProcessManager } from './processes/process-manager';
+import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
+import { createEnvFileAccess } from './tools/env/env-files';
+import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
 import { handleOrphans } from './lifecycle/orphan-prompt';
@@ -105,6 +109,8 @@ if (!app.requestSingleInstanceLock()) {
       if (event.type === 'changed') notifyProcesses();
     });
 
+    const ports = new PortService({ platform, processes, ownPid: process.pid, now: Date.now, logger });
+
     const shared = createSharedContext();
     const tools = createMainTools({
       scripts: {
@@ -136,10 +142,27 @@ if (!app.requestSingleInstanceLock()) {
         emit: (projectId, event, payload) => emit('tools:event', { toolId: 'scripts', projectId, event, payload }),
         logger,
       },
+      env: {
+        files: createEnvFileAccess(),
+        clipboard: { writeText: (text) => clipboard.writeText(text) },
+        watch: (dir, onChange) => {
+          try {
+            const watcher = watch(dir, { persistent: false }, (_event, name) => {
+              if (name === null || ENV_FILE_PATTERN.test(String(name))) onChange(name === null ? null : String(name));
+            });
+            watcher.on('error', () => watcher.close());
+            return () => watcher.close();
+          } catch {
+            // A folder that can't be watched still works; the panel refreshes after its own edits.
+            return null;
+          }
+        },
+        logger,
+      },
     });
     const toolHost = createToolHost({
       tools,
-      getProject: (id) => projects.getDetected(id),
+      getProject: (id) => projects.getDetectedAsync(id),
       shared,
       platform,
       emit: (payload) => emit('tools:event', payload),
@@ -231,6 +254,7 @@ if (!app.requestSingleInstanceLock()) {
         isDirectory,
         settings: store,
         processes,
+        ports,
         onSettingsChanged: () => tray?.refresh(),
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         pickFolder: async () => {

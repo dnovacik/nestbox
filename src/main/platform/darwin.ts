@@ -6,6 +6,7 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
   return {
     id: 'darwin',
     listListeningPorts: async () => notImplemented('listListeningPorts'),
+    describeProcesses: async () => notImplemented('describeProcesses'),
     killTree: async () => notImplemented('killTree'),
     listProcesses: async () => notImplemented('listProcesses'),
     spawnScript: () => notImplemented('spawnScript'),

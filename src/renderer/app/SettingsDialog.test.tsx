@@ -74,6 +74,22 @@ describe('SettingsDialog', () => {
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
+  it('edits the watched ports as a comma-separated list', async () => {
+    const bridge = setup();
+    const dialog = await open();
+    const input = await within(dialog).findByRole('textbox', { name: 'Watched ports' });
+    expect(input).toHaveValue('3000, 5173, 5432, 6379, 8080');
+    await userEvent.clear(input);
+    await userEvent.type(input, '3000, 70000');
+    expect(within(dialog).getByText('Ports between 1 and 65535, separated by commas')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+    await userEvent.clear(input);
+    await userEvent.type(input, '4200,3000 , 4200');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(bridge.callsTo('settings:update')).toEqual([{ watchedPorts: [4200, 3000] }]);
+  });
+
   it('is read-only with a note, and the status bar warns', async () => {
     setup(true);
     expect(await screen.findByText('Settings are read-only')).toBeInTheDocument();

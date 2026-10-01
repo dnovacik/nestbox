@@ -36,6 +36,19 @@ describe('nestbox client', () => {
     });
   });
 
+  it('builds port payloads', async () => {
+    const bridge = bridgeReturning({ ok: true, data: undefined });
+    const client = createNestboxClient(() => bridge);
+    await client.ports.list();
+    await client.ports.kill({ pid: 7, port: 3000, confirmed: false });
+    await client.ports.waitFree(3000, 5_000);
+    expect(bridge.invoke.mock.calls).toEqual([
+      ['ports:list', undefined],
+      ['ports:kill', { pid: 7, port: 3000, confirmed: false }],
+      ['ports:waitFree', { port: 3000, timeoutMs: 5_000 }],
+    ]);
+  });
+
   it('resolves the bridge lazily', async () => {
     const holder: { bridge?: NestboxBridge } = {};
     const client = createNestboxClient(() => {

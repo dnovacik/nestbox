@@ -20,6 +20,11 @@ describe('spawnRunner.exec', () => {
     expect(stdout).toHaveLength(65_536);
   });
 
+  it('takes a larger cap when asked', async () => {
+    const { stdout } = await spawnRunner.exec(node, ['-e', 'process.stdout.write("x".repeat(200000))'], { maxBytes: 1_048_576 });
+    expect(stdout).toHaveLength(200_000);
+  });
+
   it('gives up after the timeout with a null code', async () => {
     const started = Date.now();
     const result = await spawnRunner.exec(node, ['-e', 'setTimeout(() => {}, 5000)'], { timeoutMs: 200 });

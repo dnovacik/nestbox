@@ -22,7 +22,8 @@ export function createSharedContext(): SharedContext {
       };
     },
     clearProject(projectId) {
-      facts.delete(projectId);
+      // The project and its workspace packages (`<rootId>::<relPath>`).
+      for (const id of [...facts.keys()]) if (id === projectId || id.startsWith(`${projectId}::`)) facts.delete(id);
     },
   };
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { EditorCommandSchema, LogBufferLinesSchema, type SettingsPatch, type SettingsView } from '@shared/settings';
+import { EditorCommandSchema, LogBufferLinesSchema, parsePortList, type SettingsPatch, type SettingsView } from '@shared/settings';
 import type { TrayIconTheme } from '@shared/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +44,7 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
   const [trayIconTheme, setTrayIconTheme] = useState(initial.trayIconTheme);
   const [logBufferLines, setLogBufferLines] = useState(String(initial.logBufferLines));
   const [editorCommand, setEditorCommand] = useState(initial.editorCommand);
+  const [watchedPorts, setWatchedPorts] = useState(initial.watchedPorts.join(', '));
   const readOnly = initial.readOnly;
 
   const buffer = Number(logBufferLines);
@@ -51,12 +52,16 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
   const editorParse = EditorCommandSchema.safeParse(editorCommand);
   const editorError = editorParse.success ? null : /["\r\n\0]/.test(editorCommand) ? 'Quotes are not allowed' : 'Enter a command';
 
+  const ports = parsePortList(watchedPorts);
+  const portsError = ports === null ? 'Ports between 1 and 65535, separated by commas' : null;
+
   const patch: SettingsPatch = {};
   if (closeToTray !== initial.closeToTray) patch.closeToTray = closeToTray;
   if (trayIconTheme !== initial.trayIconTheme) patch.trayIconTheme = trayIconTheme;
   if (!bufferError && buffer !== initial.logBufferLines) patch.logBufferLines = buffer;
   if (editorParse.success && editorParse.data !== initial.editorCommand) patch.editorCommand = editorParse.data;
-  const canSave = !readOnly && !bufferError && !editorError && Object.keys(patch).length > 0 && !update.isPending;
+  if (ports && ports.join(',') !== initial.watchedPorts.join(',')) patch.watchedPorts = ports;
+  const canSave = !readOnly && !bufferError && !editorError && !portsError && Object.keys(patch).length > 0 && !update.isPending;
 
   return (
     <form
@@ -110,6 +115,16 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
             className={cn('h-8 font-mono text-sm', editorError && 'border-err')}
           />
           {editorError && <p className="text-[11px] text-err">{editorError}</p>}
+        </Row>
+        <Row label="Watched ports" htmlFor="settings-watched-ports" hint="Shown on each project's Overview, free or in use.">
+          <Input
+            id="settings-watched-ports"
+            value={watchedPorts}
+            aria-invalid={portsError !== null}
+            onChange={(e) => setWatchedPorts(e.target.value)}
+            className={cn('h-8 font-mono text-sm', portsError && 'border-err')}
+          />
+          {portsError && <p className="text-[11px] text-err">{portsError}</p>}
         </Row>
       </fieldset>
       <DialogFooter>

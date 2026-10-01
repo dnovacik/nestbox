@@ -1,3 +1,4 @@
+import { symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detectProject } from './detect-project';
@@ -60,12 +61,28 @@ describe('detectProject', () => {
       '.env': 'DATABASE_URL=postgres://user:SECRET@host/db',
       '.env.example': 'DATABASE_URL=',
       '.env.local': 'X=1',
+      '.env.production.local': 'X=2',
+      '.envrc': 'use nix',
       '.envrc.d': null,
+      '.env.d': null,
       'env.txt': 'x',
     });
     const d = await detectProject({ id: 'p', path: dir });
-    expect(d.envFiles).toEqual(['.env', '.env.example', '.env.local']);
+    expect(d.envFiles).toEqual(['.env', '.env.example', '.env.local', '.env.production.local']);
+    expect(d.envSymlinks).toEqual([]);
     expect(JSON.stringify(d)).not.toContain('SECRET');
+  });
+
+  it('lists symlinked env files and marks them', async (ctx) => {
+    dir = await makeTree({ 'shared.env': 'A=1', '.env': 'B=2' });
+    try {
+      await symlink(join(dir, 'shared.env'), join(dir, '.env.shared'), 'file');
+    } catch {
+      ctx.skip(); // creating symlinks needs a privilege on some Windows machines
+    }
+    const d = await detectProject({ id: 'p', path: dir });
+    expect(d.envFiles).toEqual(['.env', '.env.shared']);
+    expect(d.envSymlinks).toEqual(['.env.shared']);
   });
 
   it('detects package manager, prisma, compose, build output and Claude files', async () => {

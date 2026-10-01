@@ -29,6 +29,8 @@ export interface DetectedProject {
   packageManager: PackageManager | null;
   /** File names only — env files are never opened. */
   envFiles: string[];
+  /** The env files that are symlinks; the env tool treats them as read-only. */
+  envSymlinks: string[];
   workspaces: DetectedProject[];
   prismaSchema: string | null;
   dockerCompose: string | null;
@@ -51,6 +53,7 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
       .nullable(),
     packageManager: z.enum(PACKAGE_MANAGERS).nullable(),
     envFiles: z.array(z.string()),
+    envSymlinks: z.array(z.string()),
     workspaces: z.array(DetectedProjectSchema),
     prismaSchema: z.string().nullable(),
     dockerCompose: z.string().nullable(),

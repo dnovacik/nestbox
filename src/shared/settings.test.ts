@@ -19,4 +19,12 @@ describe('settings schemas', () => {
       trayIconTheme: 'auto',
     });
   });
+
+  it('accepts up to 20 unique ports between 1 and 65535', () => {
+    expect(SettingsPatchSchema.parse({ watchedPorts: [] })).toEqual({ watchedPorts: [] });
+    expect(SettingsPatchSchema.parse({ watchedPorts: [1, 65535] })).toEqual({ watchedPorts: [1, 65535] });
+    for (const bad of [[0], [65536], [3000, 3000], [1.5], Array.from({ length: 21 }, (_, i) => i + 1)]) {
+      expect(SettingsPatchSchema.safeParse({ watchedPorts: bad }).success).toBe(false);
+    }
+  });
 });

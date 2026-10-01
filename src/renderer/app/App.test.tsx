@@ -94,4 +94,22 @@ describe('App shell', () => {
     expect(await within(main).findByRole('heading', { name: 'shop' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'shop' })).toHaveAttribute('aria-current', 'page');
   });
+
+  it('switches to the Ports page from the sidebar and back to a project', async () => {
+    installMockBridge({
+      ...baseHandlers,
+      'projects:list': () => [makeSummary({ id: 'p1', name: 'shop' })],
+      'processes:list': () => [],
+      'ports:list': () => ({ rows: [], scannedAt: 1, stale: false }),
+    });
+    renderWithProviders(<App />);
+    const sidebar = await screen.findByRole('complementary', { name: 'Projects' });
+    await userEvent.click(within(sidebar).getByRole('button', { name: 'Ports' }));
+    expect(await screen.findByRole('table', { name: 'Listening ports' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('button', { name: 'Ports' })).toHaveAttribute('aria-current', 'page');
+    expect(within(sidebar).getByRole('button', { name: 'shop' })).not.toHaveAttribute('aria-current');
+    await userEvent.click(within(sidebar).getByRole('button', { name: 'shop' }));
+    await waitFor(() => expect(screen.queryByRole('table', { name: 'Listening ports' })).toBeNull());
+    expect(useUiStore.getState().view).toBe('project');
+  });
 });

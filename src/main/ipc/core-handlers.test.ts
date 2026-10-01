@@ -6,7 +6,7 @@ import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
   id: 'p1', rootId: 'p1', path: 'C:\\Dev\\R&D Shop', relPath: '', name: 'shop', missing: false,
-  packageJson: null, packageManager: null, envFiles: [], workspaces: [], prismaSchema: null,
+  packageJson: null, packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null,
   dockerCompose: null, git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   ...over,
@@ -31,7 +31,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
     },
-    toolHost: { list: vi.fn(() => []), invoke: vi.fn(), disposeAll: vi.fn() },
+    toolHost: { list: vi.fn(async () => []), invoke: vi.fn(), disposeAll: vi.fn(), forgetProject: vi.fn() },
     platform: {
       openInEditor: vi.fn(async () => {}),
       openTerminal: vi.fn(async () => {}),
@@ -43,6 +43,11 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     settings: memorySettings(),
     onSettingsChanged: vi.fn(),
     processes: { list: vi.fn(() => []), stopAll: vi.fn(async () => {}), forget: vi.fn() },
+    ports: {
+      list: vi.fn(async () => ({ rows: [], scannedAt: 1, stale: false })),
+      kill: vi.fn(async () => ({ result: 'killed' as const, processName: 'node.exe' })),
+      waitUntilFree: vi.fn(async () => true),
+    },
     ...over,
   };
 }
@@ -174,11 +179,25 @@ describe('core handlers', () => {
       vi.mocked(d.processes.stopAll).mockImplementation(async () => void order.push('stopAll'));
       vi.mocked(d.processes.forget).mockImplementation(() => void order.push('forget'));
       vi.mocked(d.projects.remove).mockImplementation(() => void order.push('remove'));
+      vi.mocked(d.toolHost.forgetProject).mockImplementation(() => void order.push('tools'));
       await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
-      expect(order).toEqual(['stopAll', 'forget', 'remove']);
+      expect(order).toEqual(['stopAll', 'forget', 'remove', 'tools']);
+      expect(d.toolHost.forgetProject).toHaveBeenCalledWith('r1');
       const filter = vi.mocked(d.processes.stopAll).mock.calls[0]?.[0];
       expect(filter?.('r1::packages/api')).toBe(true);
       expect(filter?.('r2')).toBe(false);
+    });
+  });
+
+  describe('ports', () => {
+    it('lists, kills and waits through the port service', async () => {
+      const d = deps();
+      const handlers = createCoreHandlers(d);
+      expect(await handlers['ports:list']()).toEqual({ rows: [], scannedAt: 1, stale: false });
+      expect(await handlers['ports:kill']({ pid: 77, port: 5432, confirmed: true })).toEqual({ result: 'killed', processName: 'node.exe' });
+      expect(d.ports.kill).toHaveBeenCalledWith({ pid: 77, port: 5432, confirmed: true });
+      expect(await handlers['ports:waitFree']({ port: 3000, timeoutMs: 5_000 })).toBe(true);
+      expect(d.ports.waitUntilFree).toHaveBeenCalledWith(3000, 5_000);
     });
   });
 });
