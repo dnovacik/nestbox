@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "settings": {
+    "theme": "system",
+    "editorCommand": "code",
+    "terminalApp": "auto",
+    "logBufferLines": 50000,
+    "closeToTray": true
+  },
+  "projects": [
+    {
+      "id": "3f2c1e9a-5b7d-4c1e-9a2b-1c3d5e7f9a0b",
+      "name": "shop-backend",
+      "path": "C:\\Dev\\shop-backend",
+      "tags": [],
+      "pinned": true,
+      "runGroups": [{ "name": "dev", "scripts": ["api", "web"] }],
+      "envProfiles": [],
+      "toolSettings": {}
+    },
+    {
+      "id": "8a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "name": "landing",
+      "path": "C:\\Dev\\landing",
+      "tags": [],
+      "pinned": false,
+      "runGroups": [],
+      "envProfiles": [],
+      "toolSettings": {}
+    }
+  ]
+}

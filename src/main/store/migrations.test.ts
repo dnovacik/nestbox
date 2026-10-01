@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { migrate, MigrationError, NewerSchemaError } from './migrations';
+import { type StoreData, StoreDataSchema } from '@shared/types';
+import { createMemoryLogger } from '../logger';
+import { createMemoryBackend } from './backend';
+import v1 from './fixtures/v1-store.json';
+import { MIGRATIONS, migrate, MigrationError, NewerSchemaError } from './migrations';
+import { StoreService } from './store-service';
 
 describe('migrate', () => {
   it('returns data unchanged when already at the target version', () => {
@@ -28,5 +33,52 @@ describe('migrate', () => {
 
   it('rejects a gap in the migration table', () => {
     expect(() => migrate({ schemaVersion: 0 }, 2, { 0: (d) => d })).toThrow(/No migration from v1/);
+  });
+});
+
+describe('migration v1 → v2', () => {
+  const fixture = (): Record<string, unknown> => structuredClone(v1) as Record<string, unknown>;
+
+  it('adds trayIconTheme and converts run groups to entries', () => {
+    const out = migrate(fixture(), 2) as StoreData;
+    expect(out.schemaVersion).toBe(2);
+    expect(out.settings.trayIconTheme).toBe('dark-taskbar');
+    expect(out.projects[0]?.runGroups).toEqual([
+      { name: 'dev', entries: [{ relPath: '', script: 'api' }, { relPath: '', script: 'web' }] },
+    ]);
+    expect(out.projects[1]?.runGroups).toEqual([]);
+    expect(StoreDataSchema.safeParse(out).success).toBe(true);
+  });
+
+  it('keeps an existing trayIconTheme', () => {
+    const raw = fixture();
+    raw['settings'] = { ...(raw['settings'] as object), trayIconTheme: 'auto' };
+    expect((migrate(raw, 2) as StoreData).settings.trayIconTheme).toBe('auto');
+  });
+
+  it('drops malformed run groups instead of failing the store', () => {
+    const step = MIGRATIONS[1];
+    if (!step) throw new Error('missing v1 migration');
+    const out = step({
+      settings: {},
+      projects: [
+        { id: 'a', runGroups: 'x' },
+        { id: 'b', runGroups: [{ name: 'g', scripts: 'nope' }, { name: 'h', scripts: ['ok', 5, ''] }, 7] },
+        'not-a-project',
+      ],
+    });
+    expect(out['projects']).toEqual([
+      { id: 'a', runGroups: [] },
+      { id: 'b', runGroups: [{ name: 'h', entries: [{ relPath: '', script: 'ok' }] }] },
+      'not-a-project',
+    ]);
+  });
+
+  it('migrates a v1 file end to end through StoreService', () => {
+    const backend = createMemoryBackend(fixture());
+    const store = new StoreService(backend, createMemoryLogger());
+    expect(store.isReadOnly()).toBe(false);
+    expect((backend.data as StoreData).schemaVersion).toBe(2);
+    expect(store.getProjects()).toHaveLength(2);
   });
 });

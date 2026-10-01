@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AppSettingsSchema, defaultStoreData, ProjectNameSchema, ProjectSchema, StoreDataSchema } from './types';
+import { AppSettingsSchema, CURRENT_SCHEMA_VERSION, defaultStoreData, ProjectNameSchema, ProjectSchema, StoreDataSchema } from './types';
 
 describe('persisted types', () => {
   it('fills project defaults from id, name and path only', () => {
@@ -33,16 +33,17 @@ describe('persisted types', () => {
       terminalApp: 'auto',
       logBufferLines: 50_000,
       closeToTray: true,
+      trayIconTheme: 'dark-taskbar',
     });
   });
 
   it('default store data is valid and versioned', () => {
     const d = defaultStoreData();
-    expect(d.schemaVersion).toBe(1);
+    expect(d.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(StoreDataSchema.parse(d)).toEqual(d);
   });
 
   it('rejects store data with a different schemaVersion', () => {
-    expect(StoreDataSchema.safeParse({ ...defaultStoreData(), schemaVersion: 2 }).success).toBe(false);
+    expect(StoreDataSchema.safeParse({ ...defaultStoreData(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 }).success).toBe(false);
   });
 });

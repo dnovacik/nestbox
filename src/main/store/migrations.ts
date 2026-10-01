@@ -3,8 +3,34 @@ import { isRecord } from '@shared/is-record';
 /** Transforms data from version N (its table key) to N + 1. schemaVersion is set by migrate(). */
 export type Migration = (data: Record<string, unknown>) => Record<string, unknown>;
 
-/** Real migrations, keyed by from-version. Empty until the first schema change (M1: trayIconTheme). */
-export const MIGRATIONS: Readonly<Record<number, Migration>> = {};
+/**
+ * v1 → v2 (M1): adds settings.trayIconTheme and turns run groups from `{ name, scripts: string[] }`
+ * into package-aware `{ name, entries: { relPath, script }[] }`. Malformed groups are dropped
+ * rather than failing the whole store.
+ */
+const migrateV1toV2: Migration = (data) => {
+  const settings = isRecord(data['settings']) ? data['settings'] : {};
+  const projects = Array.isArray(data['projects']) ? data['projects'] : [];
+  return {
+    ...data,
+    settings: { trayIconTheme: 'dark-taskbar', ...settings },
+    projects: projects.map((project: unknown) => {
+      if (!isRecord(project)) return project; // validation decides
+      const groups: unknown[] = Array.isArray(project['runGroups']) ? project['runGroups'] : [];
+      return {
+        ...project,
+        runGroups: groups.flatMap((group) => {
+          if (!isRecord(group) || typeof group['name'] !== 'string' || !Array.isArray(group['scripts'])) return [];
+          const scripts = group['scripts'].filter((s): s is string => typeof s === 'string' && s.length > 0);
+          return [{ name: group['name'], entries: scripts.map((script) => ({ relPath: '', script })) }];
+        }),
+      };
+    }),
+  };
+};
+
+/** Real migrations, keyed by from-version. */
+export const MIGRATIONS: Readonly<Record<number, Migration>> = { 1: migrateV1toV2 };
 
 export class MigrationError extends Error {
   override name = 'MigrationError';

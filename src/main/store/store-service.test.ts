@@ -23,9 +23,10 @@ describe('StoreService', () => {
     const backend = createMemoryBackend({ schemaVersion: 0, projects: [project] });
     const store = new StoreService(backend, createMemoryLogger(), {
       0: (d) => ({ ...d, settings: {} }),
+      1: (d) => d,
     });
     expect(store.getSettings().editorCommand).toBe('code');
-    expect((backend.data as { schemaVersion: number }).schemaVersion).toBe(1);
+    expect((backend.data as { schemaVersion: number }).schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   });
 
   it.each([
