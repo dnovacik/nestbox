@@ -70,6 +70,8 @@ export interface PlatformAdapter {
   windowChrome(colors: OverlayColors): WindowChrome;
   /** The AppUserModelID Windows needs for toast notifications (matches electron-builder's appId); null elsewhere. */
   notificationAppId(): string | null;
+  /** Whether a command (name on PATH, or a path) exists; null when it cannot be checked. */
+  commandExists(command: string): Promise<boolean | null>;
 }
 
 export function notImplemented(method: string): never {

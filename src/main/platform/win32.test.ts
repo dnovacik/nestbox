@@ -132,6 +132,18 @@ describe('win32 openInEditor pre-check', () => {
   });
 });
 
+describe('win32 commandExists', () => {
+  it.each([
+    [{ code: 0, stdout: '' }, true],
+    [{ code: 1, stdout: '' }, false],
+    [new Error('ENOENT'), null],
+  ] as const)('maps where.exe %j to %s', async (result, expected) => {
+    const runner = fakeRunner([], { 'where.exe': result });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).commandExists('cursor')).toBe(expected);
+    expect(runner.execCalls).toEqual([{ file: 'where.exe', args: ['/q', 'cursor'] }]);
+  });
+});
+
 describe('win32 openTerminal', () => {
   it.each(Object.entries(PATHS))('opens Windows Terminal with an escaped -d for %s paths', async (_n, path) => {
     const runner = fakeRunner();

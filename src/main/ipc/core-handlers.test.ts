@@ -32,7 +32,11 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       getDetected: vi.fn(() => detected()),
     },
     toolHost: { list: vi.fn(() => []), invoke: vi.fn(), disposeAll: vi.fn() },
-    platform: { openInEditor: vi.fn(async () => {}), openTerminal: vi.fn(async () => {}) },
+    platform: {
+      openInEditor: vi.fn(async () => {}),
+      openTerminal: vi.fn(async () => {}),
+      commandExists: vi.fn(async (): Promise<boolean | null> => true),
+    },
     appInfo: () => ({ version: '0.0.0', platform: 'win32' }),
     pickFolder: vi.fn(async () => null),
     isDirectory: vi.fn(async () => true),
@@ -97,6 +101,24 @@ describe('core handlers', () => {
       expect(d.settings.getSettings().closeToTray).toBe(false);
       expect(d.onSettingsChanged).toHaveBeenCalledTimes(1);
       expect(d.onSettingsChanged).toHaveBeenCalledWith(expect.objectContaining({ closeToTray: false }));
+    });
+
+    it('refuses an editor command that does not exist, without echoing it', async () => {
+      const d = deps();
+      vi.mocked(d.platform.commandExists).mockResolvedValueOnce(false);
+      const error = await createCoreHandlers(d)['settings:update']({ editorCommand: 'nonexistent-editor' }).catch((e) => e);
+      expect(error).toMatchObject({ code: 'NOT_FOUND', message: 'That editor command was not found on PATH' });
+      expect(String(error.message)).not.toContain('nonexistent-editor');
+      expect(d.settings.getSettings().editorCommand).toBe('code');
+    });
+
+    it('accepts an editor it cannot check, and skips the check when the editor is unchanged', async () => {
+      const d = deps();
+      vi.mocked(d.platform.commandExists).mockResolvedValueOnce(null);
+      await createCoreHandlers(d)['settings:update']({ editorCommand: 'cursor' });
+      expect(d.settings.getSettings().editorCommand).toBe('cursor');
+      await createCoreHandlers(d)['settings:update']({ editorCommand: 'cursor', closeToTray: false });
+      expect(d.platform.commandExists).toHaveBeenCalledTimes(1);
     });
 
     it('rejects on a read-only store without notifying', async () => {

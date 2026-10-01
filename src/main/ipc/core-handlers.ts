@@ -12,7 +12,7 @@ import type { CoreHandlers } from './router';
 export interface CoreHandlerDeps {
   projects: Pick<ProjectService, 'list' | 'add' | 'remove' | 'rename' | 'setPinned' | 'refresh' | 'getDetected'>;
   toolHost: ToolHost;
-  platform: Pick<PlatformAdapter, 'openInEditor' | 'openTerminal'>;
+  platform: Pick<PlatformAdapter, 'openInEditor' | 'openTerminal' | 'commandExists'>;
   appInfo(): AppInfo;
   pickFolder(): Promise<string | null>;
   isDirectory(path: string): Promise<boolean>;
@@ -68,6 +68,13 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     },
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {
+      const editor = patch.editorCommand;
+      if (editor !== undefined && editor !== deps.settings.getSettings().editorCommand) {
+        // Payload values never go into messages, so the command itself is not repeated here.
+        if ((await deps.platform.commandExists(editor)) === false) {
+          throw new NestboxError('NOT_FOUND', 'That editor command was not found on PATH');
+        }
+      }
       deps.settings.updateSettings((current) => ({ ...current, ...patch }));
       deps.onSettingsChanged(deps.settings.getSettings());
       return settingsView();

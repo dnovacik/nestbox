@@ -10,8 +10,9 @@ describe('darwin stub', () => {
     expect(adapter.samePath('/Users/me/Shop', '/users/me/shop')).toBe(false);
   });
 
-  it('needs no notification app id', () => {
+  it('needs no notification app id and cannot check commands', async () => {
     expect(adapter.notificationAppId()).toBeNull();
+    expect(await adapter.commandExists('code')).toBeNull();
   });
 
   it('uses an inset title bar', () => {

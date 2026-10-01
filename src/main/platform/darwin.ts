@@ -16,5 +16,6 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
     samePath: (a, b) => normalizePosixPath(a) === normalizePosixPath(b),
     windowChrome: () => ({ titleBarStyle: 'hiddenInset' }),
     notificationAppId: () => null,
+    commandExists: async () => null,
   };
 }
