@@ -41,7 +41,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - No `process.platform` outside `src/main/platform/`. Lint enforces this.
 - Never store or log env values or project file contents. `Logger` fields are primitives only; log channel, tool, method, file names and codes.
 - Paths are stored and displayed in their original casing. `normalizePath` is for comparison only (`samePath`, duplicate detection).
-- Every Windows command argument goes through `src/main/platform/win32-escape.ts` (cmd.exe caret escaping; `;` → `\;` for `wt`).
+- Arguments passed through cmd.exe go through `cmdInvocation`/`escapeCmdArg`; `wt.exe` is spawned directly (Node quoting) with `;` escaped via `escapeWtArg`; the folder for the cmd fallback travels only as `cwd`.
 - Renderer colours come from tokens in `src/renderer/styles/globals.css` only. Lint rejects hex literals elsewhere. Dark theme only for now; one accent (`brand`); flat (no glow or blur).
 - Fonts are bundled through `@fontsource-variable/*`. No network calls.
 - Renderer packages are devDependencies (Vite bundles them). `dependencies` holds only what main requires at runtime.
@@ -50,7 +50,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 
 - **Core channels.** Defined in `src/shared/channels.ts`, one Zod input/output schema per channel. Names are in `src/shared/ipc-names.ts`, which has no Zod dependency and is safe for the preload.
 - **Envelopes.** Main returns `{ ok, data } | { ok: false, error: { code, message } }`. The preload passes it through unchanged, because `contextBridge` drops custom `Error` fields. `createNestboxClient` (`src/shared/client.ts`) unwraps it and throws `NestboxError` with the code.
-- **Error codes:** `VALIDATION`, `NOT_FOUND`, `CONFLICT`, `NOT_IMPLEMENTED`, `FORBIDDEN`, `INTERNAL`. Messages never contain payload values.
+- **Error codes:** `VALIDATION`, `NOT_FOUND`, `CONFLICT`, `NOT_IMPLEMENTED`, `FORBIDDEN`, `INTERNAL`. Messages never contain payload values (tool/method ids may appear in NOT_FOUND messages).
 
 ## Adding a tool
 
