@@ -20,7 +20,11 @@ export interface OrphanPromptDeps {
  */
 export async function handleOrphans(deps: OrphanPromptDeps): Promise<void> {
   try {
-    const orphans = await findOrphans(deps.ledger.previous(), deps.startTimeOf);
+    const previous = deps.ledger.previous();
+    const orphans = await findOrphans(previous, deps.startTimeOf);
+    if (previous.length > 0) {
+      deps.logger.info('orphan check', { recorded: previous.length, running: orphans.length });
+    }
     if (orphans.length > 0) {
       const n = orphans.length;
       const message = `${n} ${n === 1 ? 'script' : 'scripts'} from the last session ${n === 1 ? 'is' : 'are'} still running`;

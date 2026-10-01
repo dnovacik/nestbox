@@ -65,8 +65,10 @@ if (!app.requestSingleInstanceLock()) {
       runner: spawnRunner,
       getEditorCommand: () => store.getSettings().editorCommand,
     });
+    /** False until the renderer has loaded, and again after its process died (until the reload finishes). */
+    let rendererReady = false;
     const emit = (channel: EventChannel, payload?: unknown): void => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!rendererReady || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
       mainWindow.webContents.send(channel, payload);
     };
     let tray: TrayController | null = null;
@@ -252,6 +254,15 @@ if (!app.requestSingleInstanceLock()) {
       devServerUrl,
       icon: brandAsset(assetEnv, 'png/nestbox.ico'),
       onQuitShortcut: () => void quitController.requestQuit(),
+    });
+    mainWindow.webContents.on('did-finish-load', () => {
+      rendererReady = true;
+    });
+    // A renderer killed from Task Manager (or crashed) is reloaded; scripts keep running in main meanwhile.
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+      rendererReady = false;
+      logger.warn('renderer process gone', { reason: details.reason, exitCode: details.exitCode });
+      if (details.reason !== 'clean-exit' && mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
     });
     mainWindow.on('close', (event) => quitController.onWindowClose(event));
     mainWindow.on('session-end', () => quitController.onSessionEnd());

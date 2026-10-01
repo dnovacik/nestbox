@@ -42,6 +42,7 @@ describe('handleOrphans', () => {
     expect(deps.killTree.mock.calls).toEqual([[1000], [1001]]);
     expect(deps.logger.entries).toContainEqual({ level: 'warn', message: 'orphan kill failed', fields: { pid: 1000 } });
     expect(deps.ledger.dropPrevious).toHaveBeenCalled();
+    expect(deps.logger.entries).toContainEqual({ level: 'info', message: 'orphan check', fields: { recorded: 2, running: 2 } });
   });
 
   it('leaves them running when asked to', async () => {

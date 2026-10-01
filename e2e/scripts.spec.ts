@@ -1,18 +1,23 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProjectAndOpenScripts, copyFixture, isAlive, launch, readPid } from './helpers';
+import { addProjectAndOpenScripts, copyFixture, isAlive, launch, messageBoxes, readPid } from './helpers';
 
 let app: ElectronApplication;
 let page: Page;
 let project: string;
+let userData: string;
 let closed = false;
+
+function track(launched: ElectronApplication): void {
+  closed = false;
+  launched.on('close', () => {
+    closed = true;
+  });
+}
 
 test.beforeEach(async () => {
   project = await copyFixture('npm-app');
-  ({ app, page } = await launch(project));
-  closed = false;
-  app.on('close', () => {
-    closed = true;
-  });
+  ({ app, page, userData } = await launch(project));
+  track(app);
 });
 
 test.afterEach(async () => {
@@ -47,4 +52,29 @@ test('quitting with a running script stops it', async () => {
   // The stubbed confirmation answers "Stop and quit".
   await app.close();
   await expect.poll(() => isAlive(pid), { timeout: 10_000 }).toBe(false);
+});
+
+test('offers to stop a script left running when Nestbox itself was killed', async () => {
+  await addProjectAndOpenScripts(page);
+  await page.getByRole('button', { name: 'Start serve' }).click();
+  await expect(page.getByRole('log', { name: 'serve output' })).toContainText('listening', { timeout: 30_000 });
+  const serverPid = await readPid(project);
+  // Give the background start-time lookup (PowerShell) time to reach the ledger.
+  await page.waitForTimeout(3_000);
+
+  // Kill only the main process, like ending electron.exe in Task Manager's Details tab. Its children
+  // (cmd.exe, npm, the server) are not part of a job, so they keep running.
+  const mainPid = app.process().pid;
+  if (mainPid === undefined) throw new Error('no main pid');
+  process.kill(mainPid, 'SIGKILL');
+  await expect.poll(() => closed, { timeout: 10_000 }).toBe(true);
+  expect(isAlive(serverPid)).toBe(true);
+
+  ({ app, page } = await launch(project, { userData }));
+  track(app);
+  // The stubbed prompt answers "Stop them".
+  await expect
+    .poll(() => messageBoxes(app), { timeout: 30_000 })
+    .toContainEqual('1 script from the last session is still running');
+  await expect.poll(() => isAlive(serverPid), { timeout: 10_000 }).toBe(false);
 });

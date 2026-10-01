@@ -26,11 +26,15 @@ export async function readPid(project: string): Promise<number> {
 }
 
 /**
- * Launches the built app with an isolated profile. The folder picker returns `project`, and native
- * message boxes answer with their default (first) button.
+ * Launches the built app with an isolated profile (a new one unless `userData` is given). The folder
+ * picker returns `project`; native message boxes answer with their default (first) button and their
+ * messages are recorded in `globalThis.__messageBoxes` in the main process (see messageBoxes()).
  */
-export async function launch(project: string): Promise<{ app: ElectronApplication; page: Page }> {
-  const userData = await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-'));
+export async function launch(
+  project: string,
+  opts: { userData?: string } = {},
+): Promise<{ app: ElectronApplication; page: Page; userData: string }> {
+  const userData = opts.userData ?? (await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-')));
   // A dev-server URL in the environment would point the built app at a server that isn't running.
   const env = Object.fromEntries(
     Object.entries({ ...process.env, NESTBOX_USER_DATA_DIR: userData }).filter(
@@ -40,7 +44,14 @@ export async function launch(project: string): Promise<{ app: ElectronApplicatio
   const app = await electron.launch({ args: [REPO_ROOT], cwd: REPO_ROOT, env });
   await app.evaluate(({ dialog }, dir) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
-    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+    const seen: string[] = [];
+    (globalThis as unknown as { __messageBoxes: string[] }).__messageBoxes = seen;
+    const answer = async (...args: unknown[]) => {
+      const options = args.find((a): a is { message: string } => typeof a === 'object' && a !== null && 'message' in a);
+      seen.push(options?.message ?? '');
+      return { response: 0, checkboxChecked: false };
+    };
+    dialog.showMessageBox = answer as typeof dialog.showMessageBox;
   }, project);
   const page = await app.firstWindow();
   // Closing the window must quit (not hide to the tray) so app.close() can finish.
@@ -51,7 +62,12 @@ export async function launch(project: string): Promise<{ app: ElectronApplicatio
       { closeToTray: false },
     ),
   );
-  return { app, page };
+  return { app, page, userData };
+}
+
+/** Messages of the native message boxes the app has shown so far. */
+export async function messageBoxes(app: ElectronApplication): Promise<string[]> {
+  return app.evaluate(() => [...((globalThis as unknown as { __messageBoxes?: string[] }).__messageBoxes ?? [])]);
 }
 
 export async function addProjectAndOpenScripts(page: Page): Promise<void> {
