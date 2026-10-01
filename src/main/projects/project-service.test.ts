@@ -149,11 +149,41 @@ describe('ProjectService lookups and edits', () => {
   it('throws NOT_FOUND for unknown ids', async () => {
     const { service } = setup();
     expect(() => service.remove('nope')).toThrow('Project not found');
-    try {
-      service.remove('nope');
-    } catch (e) {
-      expect(e).toMatchObject({ code: 'NOT_FOUND' });
-    }
+    expect(() => service.remove('nope')).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
+  });
+
+  it('refuses to pin a workspace package', async () => {
+    const { service } = setup();
+    await service.add('C:\\Dev\\Shop');
+    expect(() => service.setPinned('id-1::packages/api', true)).toThrow(/Workspace packages/);
+  });
+
+  it('lets only one of two concurrent adds of the same folder through', async () => {
+    const { service, store } = setup();
+    const results = await Promise.allSettled([service.add('C:\\Dev\\Shop'), service.add('c:\\dev\\shop\\')]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ code: 'CONFLICT' });
+    expect(store.getProjects()).toHaveLength(1);
+  });
+
+  it('ignores a detection that finishes after the project was removed', async () => {
+    const { service, detect } = setup();
+    await service.add('C:\\Dev\\Shop');
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    detect.mockImplementationOnce(async (input: DetectInput) => {
+      await gate;
+      return fakeDetect(input);
+    });
+    const pending = service.refresh('id-1');
+    service.remove('id-1');
+    release();
+    await expect(pending).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(() => service.getDetected('id-1')).toThrow(NestboxError);
   });
 
   it('refresh re-detects the root of a workspace id', async () => {

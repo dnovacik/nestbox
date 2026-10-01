@@ -38,12 +38,11 @@ export class ProjectService {
     if (!(await this.deps.isDirectory(path))) {
       throw new NestboxError('VALIDATION', 'The selected folder does not exist');
     }
-    const existing = this.deps.store.getProjects().find((p) => this.deps.samePath(p.path, path));
-    if (existing) {
-      throw new NestboxError('CONFLICT', `This folder is already added as "${existing.name}"`);
-    }
+    this.assertNotDuplicate(path);
     const id = this.deps.newId();
     const detected = await this.deps.detect({ id, path });
+    // Re-check synchronously: another add may have won the race while detect was awaiting.
+    this.assertNotDuplicate(path);
     const project = ProjectSchema.parse({ id, name: detected.name, path });
     this.deps.store.updateProjects((ps) => [...ps, project]);
     this.detected.set(id, detected);
@@ -77,6 +76,9 @@ export class ProjectService {
   async refresh(id: string): Promise<ProjectSummary> {
     const project = this.requireRoot(splitProjectId(id).rootId);
     const detected = await this.detectAndCache(project);
+    if (!this.deps.store.getProjects().some((p) => p.id === project.id)) {
+      throw new NestboxError('NOT_FOUND', 'Project not found');
+    }
     this.deps.onChanged();
     return this.toSummary(project, detected);
   }
@@ -104,8 +106,18 @@ export class ProjectService {
 
   private async detectAndCache(project: Project): Promise<DetectedProject> {
     const detected = await this.deps.detect({ id: project.id, path: project.path, name: project.name });
-    this.detected.set(project.id, detected);
+    // The project may have been removed while detection was running.
+    if (this.deps.store.getProjects().some((p) => p.id === project.id)) {
+      this.detected.set(project.id, detected);
+    }
     return detected;
+  }
+
+  private assertNotDuplicate(path: string): void {
+    const existing = this.deps.store.getProjects().find((p) => this.deps.samePath(p.path, path));
+    if (existing) {
+      throw new NestboxError('CONFLICT', `This folder is already added as "${existing.name}"`);
+    }
   }
 
   private toSummary(project: Project, detected: DetectedProject): ProjectSummary {
