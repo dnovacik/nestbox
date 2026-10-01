@@ -1,0 +1,61 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createMemoryLogger } from '../logger';
+import { handleOrphans, type OrphanPromptDeps } from './orphan-prompt';
+
+const entry = (pid: number, projectId = 'p1', script = 'dev') => ({ pid, startTime: 10_000, projectId, script });
+
+function setup(previous = [entry(1000), entry(1001, 'p1::packages/api', 'api')], over: Partial<OrphanPromptDeps> = {}) {
+  const base = {
+    ledger: { previous: vi.fn(() => previous), dropPrevious: vi.fn() },
+    startTimeOf: vi.fn(async () => 10_000),
+    killTree: vi.fn(async () => {}),
+    projectLabel: vi.fn((id: string) => (id === 'p1' ? 'shop' : id === 'p1::packages/api' ? 'shop · api' : null)),
+    ask: vi.fn(async () => true),
+    logger: createMemoryLogger(),
+  };
+  return { ...base, ...over } as typeof base;
+}
+
+describe('handleOrphans', () => {
+  it('does not ask without previous entries', async () => {
+    const deps = setup([]);
+    await handleOrphans(deps);
+    expect(deps.ask).not.toHaveBeenCalled();
+    expect(deps.ledger.dropPrevious).toHaveBeenCalled();
+  });
+
+  it('does not ask when no entry still matches', async () => {
+    const deps = setup(undefined, { startTimeOf: vi.fn(async () => null) });
+    await handleOrphans(deps);
+    expect(deps.ask).not.toHaveBeenCalled();
+    expect(deps.ledger.dropPrevious).toHaveBeenCalled();
+  });
+
+  it('lists the survivors and stops them on request', async () => {
+    const deps = setup();
+    deps.killTree.mockRejectedValueOnce(new Error('denied'));
+    await handleOrphans(deps);
+    expect(deps.ask).toHaveBeenCalledWith(
+      '2 scripts from the last session are still running',
+      'shop · dev (PID 1000)\nshop · api · api (PID 1001)',
+    );
+    expect(deps.killTree.mock.calls).toEqual([[1000], [1001]]);
+    expect(deps.logger.entries).toContainEqual({ level: 'warn', message: 'orphan kill failed', fields: { pid: 1000 } });
+    expect(deps.ledger.dropPrevious).toHaveBeenCalled();
+  });
+
+  it('leaves them running when asked to', async () => {
+    const deps = setup([entry(5, 'gone')], { ask: vi.fn(async () => false) });
+    await handleOrphans(deps);
+    expect(deps.ask).toHaveBeenCalledWith('1 script from the last session is still running', 'unknown project · dev (PID 5)');
+    expect(deps.killTree).not.toHaveBeenCalled();
+    expect(deps.ledger.dropPrevious).toHaveBeenCalled();
+  });
+
+  it('keeps the entries for next time when the check fails', async () => {
+    const deps = setup(undefined, { ask: vi.fn(async () => Promise.reject(new Error('no window'))) });
+    await handleOrphans(deps);
+    expect(deps.logger.entries).toContainEqual({ level: 'error', message: 'orphan check failed', fields: undefined });
+    expect(deps.ledger.dropPrevious).not.toHaveBeenCalled();
+  });
+});
