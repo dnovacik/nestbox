@@ -1,6 +1,6 @@
 import { type DetectedProject, findDetected, type ProjectSummary, splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
-import { type Project, ProjectSchema } from '@shared/types';
+import { type Project, ProjectSchema, type RunGroup, RunGroupSchema } from '@shared/types';
 import type { DetectInput } from '../detection/detect-project';
 import type { Logger } from '../logger';
 import type { StoreService } from '../store/store-service';
@@ -104,6 +104,31 @@ export class ProjectService {
     }
     this.deps.onChanged();
     return this.toSummary(project, detected);
+  }
+
+  getRunGroups(rootId: string): RunGroup[] {
+    return this.requireRoot(rootId).runGroups;
+  }
+
+  /** Validates, persists and notifies. Run groups live on root projects only. */
+  setRunGroups(rootId: string, groups: RunGroup[]): RunGroup[] {
+    const project = this.requireRoot(rootId);
+    const next = groups.map((g) => RunGroupSchema.parse(g));
+    this.deps.store.updateProjects((ps) => ps.map((p) => (p.id === project.id ? { ...p, runGroups: next } : p)));
+    this.deps.onChanged();
+    return next;
+  }
+
+  getToolSettings(rootId: string, toolId: string): unknown {
+    const settings = this.requireRoot(rootId).toolSettings;
+    return Object.hasOwn(settings, toolId) ? settings[toolId] : undefined;
+  }
+
+  setToolSettings(rootId: string, toolId: string, value: unknown): void {
+    const project = this.requireRoot(rootId);
+    this.deps.store.updateProjects((ps) =>
+      ps.map((p) => (p.id === project.id ? { ...p, toolSettings: { ...p.toolSettings, [toolId]: value } } : p)),
+    );
   }
 
   getDetected(projectId: string): DetectedProject {

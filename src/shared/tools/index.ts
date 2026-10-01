@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ToolDefinition } from '../tool';
+import type { ToolDefinition, ToolEvents } from '../tool';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
 
 /** Tool registry, shared half. Adding a tool = one line here, one in main/tools, one in renderer/tools. */
@@ -17,3 +17,13 @@ type MethodSpec<T extends ToolId, M extends ToolMethodName<T>> = (typeof toolCon
 };
 export type ToolMethodInput<T extends ToolId, M extends ToolMethodName<T>> = z.input<MethodSpec<T, M>['input']>;
 export type ToolMethodOutput<T extends ToolId, M extends ToolMethodName<T>> = z.output<MethodSpec<T, M>['output']>;
+
+/** Event payload schemas per tool. A tool without events maps to {}. */
+export const toolEvents = {
+  'project-info': {},
+} as const satisfies Record<ToolId, ToolEvents>;
+
+export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
+export type ToolEventPayload<T extends ToolId, E extends ToolEventName<T>> = z.output<
+  (typeof toolEvents)[T][E] & z.ZodType
+>;

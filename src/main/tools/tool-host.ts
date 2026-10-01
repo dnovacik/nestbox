@@ -21,16 +21,47 @@ export interface ToolHostDeps {
   platform: PlatformAdapter;
   emit(payload: ToolEventPayload): void;
   logger: Logger;
+  /** Raw per-tool settings on a root project (Project.toolSettings[toolId]). */
+  toolSettings: {
+    get(rootId: string, toolId: string): unknown;
+    set(rootId: string, toolId: string, value: unknown): void;
+  };
+}
+
+export interface DisposeResult {
+  failed: string[];
+  timedOut: string[];
 }
 
 export interface ToolHost {
   list(projectId: string): ToolSummary[];
   invoke(toolId: string, projectId: string, method: string, input: unknown): Promise<unknown>;
-  disposeAll(): Promise<void>;
+  /** Disposes every tool in parallel; a tool that rejects or outlasts the timeout is logged by id. */
+  disposeAll(timeoutMs?: number): Promise<DisposeResult>;
 }
+
+const DEFAULT_DISPOSE_TIMEOUT_MS = 4_500;
 
 export function createToolHost(deps: ToolHostDeps): ToolHost {
   const byId = new Map(deps.tools.map((tool) => [tool.id, tool]));
+
+  function settingsFor(tool: AnyMainTool, project: DetectedProject): ToolContext['settings'] {
+    const get = (): unknown => {
+      const stored = deps.toolSettings.get(project.rootId, tool.id);
+      const parsed = tool.settingsSchema.safeParse(stored ?? {});
+      if (parsed.success) return parsed.data;
+      deps.logger.warn('tool settings invalid, using defaults', { toolId: tool.id });
+      return tool.settingsSchema.parse({});
+    };
+    return {
+      get,
+      update(fn) {
+        const next = tool.settingsSchema.parse(fn(get()));
+        deps.toolSettings.set(project.rootId, tool.id, next);
+        return next;
+      },
+    };
+  }
 
   function context(tool: AnyMainTool, project: DetectedProject): ToolContext {
     return {
@@ -38,6 +69,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       shared: deps.shared.forProject(project.id),
       emit: (event, payload) => deps.emit({ toolId: tool.id, projectId: project.id, event, payload }),
       platform: deps.platform,
+      settings: settingsFor(tool, project),
     };
   }
 
@@ -73,8 +105,36 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       return output.data;
     },
 
-    async disposeAll() {
-      await Promise.allSettled(deps.tools.map((tool) => tool.dispose?.()));
+    async disposeAll(timeoutMs = DEFAULT_DISPOSE_TIMEOUT_MS) {
+      const result: DisposeResult = { failed: [], timedOut: [] };
+      await Promise.all(
+        deps.tools.map(async (tool) => {
+          if (!tool.dispose) return;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const timeout = new Promise<'timeout'>((resolve) => {
+            timer = setTimeout(() => resolve('timeout'), timeoutMs);
+          });
+          const dispose = tool.dispose.bind(tool);
+          const outcome = await Promise.race([
+            Promise.resolve()
+              .then(dispose)
+              .then(
+              () => 'ok' as const,
+              () => 'failed' as const,
+            ),
+            timeout,
+          ]);
+          clearTimeout(timer);
+          if (outcome === 'failed') {
+            result.failed.push(tool.id);
+            deps.logger.warn('tool dispose failed', { toolId: tool.id });
+          } else if (outcome === 'timeout') {
+            result.timedOut.push(tool.id);
+            deps.logger.warn('tool dispose timed out', { toolId: tool.id });
+          }
+        }),
+      );
+      return result;
     },
   };
 }

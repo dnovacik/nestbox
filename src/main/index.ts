@@ -88,6 +88,10 @@ if (!app.requestSingleInstanceLock()) {
       platform,
       emit: (payload) => emit('tools:event', payload),
       logger,
+      toolSettings: {
+        get: (rootId, toolId) => projects.getToolSettings(rootId, toolId),
+        set: (rootId, toolId, value) => projects.setToolSettings(rootId, toolId, value),
+      },
     });
     app.on('before-quit', () => {
       void toolHost.disposeAll();

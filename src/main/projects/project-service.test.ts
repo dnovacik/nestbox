@@ -279,3 +279,37 @@ describe('ProjectService lookups and edits', () => {
     expect(s.id).toBe('id-1');
   });
 });
+
+describe('ProjectService run groups and tool settings', () => {
+  const group = { name: 'dev', entries: [{ relPath: '', script: 'api' }, { relPath: 'packages/api', script: 'dev' }] };
+
+  it('stores run groups on a root project and notifies', async () => {
+    const { service, onChanged, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    onChanged.mockClear();
+    expect(service.setRunGroups('id-1', [group])).toEqual([group]);
+    expect(service.getRunGroups('id-1')).toEqual([group]);
+    expect(store.getProjects()[0]?.runGroups).toEqual([group]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses run groups on a workspace and invalid groups', async () => {
+    const { service, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    expect(() => service.setRunGroups('id-1::packages/api', [group])).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(() => service.setRunGroups('id-1', [{ name: '', entries: [] }])).toThrow();
+    expect(store.getProjects()[0]?.runGroups).toEqual([]);
+  });
+
+  it('round-trips tool settings per tool id', async () => {
+    const { service, store } = setup();
+    await service.add('C:\\Dev\\Shop');
+    expect(service.getToolSettings('id-1', 'scripts')).toBeUndefined();
+    service.setToolSettings('id-1', 'scripts', { autoRestart: [] });
+    expect(service.getToolSettings('id-1', 'scripts')).toEqual({ autoRestart: [] });
+    expect(service.getToolSettings('id-1', 'toString')).toBeUndefined();
+    expect(store.getProjects()[0]?.toolSettings).toEqual({ scripts: { autoRestart: [] } });
+  });
+});

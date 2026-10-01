@@ -4,22 +4,31 @@ import type { ToolContract, ToolDefinition } from '@shared/tool';
 import type { PlatformAdapter } from '../platform/adapter';
 import type { SharedFacts } from './shared-context';
 
-export interface ToolContext {
+/** A tool's own slice of the root project's toolSettings. */
+export interface ToolSettingsAccess<S> {
+  /** Parsed with the tool's settingsSchema; invalid stored data falls back to the schema's defaults. */
+  get(): S;
+  /** Validates, persists on the root project and returns the stored value. Throws INTERNAL on a read-only store. */
+  update(fn: (current: S) => S): S;
+}
+
+export interface ToolContext<S = unknown> {
   project: DetectedProject;
   shared: SharedFacts;
   emit(event: string, payload: unknown): void;
   platform: PlatformAdapter;
+  settings: ToolSettingsAccess<S>;
 }
 
-export type ToolHandlers<C extends ToolContract> = {
-  [K in keyof C]: (ctx: ToolContext, input: z.output<C[K]['input']>) => Promise<z.input<C[K]['output']>>;
+export type ToolHandlers<C extends ToolContract, S = unknown> = {
+  [K in keyof C]: (ctx: ToolContext<S>, input: z.output<C[K]['input']>) => Promise<z.input<C[K]['output']>>;
 };
 
 export interface MainTool<S, C extends ToolContract> extends ToolDefinition<S> {
   contract: C;
-  handlers: ToolHandlers<C>;
+  handlers: ToolHandlers<C, S>;
   /** Start watchers. */
-  activate?(ctx: ToolContext): void;
+  activate?(ctx: ToolContext<S>): void;
   /** Kill processes, close servers. */
   dispose?(): Promise<void>;
 }
