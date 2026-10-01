@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ProjectSummarySchema } from './detected';
 import type { InvokeChannel } from './ipc-names';
+import { PortKillInputSchema, PortKillResultSchema, PortListSchema, PortWaitInputSchema } from './ports';
 import { ProcessSummarySchema } from './processes';
 import { SettingsPatchSchema, SettingsViewSchema } from './settings';
 import { ToolSummarySchema } from './tool';
@@ -42,6 +43,11 @@ export const channels = {
   'processes:list': { input: NoInput, output: z.array(ProcessSummarySchema) },
   /** One project and its workspace packages, or every process when projectId is omitted. */
   'processes:stopAll': { input: z.strictObject({ projectId: Id.optional() }), output: z.void() },
+  'ports:list': { input: NoInput, output: PortListSchema },
+  /** Stops the owning script, or kills a foreign process once confirmed (otherwise answers needs-confirm). */
+  'ports:kill': { input: PortKillInputSchema, output: PortKillResultSchema },
+  /** Resolves true once nothing listens on the port, false after timeoutMs. */
+  'ports:waitFree': { input: PortWaitInputSchema, output: z.boolean() },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;
 
 type Spec<C extends InvokeChannel> = (typeof channels)[C];

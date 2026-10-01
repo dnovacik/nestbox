@@ -43,6 +43,11 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     settings: memorySettings(),
     onSettingsChanged: vi.fn(),
     processes: { list: vi.fn(() => []), stopAll: vi.fn(async () => {}), forget: vi.fn() },
+    ports: {
+      list: vi.fn(async () => ({ rows: [], scannedAt: 1, stale: false })),
+      kill: vi.fn(async () => ({ result: 'killed' as const, processName: 'node.exe' })),
+      waitUntilFree: vi.fn(async () => true),
+    },
     ...over,
   };
 }
@@ -179,6 +184,18 @@ describe('core handlers', () => {
       const filter = vi.mocked(d.processes.stopAll).mock.calls[0]?.[0];
       expect(filter?.('r1::packages/api')).toBe(true);
       expect(filter?.('r2')).toBe(false);
+    });
+  });
+
+  describe('ports', () => {
+    it('lists, kills and waits through the port service', async () => {
+      const d = deps();
+      const handlers = createCoreHandlers(d);
+      expect(await handlers['ports:list']()).toEqual({ rows: [], scannedAt: 1, stale: false });
+      expect(await handlers['ports:kill']({ pid: 77, port: 5432, confirmed: true })).toEqual({ result: 'killed', processName: 'node.exe' });
+      expect(d.ports.kill).toHaveBeenCalledWith({ pid: 77, port: 5432, confirmed: true });
+      expect(await handlers['ports:waitFree']({ port: 3000, timeoutMs: 5_000 })).toBe(true);
+      expect(d.ports.waitUntilFree).toHaveBeenCalledWith(3000, 5_000);
     });
   });
 });

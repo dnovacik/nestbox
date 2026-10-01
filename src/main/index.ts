@@ -22,6 +22,7 @@ import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
 import { createPidLedger } from './processes/pid-ledger';
 import { ProcessManager } from './processes/process-manager';
+import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
 import { createSharedContext } from './tools/shared-context';
@@ -104,6 +105,8 @@ if (!app.requestSingleInstanceLock()) {
     processes.on((event) => {
       if (event.type === 'changed') notifyProcesses();
     });
+
+    const ports = new PortService({ platform, processes, ownPid: process.pid, now: Date.now, logger });
 
     const shared = createSharedContext();
     const tools = createMainTools({
@@ -231,6 +234,7 @@ if (!app.requestSingleInstanceLock()) {
         isDirectory,
         settings: store,
         processes,
+        ports,
         onSettingsChanged: () => tray?.refresh(),
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         pickFolder: async () => {

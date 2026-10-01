@@ -1,6 +1,7 @@
 import type { NestboxBridge } from './bridge';
 import type { ChannelInput, ChannelOutput } from './channels';
 import { NestboxError } from './errors';
+import type { PortKillInput } from './ports';
 import type { SettingsPatch } from './settings';
 import type { EventChannel, InvokeChannel } from './ipc-names';
 import type { ToolId, ToolMethodInput, ToolMethodName, ToolMethodOutput } from './tools';
@@ -32,6 +33,11 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
     processes: {
       list: () => call('processes:list'),
       stopAll: (projectId?: string) => call('processes:stopAll', projectId === undefined ? {} : { projectId }),
+    },
+    ports: {
+      list: () => call('ports:list'),
+      kill: (input: PortKillInput) => call('ports:kill', input),
+      waitFree: (port: number, timeoutMs: number) => call('ports:waitFree', { port, timeoutMs }),
     },
     settings: {
       get: () => call('settings:get'),

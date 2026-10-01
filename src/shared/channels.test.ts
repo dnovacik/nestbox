@@ -19,4 +19,11 @@ describe('channels', () => {
   it('accepts no payload for no-input channels', () => {
     expect(channels['projects:list'].input.safeParse(undefined).success).toBe(true);
   });
+
+  it('bounds port inputs', () => {
+    expect(channels['ports:kill'].input.safeParse({ pid: 7, port: 3000, confirmed: true }).success).toBe(true);
+    expect(channels['ports:kill'].input.safeParse({ pid: 0, port: 3000, confirmed: true }).success).toBe(false);
+    expect(channels['ports:kill'].input.safeParse({ pid: 7, port: 70_000, confirmed: true }).success).toBe(false);
+    expect(channels['ports:waitFree'].input.safeParse({ port: 3000, timeoutMs: 60_000 }).success).toBe(false);
+  });
 });
