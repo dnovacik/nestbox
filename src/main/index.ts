@@ -154,7 +154,7 @@ if (!app.requestSingleInstanceLock()) {
             return () => watcher.close();
           } catch {
             // A folder that can't be watched still works; the panel refreshes after its own edits.
-            return () => {};
+            return null;
           }
         },
         logger,

@@ -31,6 +31,8 @@ export interface MainTool<S, C extends ToolContract> extends ToolDefinition<S> {
   activate?(ctx: ToolContext<S>): void;
   /** Kill processes, close servers. */
   dispose?(): Promise<void>;
+  /** A root project (and its workspace packages) was removed: drop watchers and caches for it. */
+  forgetProject?(rootId: string): void;
 }
 
 /** Type-erased tool for the host's dynamic dispatch. */
@@ -39,6 +41,7 @@ export interface AnyMainTool extends ToolDefinition<unknown> {
   handlers: Record<string, (ctx: ToolContext, input: unknown) => Promise<unknown>>;
   activate?(ctx: ToolContext): void;
   dispose?(): Promise<void>;
+  forgetProject?(rootId: string): void;
 }
 
 export function defineMainTool<S, C extends ToolContract>(tool: MainTool<S, C>): AnyMainTool {

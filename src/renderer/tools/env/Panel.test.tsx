@@ -89,6 +89,19 @@ describe('EnvPanel', () => {
     await waitFor(() => expect(of('setValue')).toEqual([{ file: '.env', key: 'PORT', value: '4000', version: 'v-env' }]));
   });
 
+  it('closes the edit dialog when the current value cannot be loaded, so nothing is overwritten', async () => {
+    const { of } = setup({
+      reveal: () => {
+        throw new NestboxError('NOT_FOUND', 'That key is not in this file');
+      },
+    });
+    await table();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit PORT in .env' }));
+    expect(await screen.findByText('That key is not in this file')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(of('setValue')).toEqual([]);
+  });
+
   it('says so when the file changed on disk', async () => {
     setup({
       setValue: () => {
@@ -148,6 +161,12 @@ describe('EnvPanel', () => {
     expect(confirm).toHaveTextContent('Your current .env matches no profile. It will be kept only as .env.backup.');
     await userEvent.click(within(confirm).getByRole('button', { name: 'Switch' }));
     await waitFor(() => expect(of('switchProfile')).toEqual([{ file: '.env.staging', envVersion: 'v-env' }]));
+  });
+
+  it('offers no profile switch when .env is read-only', async () => {
+    setup({}, { ...MATRIX, files: MATRIX.files.map((f) => (f.name === '.env' ? { ...f, readOnly: true } : f)) });
+    await table();
+    expect(screen.queryByRole('button', { name: 'Switch to staging' })).toBeNull();
   });
 
   it('reloads when the tool reports a change', async () => {

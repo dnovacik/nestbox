@@ -1,4 +1,5 @@
 import { NestboxError } from '@shared/errors';
+import { belongsTo } from '@shared/processes';
 import { envContract, envDefinition } from '@shared/tools/env/contract';
 import type { Logger } from '../../logger';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
@@ -10,8 +11,8 @@ export interface EnvToolDeps {
   files: EnvFileAccess;
   /** Electron's clipboard in production: copy never sends the value to the renderer. */
   clipboard: { writeText(text: string): void };
-  /** Watches a folder (not recursive); returns a function that stops watching. */
-  watch(dir: string, onChange: (fileName: string | null) => void): () => void;
+  /** Watches a folder (not recursive); returns a function that stops watching, or null when it can't watch. */
+  watch(dir: string, onChange: (fileName: string | null) => void): (() => void) | null;
   logger: Logger;
 }
 
@@ -31,21 +32,32 @@ function portOf(value: string | undefined): number | null {
 }
 
 export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
-  /** One watcher per package folder, started by the first matrix() call. */
-  const watchers = new Map<string, () => void>();
+  /** One watcher per project (root or workspace package), started by its first matrix() call. */
+  const watchers = new Map<string, { dir: string; ctx: ToolContext; stop(): void }>();
 
   function ensureWatcher(ctx: ToolContext): void {
+    const id = ctx.project.id;
     const dir = ctx.project.path;
-    if (watchers.has(dir)) return;
+    const existing = watchers.get(id);
+    if (existing && existing.dir === dir) {
+      existing.ctx = ctx;
+      return;
+    }
+    existing?.stop();
+    watchers.delete(id);
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const entry = { dir, ctx, stop: () => {} };
     const stop = deps.watch(dir, () => {
       clearTimeout(timer);
-      timer = setTimeout(() => ctx.emit('changed', undefined), WATCH_DEBOUNCE_MS);
+      timer = setTimeout(() => entry.ctx.emit('changed', undefined), WATCH_DEBOUNCE_MS);
     });
-    watchers.set(dir, () => {
+    // Couldn't watch (the folder may be missing): try again on the next matrix() call.
+    if (!stop) return;
+    entry.stop = () => {
       clearTimeout(timer);
       stop();
-    });
+    };
+    watchers.set(id, entry);
   }
 
   async function readEntries(ctx: ToolContext, file: string): Promise<Map<string, string>> {
@@ -114,8 +126,10 @@ export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
 
       switchProfile: async (ctx, { file, envVersion }) => {
         const dir = ctx.project.path;
-        const names = (await deps.files.list(dir)).map((f) => f.name);
-        if (!profileFiles(names).includes(file)) throw new NestboxError('NOT_FOUND', 'That profile does not exist');
+        const listed = await deps.files.list(dir);
+        if (!profileFiles(listed.map((f) => f.name)).includes(file)) throw new NestboxError('NOT_FOUND', 'That profile does not exist');
+        // Checked before the backup is written, so a switch that can't happen never replaces the old backup.
+        if (listed.find((f) => f.name === '.env')?.readOnly) throw new NestboxError('FORBIDDEN', 'Symlinked env files are read-only');
         const profile = await deps.files.read(dir, file);
         if (envVersion !== null) {
           const current = await deps.files.read(dir, '.env');
@@ -134,8 +148,16 @@ export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
       },
     },
     async dispose() {
-      for (const stop of watchers.values()) stop();
+      for (const w of watchers.values()) w.stop();
       watchers.clear();
+    },
+    forgetProject(rootId) {
+      for (const [id, w] of watchers) {
+        if (belongsTo(id, rootId)) {
+          w.stop();
+          watchers.delete(id);
+        }
+      }
     },
   });
 }

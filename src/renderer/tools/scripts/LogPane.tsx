@@ -65,8 +65,9 @@ export function LogPane({ projectId, script, scripts, onScriptChange, active, on
 
   const visible = useMemo(() => visibleLines(lines, filters), [lines, filters]);
   const { data: processes = [] } = useProcesses();
-  const busyPort = useMemo(() => addrInUsePort(lines), [lines]);
   const live = processes.some((p) => p.projectId === projectId && p.script === script && isLive(p.state));
+  // Only while the script is down: a running script's every log batch would otherwise rescan the buffer.
+  const busyPort = useMemo(() => (live ? null : addrInUsePort(lines)), [live, lines]);
   const hits = useMemo(() => searchHits(visible, query), [visible, query]);
   const contexts = useContexts(lines);
   const currentHit = hits.length > 0 ? hits[Math.min(hitIndex, hits.length - 1)] : undefined;

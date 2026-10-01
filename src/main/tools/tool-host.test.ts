@@ -226,4 +226,26 @@ describe('tool host', () => {
       );
     });
   });
+
+  it('tells tools and the shared context to forget a removed project and its packages', () => {
+    const forget = vi.fn();
+    const tool = defineMainTool({
+      id: 'watcher', name: 'Watcher', icon: 'x', settingsSchema: z.object({}), appliesTo: () => true,
+      contract: defineContract({}), handlers: {}, forgetProject: forget,
+    });
+    const shared = createSharedContext();
+    shared.forProject('p1').publish('k', 1);
+    shared.forProject('p1::packages/api').publish('k', 2);
+    shared.forProject('p2').publish('k', 3);
+    const h = createToolHost({
+      tools: [tool], getProject: () => project, shared,
+      platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
+      emit: vi.fn(), logger: createMemoryLogger(), toolSettings: memoryToolSettings(),
+    });
+    h.forgetProject('p1');
+    expect(forget).toHaveBeenCalledWith('p1');
+    expect(shared.forProject('p1').get('k')).toBeUndefined();
+    expect(shared.forProject('p1::packages/api').get('k')).toBeUndefined();
+    expect(shared.forProject('p2').get('k')).toBe(3);
+  });
 });

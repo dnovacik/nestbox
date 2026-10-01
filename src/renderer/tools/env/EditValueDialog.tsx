@@ -32,11 +32,17 @@ export function EditValueDialog({ projectId, target, onClose, onSave }: Props) {
     setLoading(true);
     revealValue(projectId, target.file, target.key)
       .then((v) => !cancelled && setValue(v))
-      .catch((error: unknown) => toast.error(errorMessage(error)))
+      .catch((error: unknown) => {
+        // Never leave an empty field that Save would write over the real value.
+        toast.error(errorMessage(error));
+        if (!cancelled) onClose();
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
+    // onClose is a fresh closure each render; the load must only rerun for a new target.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, target]);
 
   const copyFromExample = async () => {

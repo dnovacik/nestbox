@@ -26,7 +26,9 @@ function setup(ports: PortEntry[] = [
   const table: ProcessInfo[] = [
     { pid: 40, parentPid: 30, startTime: 0 },
     { pid: 30, parentPid: 10, startTime: 0 },
+    { pid: 10, parentPid: 1, startTime: 0 },
     { pid: 77, parentPid: 1, startTime: 0 },
+    { pid: 1, parentPid: 0, startTime: 0 },
   ];
   const platform = {
     listListeningPorts: vi.fn(async () => {
@@ -140,6 +142,29 @@ describe('PortService.kill', () => {
     await service.list();
     await expect(service.kill({ pid: 77, port: 3000, confirmed: true })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(platform.listListeningPorts).toHaveBeenCalledTimes(2);
+    expect(platform.killTree).not.toHaveBeenCalled();
+  });
+});
+
+describe('PortService.kill safety', () => {
+  it('refuses to act on stale rows when the fresh scan fails', async () => {
+    const { service, platform, setPorts } = setup();
+    await service.list();
+    setPorts(new Error('netstat timed out'));
+    await expect(service.kill({ pid: 77, port: 5432, confirmed: true })).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(platform.killTree).not.toHaveBeenCalled();
+  });
+
+  it('refuses to kill an ancestor of NestBox (its tree would include NestBox)', async () => {
+    const { service, platform } = setup();
+    platform.listProcesses.mockResolvedValue([
+      { pid: 999, parentPid: 500, startTime: 10 },
+      { pid: 500, parentPid: 77, startTime: 5 },
+      { pid: 77, parentPid: 1, startTime: 1 },
+      { pid: 40, parentPid: 30, startTime: 20 },
+      { pid: 30, parentPid: 10, startTime: 15 },
+    ]);
+    await expect(service.kill({ pid: 77, port: 5432, confirmed: true })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(platform.killTree).not.toHaveBeenCalled();
   });
 });

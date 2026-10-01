@@ -78,30 +78,54 @@ function unquoted(rest: string): { valueRaw: string; suffix: string; value: stri
   return { valueRaw: value, suffix: rest.slice(value.length), value: value.trim() };
 }
 
+/**
+ * For each quote character, nextWith[q][i] is the first physical line at or after i that contains it
+ * (lines.length when none does). Lets an unclosed quote find its end without rescanning the rest of the
+ * file for every line, which would freeze the main process on a large file.
+ */
+type NextQuoteIndex = Record<Exclude<Quote, ''>, Int32Array>;
+
+function nextQuoteIndex(lines: readonly Physical[]): NextQuoteIndex {
+  const build = (q: string) => {
+    const next = new Int32Array(lines.length + 1).fill(lines.length);
+    for (let i = lines.length - 1; i >= 0; i--) next[i] = (lines[i] as Physical).text.includes(q) ? i : (next[i + 1] as number);
+    return next;
+  };
+  return { '"': build('"'), "'": build("'"), '`': build('`') };
+}
+
 /** Parses the entry that starts at physical line i; returns it and how many physical lines it used. */
-function parseEntry(lines: Physical[], i: number, match: RegExpExecArray): { entry: Entry; used: number } {
+function parseEntry(lines: Physical[], i: number, match: RegExpExecArray, quotes: NextQuoteIndex): { entry: Entry; used: number } {
   const [, indent = '', exportWord = '', key = '', equals = '', rest = ''] = match;
   const prefix = `${indent}${exportWord}${key}${equals}`;
   const base = { kind: 'entry' as const, key, exported: exportWord !== '', prefix };
   const first = lines[i] as Physical;
   const open = rest[0];
   if (open === '"' || open === "'" || open === '`') {
-    const quote = open as Quote;
-    // Same line first, then the following lines (a multiline value).
-    let body = rest;
-    let used = 1;
-    let close = closingQuote(body, quote, 1);
-    while (close === -1 && i + used < lines.length) {
-      const next = lines[i + used] as Physical;
-      body += (lines[i + used - 1] as Physical).eol + next.text;
-      used++;
-      close = closingQuote(body, quote, 1);
+    const quote = open as Exclude<Quote, ''>;
+    // Same line first, then the next lines that contain the quote at all (a multiline value).
+    let closeLine = i;
+    let close = closingQuote(rest, quote, 1);
+    let j = (quotes[quote][i + 1] as number | undefined) ?? lines.length;
+    while (close === -1 && j < lines.length) {
+      const found = closingQuote((lines[j] as Physical).text, quote, 0);
+      if (found !== -1) {
+        closeLine = j;
+        close = found;
+        break;
+      }
+      j = quotes[quote][j + 1] as number;
     }
     if (close !== -1) {
-      const inner = body.slice(1, close).replace(/\r\n/g, '\n');
+      const used = closeLine - i + 1;
+      let body = rest;
+      for (let k = i + 1; k <= closeLine; k++) body += (lines[k - 1] as Physical).eol + (lines[k] as Physical).text;
+      // close is relative to the closing line; turn it into an index in body.
+      const closeInBody = closeLine === i ? close : body.length - (lines[closeLine] as Physical).text.length + close;
+      const inner = body.slice(1, closeInBody).replace(/\r\n/g, '\n');
       const value = quote === '"' ? inner.replace(/\\n/g, '\n').replace(/\\r/g, '\r') : inner;
-      const last = lines[i + used - 1] as Physical;
-      const suffix = body.slice(close + 1);
+      const last = lines[closeLine] as Physical;
+      const suffix = body.slice(closeInBody + 1);
       return {
         entry: { ...base, raw: `${prefix}${body}${last.eol}`, value, quote, suffix, eol: last.eol },
         used,
@@ -119,11 +143,12 @@ export function parseEnv(text: string): EnvDocument {
   const bom = text.startsWith('﻿');
   const lines = physicalLines(bom ? text.slice(1) : text);
   const doc: EnvDocument = { bom, lines: [], eol: lines.find((l) => l.eol !== '')?.eol === '\r\n' ? '\r\n' : '\n' };
+  const quotes = nextQuoteIndex(lines);
   for (let i = 0; i < lines.length; ) {
     const line = lines[i] as Physical;
     const match = ENTRY.exec(line.text);
     if (match) {
-      const { entry, used } = parseEntry(lines, i, match);
+      const { entry, used } = parseEntry(lines, i, match, quotes);
       doc.lines.push(entry);
       i += used;
       continue;

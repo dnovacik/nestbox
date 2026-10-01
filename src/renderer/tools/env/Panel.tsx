@@ -23,6 +23,8 @@ type Confirm = { kind: 'remove'; file: string; key: string } | { kind: 'switch';
 
 function Profiles({ matrix, onSwitch }: { matrix: EnvMatrix; onSwitch(file: string, name: string): void }) {
   if (matrix.profiles.length === 0) return null;
+  // A symlinked .env is read-only: switching would have to replace it.
+  const canSwitch = !matrix.files.find((f) => f.name === '.env')?.readOnly;
   return (
     <div role="group" aria-label="Profiles" className="flex flex-wrap items-center gap-2 text-xs">
       <span className="text-[10px] font-semibold tracking-wider text-fg-muted uppercase">Profiles</span>
@@ -31,7 +33,7 @@ function Profiles({ matrix, onSwitch }: { matrix: EnvMatrix; onSwitch(file: stri
           <span className="font-mono text-fg">{p.name}</span>
           {p.active ? (
             <span className="text-[10px] text-brand">active</span>
-          ) : (
+          ) : !canSwitch ? null : (
             <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[11px]" onClick={() => onSwitch(p.file, p.name)}>
               Switch to {p.name}
             </Button>

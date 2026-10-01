@@ -38,6 +38,8 @@ export interface ToolHost {
   invoke(toolId: string, projectId: string, method: string, input: unknown): Promise<unknown>;
   /** Disposes every tool in parallel; a tool that rejects or outlasts the timeout is logged by id. */
   disposeAll(timeoutMs?: number): Promise<DisposeResult>;
+  /** After a root project is removed: tools drop what they hold for it, and its shared facts go. */
+  forgetProject(rootId: string): void;
 }
 
 const DEFAULT_DISPOSE_TIMEOUT_MS = 4_500;
@@ -103,6 +105,17 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
         throw new NestboxError('INTERNAL', `${toolId}.${method} returned invalid output`);
       }
       return output.data;
+    },
+
+    forgetProject(rootId) {
+      for (const tool of deps.tools) {
+        try {
+          tool.forgetProject?.(rootId);
+        } catch {
+          deps.logger.warn('tool forgetProject failed', { toolId: tool.id });
+        }
+      }
+      deps.shared.clearProject(rootId);
     },
 
     async disposeAll(timeoutMs = DEFAULT_DISPOSE_TIMEOUT_MS) {

@@ -52,6 +52,7 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
       await deps.processes.stopAll(ofProject);
       deps.processes.forget(ofProject);
       deps.projects.remove(id);
+      deps.toolHost.forgetProject(id);
     },
     'projects:rename': async ({ id, name }) => deps.projects.rename(id, name),
     'projects:setPinned': async ({ id, pinned }) => deps.projects.setPinned(id, pinned),

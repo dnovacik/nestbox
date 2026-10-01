@@ -31,7 +31,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
     },
-    toolHost: { list: vi.fn(async () => []), invoke: vi.fn(), disposeAll: vi.fn() },
+    toolHost: { list: vi.fn(async () => []), invoke: vi.fn(), disposeAll: vi.fn(), forgetProject: vi.fn() },
     platform: {
       openInEditor: vi.fn(async () => {}),
       openTerminal: vi.fn(async () => {}),
@@ -179,8 +179,10 @@ describe('core handlers', () => {
       vi.mocked(d.processes.stopAll).mockImplementation(async () => void order.push('stopAll'));
       vi.mocked(d.processes.forget).mockImplementation(() => void order.push('forget'));
       vi.mocked(d.projects.remove).mockImplementation(() => void order.push('remove'));
+      vi.mocked(d.toolHost.forgetProject).mockImplementation(() => void order.push('tools'));
       await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
-      expect(order).toEqual(['stopAll', 'forget', 'remove']);
+      expect(order).toEqual(['stopAll', 'forget', 'remove', 'tools']);
+      expect(d.toolHost.forgetProject).toHaveBeenCalledWith('r1');
       const filter = vi.mocked(d.processes.stopAll).mock.calls[0]?.[0];
       expect(filter?.('r1::packages/api')).toBe(true);
       expect(filter?.('r2')).toBe(false);

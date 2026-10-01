@@ -45,8 +45,9 @@ export class PortService {
     if (PROTECTED_PIDS.has(input.pid) || input.pid === this.deps.ownPid) {
       throw new NestboxError('FORBIDDEN', 'This process cannot be stopped from NestBox');
     }
-    // Always a fresh scan: the PID must be listening on that port right now.
-    const { rows } = await this.scan();
+    // Always a fresh scan: the PID must be listening on that port right now (stale rows may name a reused PID).
+    const { rows, stale } = await this.scan();
+    if (stale) throw new NestboxError('INTERNAL', 'Could not list ports');
     const row = rows.find((r) => r.pid === input.pid && r.port === input.port);
     if (!row) throw new NestboxError('NOT_FOUND', 'Nothing with that process id is listening on that port');
     if (row.owner) {
@@ -56,6 +57,10 @@ export class PortService {
       return { result: 'stopped-script', processName: row.processName };
     }
     if (!input.confirmed) return { result: 'needs-confirm', processName: row.processName };
+    // taskkill /T kills the whole tree: refuse when NestBox itself is in it (e.g. the dev server that started it).
+    if (await this.isAncestorOfSelf(row.pid)) {
+      throw new NestboxError('FORBIDDEN', 'Stopping this process would also close NestBox');
+    }
     this.deps.logger.info('ports kill', { port: row.port, owned: false });
     await this.deps.platform.killTree(row.pid);
     this.invalidate();
@@ -71,6 +76,18 @@ export class PortService {
       if (this.deps.now() + FREE_POLL_MS > until) return false;
       await new Promise((resolve) => setTimeout(resolve, FREE_POLL_MS));
     }
+  }
+
+  private async isAncestorOfSelf(pid: number): Promise<boolean> {
+    const table = await this.deps.platform.listProcesses().catch(() => null);
+    if (!table) return false;
+    const parents = new Map(table.map((p) => [p.pid, p.parentPid]));
+    let current = parents.get(this.deps.ownPid);
+    for (let hop = 0; current !== undefined && current !== 0 && hop < 32; hop++) {
+      if (current === pid) return true;
+      current = parents.get(current);
+    }
+    return false;
   }
 
   private invalidate(): void {

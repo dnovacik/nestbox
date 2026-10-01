@@ -98,8 +98,8 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
         const { code, stdout } = await deps.runner.exec(
           'powershell.exe',
           ['-NoProfile', '-NonInteractive', '-Command', script],
-          // A cold PowerShell can take over 10 s; this only runs at startup (orphan check).
-          { timeoutMs: 30_000 },
+          // A cold PowerShell can take over 10 s. A busy machine lists thousands of processes: lift the 64 KiB cap.
+          { timeoutMs: 30_000, maxBytes: 8 * 1024 * 1024 },
         );
         if (code !== 0) return null;
         const processes: ProcessInfo[] = [];

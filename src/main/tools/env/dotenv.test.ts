@@ -55,6 +55,18 @@ describe('parseEnv / serializeEnv', () => {
     });
   });
 
+  it('stays fast on a large file full of unclosed quotes', () => {
+    // One unclosed quote, then 20 000 plain lines (and quotes of the other kinds that must not count).
+    const text =
+      ["KEY='never closed", ...Array.from({ length: 20_000 }, (_, i) => `A_${i}="x" # say "${i}"`)].join('\n') + '\n';
+    const started = performance.now();
+    const doc = parseEnv(text);
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(entries(doc).get('KEY')).toBe("'never closed");
+    expect(entries(doc).get('A_19999')).toBe('x');
+    expect(serializeEnv(doc)).toBe(text);
+  });
+
   it('lets the last duplicate win and reports duplicates', () => {
     const doc = parseEnv('A=1\nB=2\nA=3\n');
     expect(entries(doc).get('A')).toBe('3');

@@ -127,6 +127,23 @@ describe('env tool', () => {
     expect(after.profiles.map((p) => p.file)).not.toContain('.env.backup');
   });
 
+  it('refuses to switch onto a symlinked .env before touching the backup', async (ctx) => {
+    const { symlink } = await import('node:fs/promises');
+    await writeFile(join(dir, '.env.backup'), 'precious');
+    await writeFile(join(dir, 'real.env'), 'PORT=1\n');
+    await rm(join(dir, '.env'));
+    try {
+      await symlink(join(dir, 'real.env'), join(dir, '.env'), 'file');
+    } catch {
+      ctx.skip();
+    }
+    const { call } = setup();
+    const m = await call<EnvMatrix>('matrix');
+    const envVersion = m.files.find((f) => f.name === '.env')?.version ?? null;
+    await expect(call('switchProfile', { file: '.env.staging', envVersion })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(await readFile(join(dir, '.env.backup'), 'utf8')).toBe('precious');
+  });
+
   it('refuses to switch to a file that is not a profile', async () => {
     const { call } = setup();
     await expect(call('switchProfile', { file: '.env.example', envVersion: null })).rejects.toMatchObject({ code: 'NOT_FOUND' });
@@ -152,6 +169,29 @@ describe('env tool', () => {
     await call('reveal', { file: '.env', key: 'DATABASE_URL' });
     await call('setValue', { file: '.env', key: 'DATABASE_URL', value: `new-${SECRET}`, version: m.files.find((f) => f.name === '.env')?.version });
     expect(JSON.stringify(logger.entries)).not.toContain(SECRET);
+  });
+
+  it('closes the watcher of a removed project, and watches again under a new id', async () => {
+    const { tool, call, watchers } = setup();
+    await call('matrix');
+    tool.forgetProject?.('p1');
+    expect(watchers[0]?.close).toHaveBeenCalled();
+  });
+
+  it('retries a watcher that could not start', async () => {
+    const watch = vi.fn((): (() => void) | null => null);
+    const tool = createEnvTool({ files: createEnvFileAccess(), clipboard: { writeText: vi.fn() }, watch, logger: createMemoryLogger() });
+    const shared = createSharedContext();
+    const context = {
+      project: makeDetectedForTest({ path: dir }),
+      shared: shared.forProject('p1'),
+      emit: vi.fn(),
+      platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
+      settings: { get: () => ({}), update: (fn: (s: object) => object) => fn({}) },
+    } as unknown as ToolContext;
+    await tool.handlers['matrix']?.(context, {});
+    await tool.handlers['matrix']?.(context, {});
+    expect(watch).toHaveBeenCalledTimes(2);
   });
 
   it('closes its watchers on dispose', async () => {
