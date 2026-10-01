@@ -4,8 +4,9 @@
 
 - M0 (Skeleton) is merged to `main` (PR #1).
 - M1 (Scripts and logs) is implemented on branch `m1-scripts-logs`, in draft PR #2 on `dnovacik/nestbox`.
-  - Lint, typecheck, 575 unit tests (4 Windows-only skipped elsewhere) and the build pass on windows-latest and macos-latest.
-  - A new `e2e (windows-latest)` CI job runs Playwright against the built app: start, output, stop the whole tree, crash display, quit.
+  - Lint, typecheck, 590 unit tests (4 Windows-only skipped elsewhere) and the build pass on windows-latest and macos-latest.
+  - A new `e2e (windows-latest)` CI job runs Playwright against the built app: start, output, stop the whole tree, crash display, quit, and the orphan prompt after the main process is killed.
+  - Owner feedback from two PR rounds is addressed (NestJS text-log levels, filtered export, editor check, renderer reload, orphans, NestBox naming, title bar, scrollbars, select, ANSI crash line).
   - What's left before merging: the owner's manual checklist on Windows (in the PR body), then marking the PR ready.
 - M2 has not started. It needs the owner's go-ahead.
 
@@ -36,6 +37,8 @@
 Startup, stale data, graceful quit, missing editor, store writes and read-only mode, IPC hardening, tool error hygiene, the UI items and the test gaps.
 
 **Open follow-ups**
+
+- **Orphan start times.** The PID ledger records the spawn time, not the OS creation time (PowerShell can take over 10 s cold). `orphans.ts` allows 3 s of drift.
 
 *Before or during M2*
 - **Log performance at very large buffers.** Every 50 ms batch copies the renderer's line array, and an active search rescans every line. That's fine at the default 50 000 lines but heavy near the 1 000 000 maximum. Consider a chunked store and incremental search hits. (M1 review #8; contexts are already incremental.)
