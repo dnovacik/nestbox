@@ -35,6 +35,11 @@ import { createMainWindow } from './window';
 
 const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL'];
 
+// End-to-end tests run against an isolated profile. Only honoured unpackaged, and before the
+// single-instance lock, which is keyed on the userData folder.
+const userDataOverride = app.isPackaged ? undefined : process.env['NESTBOX_USER_DATA_DIR'];
+if (userDataOverride) app.setPath('userData', userDataOverride);
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {

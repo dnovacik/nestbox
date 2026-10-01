@@ -1,0 +1,60 @@
+import { cp, mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+
+export const REPO_ROOT = resolve(__dirname, '..');
+
+/** A fresh copy of a fixture project, so tests never write into the repository. */
+export async function copyFixture(name: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), `nestbox-e2e-${name}-`));
+  await cp(join(__dirname, 'fixtures', name), dir, { recursive: true });
+  return dir;
+}
+
+export function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function readPid(project: string): Promise<number> {
+  return Number((await readFile(join(project, 'server.pid'), 'utf8')).trim());
+}
+
+/**
+ * Launches the built app with an isolated profile. The folder picker returns `project`, and native
+ * message boxes answer with their default (first) button.
+ */
+export async function launch(project: string): Promise<{ app: ElectronApplication; page: Page }> {
+  const userData = await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-'));
+  // A dev-server URL in the environment would point the built app at a server that isn't running.
+  const env = Object.fromEntries(
+    Object.entries({ ...process.env, NESTBOX_USER_DATA_DIR: userData }).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== 'ELECTRON_RENDERER_URL',
+    ),
+  );
+  const app = await electron.launch({ args: [REPO_ROOT], cwd: REPO_ROOT, env });
+  await app.evaluate(({ dialog }, dir) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
+    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+  }, project);
+  const page = await app.firstWindow();
+  // Closing the window must quit (not hide to the tray) so app.close() can finish.
+  // The node tsconfig has no DOM types: reach window.nestbox through globalThis.
+  await page.evaluate(() =>
+    (globalThis as unknown as { nestbox: { invoke(channel: string, input: unknown): Promise<unknown> } }).nestbox.invoke(
+      'settings:update',
+      { closeToTray: false },
+    ),
+  );
+  return { app, page };
+}
+
+export async function addProjectAndOpenScripts(page: Page): Promise<void> {
+  await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Add project' }).click();
+  await page.getByRole('tab', { name: 'Scripts' }).click();
+}

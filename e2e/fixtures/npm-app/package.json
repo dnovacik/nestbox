@@ -1,0 +1,9 @@
+{
+  "name": "nestbox-e2e-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "serve": "node server.js",
+    "boom": "node -e \"console.error('kaboom'); process.exit(3)\""
+  }
+}
