@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Nestbox design tokens — docs/design/DESIGN-NOTES.md. Dark only in M0. */
+:root {
+  --nb-bg: #0d1117;
+  --nb-card: #161b22;
+  --nb-surface: #21262d;
+  --nb-hover: #2a303c;
+  --nb-border: #30363d;
+  --nb-text: #c9d1d9;
+  --nb-text-muted: #8b949e;
+  --nb-text-faint: #484f58;
+  --nb-accent: #7c8cff;
+  --nb-accent-hover: #697afa;
+  --nb-green: #3fb950;
+  --nb-amber: #d29922;
+  --nb-red: #f85149;
+  --nb-grey: #8b949e;
+
+  /* shadcn/ui variables mapped onto the Nestbox tokens */
+  --radius: 0.375rem;
+  --background: var(--nb-bg);
+  --foreground: var(--nb-text);
+  --card: var(--nb-card);
+  --card-foreground: var(--nb-text);
+  --popover: var(--nb-card);
+  --popover-foreground: var(--nb-text);
+  --primary: var(--nb-accent);
+  --primary-foreground: var(--nb-bg);
+  --secondary: var(--nb-surface);
+  --secondary-foreground: var(--nb-text);
+  --muted: var(--nb-surface);
+  --muted-foreground: var(--nb-text-muted);
+  --accent: var(--nb-hover);
+  --accent-foreground: var(--nb-text);
+  --destructive: var(--nb-red);
+  --border: var(--nb-border);
+  --input: var(--nb-border);
+  --ring: var(--nb-accent);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Nestbox names used by app code */
+  --color-app: var(--nb-bg);
+  --color-surface: var(--nb-surface);
+  --color-hover: var(--nb-hover);
+  --color-line: var(--nb-border);
+  --color-fg: var(--nb-text);
+  --color-fg-muted: var(--nb-text-muted);
+  --color-fg-faint: var(--nb-text-faint);
+  --color-brand: var(--nb-accent);
+  --color-brand-hover: var(--nb-accent-hover);
+  --color-ok: var(--nb-green);
+  --color-warn: var(--nb-amber);
+  --color-err: var(--nb-red);
+  --color-idle: var(--nb-grey);
+
+  --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', ui-monospace, monospace;
+}
+
+@utility drag {
+  -webkit-app-region: drag;
+}
+
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}

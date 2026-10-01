@@ -1,0 +1,93 @@
+import { z } from 'zod';
+
+export const PACKAGE_MANAGERS = ['pnpm', 'yarn', 'npm', 'bun'] as const;
+export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
+
+export interface GitInfo {
+  /** Current branch, or null when HEAD is detached or unreadable. */
+  branch: string | null;
+  /** 7-char commit hash when HEAD is detached, otherwise null. */
+  head: string | null;
+}
+
+export interface ClaudeFiles {
+  claudeMd: boolean;
+  claudeLocalMd: boolean;
+  claudeDir: boolean;
+  mcpJson: boolean;
+}
+
+export interface DetectedProject {
+  id: string;
+  rootId: string;
+  path: string;
+  /** '' for the root, posix-style relative path for workspace packages. */
+  relPath: string;
+  name: string;
+  missing: boolean;
+  packageJson: { name?: string; scripts: Record<string, string> } | null;
+  packageManager: PackageManager | null;
+  /** File names only — env files are never opened. */
+  envFiles: string[];
+  workspaces: DetectedProject[];
+  prismaSchema: string | null;
+  dockerCompose: string | null;
+  /** null when the folder is not a git repository. */
+  git: GitInfo | null;
+  buildOutput: 'dist' | 'build' | null;
+  claude: ClaudeFiles;
+}
+
+export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
+  z.object({
+    id: z.string().min(1),
+    rootId: z.string().min(1),
+    path: z.string().min(1),
+    relPath: z.string(),
+    name: z.string().min(1),
+    missing: z.boolean(),
+    packageJson: z
+      .object({ name: z.string().optional(), scripts: z.record(z.string(), z.string()) })
+      .nullable(),
+    packageManager: z.enum(PACKAGE_MANAGERS).nullable(),
+    envFiles: z.array(z.string()),
+    workspaces: z.array(DetectedProjectSchema),
+    prismaSchema: z.string().nullable(),
+    dockerCompose: z.string().nullable(),
+    git: z.object({ branch: z.string().nullable(), head: z.string().nullable() }).nullable(),
+    buildOutput: z.enum(['dist', 'build']).nullable(),
+    claude: z.object({
+      claudeMd: z.boolean(),
+      claudeLocalMd: z.boolean(),
+      claudeDir: z.boolean(),
+      mcpJson: z.boolean(),
+    }),
+  }),
+);
+
+export const ProjectSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  path: z.string().min(1),
+  pinned: z.boolean(),
+  tags: z.array(z.string()),
+  detected: DetectedProjectSchema,
+});
+export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
+
+export const WORKSPACE_ID_SEPARATOR = '::';
+
+export function workspaceId(rootId: string, relPath: string): string {
+  return `${rootId}${WORKSPACE_ID_SEPARATOR}${relPath}`;
+}
+
+export function splitProjectId(id: string): { rootId: string; relPath: string } {
+  const at = id.indexOf(WORKSPACE_ID_SEPARATOR);
+  if (at === -1) return { rootId: id, relPath: '' };
+  return { rootId: id.slice(0, at), relPath: id.slice(at + WORKSPACE_ID_SEPARATOR.length) };
+}
+
+export function findDetected(root: DetectedProject, id: string): DetectedProject | null {
+  if (root.id === id) return root;
+  return root.workspaces.find((w) => w.id === id) ?? null;
+}
