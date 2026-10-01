@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "serve": "node server.js",
-    "boom": "node -e \"console.error('kaboom'); process.exit(3)\""
+    "boom": "node -e \"console.error('kaboom'); process.exit(3)\"",
+    "web": "node web.js"
   }
 }
