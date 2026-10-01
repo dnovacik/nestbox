@@ -4,6 +4,7 @@ import { useUiStore } from '@/state/ui-store';
 import { EmptyState } from './EmptyState';
 import { findProjectNode } from './find-project';
 import { ProjectView } from './ProjectView';
+import { SettingsDialog } from './SettingsDialog';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
@@ -26,6 +27,7 @@ export function App() {
         </main>
       </div>
       <StatusBar projectCount={projects.length} />
+      <SettingsDialog />
     </div>
   );
 }

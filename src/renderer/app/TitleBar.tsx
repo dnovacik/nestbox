@@ -1,9 +1,13 @@
+import { Settings } from 'lucide-react';
 import { NestboxMark } from '@/components/NestboxMark';
+import { Button } from '@/components/ui/button';
+import { useUiStore } from '@/state/ui-store';
 import { useAppInfo } from '@/lib/queries';
 import type { ProjectNode } from './find-project';
 
 export function TitleBar({ node }: { node: ProjectNode | null }) {
   const { data: info } = useAppInfo();
+  const openSettings = useUiStore((s) => s.setSettingsOpen);
   const git = node?.detected.git;
   const ref = git?.branch ?? git?.head ?? null;
   return (
@@ -43,6 +47,9 @@ export function TitleBar({ node }: { node: ProjectNode | null }) {
           </>
         )}
       </div>
+      <Button variant="ghost" size="icon" aria-label="Settings" className="no-drag size-7" onClick={() => openSettings(true)}>
+        <Settings className="size-4" />
+      </Button>
     </header>
   );
 }
