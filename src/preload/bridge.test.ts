@@ -37,6 +37,14 @@ describe('preload bridge', () => {
     expect(ipc.removeListener).toHaveBeenCalled();
   });
 
+  it.each(['processes:changed', 'app:navigate'] as const)('accepts the %s event', (event) => {
+    const ipc = fakeIpc();
+    const listener = vi.fn();
+    createBridge(ipc).on(event, listener);
+    ipc.listeners.get(event)?.({}, { projectId: 'p1' });
+    expect(listener).toHaveBeenCalledWith({ projectId: 'p1' });
+  });
+
   it('refuses non-whitelisted events', () => {
     expect(() => createBridge(fakeIpc()).on('ipc:raw' as never, () => {})).toThrow(/not allowed/);
   });

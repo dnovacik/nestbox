@@ -1,6 +1,9 @@
+import { splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
+import { belongsTo } from '@shared/processes';
 import type { AppInfo, AppSettings } from '@shared/types';
 import type { PlatformAdapter } from '../platform/adapter';
+import type { ProcessManager } from '../processes/process-manager';
 import type { ProjectService } from '../projects/project-service';
 import type { StoreService } from '../store/store-service';
 import type { ToolHost } from '../tools/tool-host';
@@ -13,6 +16,7 @@ export interface CoreHandlerDeps {
   appInfo(): AppInfo;
   pickFolder(): Promise<string | null>;
   isDirectory(path: string): Promise<boolean>;
+  processes: Pick<ProcessManager, 'list' | 'stopAll' | 'forget'>;
   settings: Pick<StoreService, 'getSettings' | 'updateSettings' | 'isReadOnly'>;
   /** Called after a successful settings:update (tray theme and friends react here). */
   onSettingsChanged(settings: AppSettings): void;
@@ -37,6 +41,14 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'projects:list': () => deps.projects.list(),
     'projects:add': ({ path }) => deps.projects.add(path),
     'projects:remove': async ({ id }) => {
+      // Fail the same way remove() would before touching any process.
+      if (splitProjectId(id).relPath !== '') {
+        throw new NestboxError('VALIDATION', 'Workspace packages cannot be changed individually');
+      }
+      deps.projects.getDetected(id);
+      const ofProject = (processProjectId: string) => belongsTo(processProjectId, id);
+      await deps.processes.stopAll(ofProject);
+      deps.processes.forget(ofProject);
       deps.projects.remove(id);
     },
     'projects:rename': async ({ id, name }) => deps.projects.rename(id, name),
@@ -50,6 +62,10 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     },
     'tools:list': async ({ projectId }) => deps.toolHost.list(projectId),
     'tools:invoke': ({ toolId, projectId, method, input }) => deps.toolHost.invoke(toolId, projectId, method, input),
+    'processes:list': async () => deps.processes.list(),
+    'processes:stopAll': async ({ projectId }) => {
+      await deps.processes.stopAll(projectId === undefined ? undefined : (p) => belongsTo(p, projectId));
+    },
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {
       deps.settings.updateSettings((current) => ({ ...current, ...patch }));

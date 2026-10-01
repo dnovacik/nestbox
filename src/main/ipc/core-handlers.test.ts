@@ -38,6 +38,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     isDirectory: vi.fn(async () => true),
     settings: memorySettings(),
     onSettingsChanged: vi.fn(),
+    processes: { list: vi.fn(() => []), stopAll: vi.fn(async () => {}), forget: vi.fn() },
     ...over,
   };
 }
@@ -104,6 +105,49 @@ describe('core handlers', () => {
         code: 'INTERNAL',
       });
       expect(d.onSettingsChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processes', () => {
+    it('lists processes from the manager', async () => {
+      const d = deps();
+      const summary = {
+        projectId: 'p1', script: 'dev', state: 'running' as const, pid: 1, startedAt: 1, exit: null,
+        crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false,
+      };
+      vi.mocked(d.processes.list).mockReturnValue([summary]);
+      expect(await createCoreHandlers(d)['processes:list']()).toEqual([summary]);
+    });
+
+    it('stops everything, or one project with its workspaces', async () => {
+      const d = deps();
+      const handlers = createCoreHandlers(d);
+      await handlers['processes:stopAll']({});
+      expect(d.processes.stopAll).toHaveBeenLastCalledWith(undefined);
+      await handlers['processes:stopAll']({ projectId: 'r1' });
+      const filter = vi.mocked(d.processes.stopAll).mock.calls.at(-1)?.[0];
+      expect(['r1', 'r1::a', 'r10', 'r2'].map((id) => filter?.(id))).toEqual([true, true, false, false]);
+    });
+
+    it('refuses to remove a workspace package without stopping anything', async () => {
+      const d = deps();
+      await expect(createCoreHandlers(d)['projects:remove']({ id: 'r1::packages/api' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+      });
+      expect(d.processes.stopAll).not.toHaveBeenCalled();
+    });
+
+    it('stops and forgets a project\'s processes before removing it', async () => {
+      const order: string[] = [];
+      const d = deps();
+      vi.mocked(d.processes.stopAll).mockImplementation(async () => void order.push('stopAll'));
+      vi.mocked(d.processes.forget).mockImplementation(() => void order.push('forget'));
+      vi.mocked(d.projects.remove).mockImplementation(() => void order.push('remove'));
+      await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
+      expect(order).toEqual(['stopAll', 'forget', 'remove']);
+      const filter = vi.mocked(d.processes.stopAll).mock.calls[0]?.[0];
+      expect(filter?.('r1::packages/api')).toBe(true);
+      expect(filter?.('r2')).toBe(false);
     });
   });
 });

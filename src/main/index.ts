@@ -18,6 +18,9 @@ import { applySessionSecurity, hardenAllWebContents } from './security/harden';
 import { isAppUrl } from './security/origin';
 import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
+import { createPidLedger } from './processes/pid-ledger';
+import { ProcessManager } from './processes/process-manager';
+import { throttle } from './processes/throttle';
 import { mainTools } from './tools';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
@@ -46,7 +49,8 @@ if (!app.requestSingleInstanceLock()) {
       getEditorCommand: () => store.getSettings().editorCommand,
     });
     const emit = (channel: EventChannel, payload?: unknown): void => {
-      mainWindow?.webContents.send(channel, payload);
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send(channel, payload);
     };
 
     const projects = new ProjectService({
@@ -64,6 +68,18 @@ if (!app.requestSingleInstanceLock()) {
     });
     // Not awaited: the window opens while detection runs; projects:list joins the in-flight work.
     void projects.init();
+
+    const ledger = createPidLedger(join(app.getPath('userData'), 'processes.json'), logger);
+    const processes = new ProcessManager({
+      platform,
+      ledger,
+      bufferLines: () => store.getSettings().logBufferLines,
+      logger,
+    });
+    const notifyProcesses = throttle(() => emit('processes:changed'), 100);
+    processes.on((event) => {
+      if (event.type === 'changed') notifyProcesses();
+    });
 
     const toolHost = createToolHost({
       tools: mainTools,
@@ -86,6 +102,7 @@ if (!app.requestSingleInstanceLock()) {
         platform,
         isDirectory,
         settings: store,
+        processes,
         onSettingsChanged: () => {
           // M1 Task 21: the tray reacts to theme changes here.
         },
