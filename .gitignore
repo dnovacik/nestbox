@@ -1,0 +1,16 @@
+node_modules/
+out/
+dist/
+release/
+coverage/
+.worktrees/
+.superpowers/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/*
+!.vscode/extensions.json
