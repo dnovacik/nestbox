@@ -1,7 +1,7 @@
 # NestBox M2 (Ports and env): Design Notes
 
 Date: 2026-10-01
-Status: Draft, awaiting approval
+Status: Approved 2026-10-01
 Source of truth: `docs/nestbox-spec.md`. These notes cover only the spec's gaps for M2, plus the M2 follow-ups listed in `docs/superpowers/HANDOFF.md`. They build on the M0 and M1 design notes and don't restate them.
 
 ## Scope
