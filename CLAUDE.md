@@ -67,7 +67,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **pnpm.** Build scripts run only for packages listed in `pnpm.onlyBuiltDependencies`.
 - **shadcn.** Generated components in `src/renderer/components/ui/` are excluded from lint. The style is `new-york` (Radix, `asChild`). Don't let the CLI rewrite `globals.css`.
 - **Workspace ids.** A workspace package's id is `<rootId>::<relPath>`. Workspaces are derived live and never stored.
-- Electron 44 ships no install script: the binary downloads lazily on the first `pnpm dev` (needs network once). `onlyBuiltDependencies` matters for esbuild.
+- Electron 44 ships no install script and electron-vite reads node_modules/electron/path.txt directly, so the root `postinstall` runs `node node_modules/electron/install.js` (needs network once; skipped when ELECTRON_SKIP_BINARY_DOWNLOAD is set, because install.js itself ignores that variable). CI sets ELECTRON_SKIP_BINARY_DOWNLOAD=1. If `pnpm dev` says "Electron uninstall", run that command. `onlyBuiltDependencies` matters for esbuild.
 - The shadcn CLI (4.21) may import `cn` from an npm package called "cn" — always rewrite to `@/lib/utils` and do not add that package. It also puts `radix-ui` under dependencies; move it to devDependencies.
 - `cmdInvocation`/`assertCmdSafe` reject `"`, CR, LF and NUL (a `.cmd` shim re-parses `%*`, so quotes cannot be escaped safely). Only pass paths and Nestbox-built tokens.
 - Packaged builds trust only the exact renderer entry file URL as the IPC/navigation origin (`isAppUrl`); dev trusts only the dev-server origin.

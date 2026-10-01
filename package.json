@@ -19,7 +19,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node -e \"if(!process.env.ELECTRON_SKIP_BINARY_DOWNLOAD)require('./node_modules/electron/install.js')\""
   },
   "pnpm": {
     "onlyBuiltDependencies": [
