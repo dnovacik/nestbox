@@ -1,10 +1,29 @@
 import { NestboxError } from '@shared/errors';
-import { notImplemented, type PlatformAdapter, type PlatformDeps } from './adapter';
+import { type CommandRunner, type ExecResult, notImplemented, type PlatformAdapter, type PlatformDeps } from './adapter';
 import { normalizeWin32Path } from './paths';
 import { assertCmdSafe, cmdInvocation, escapeWtArg } from './win32-escape';
 
 function isEnoent(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
+}
+
+/**
+ * Fails with NOT_FOUND when `where` cannot find the editor. An editor given as a path uses where's
+ * `dir:pattern` form. If where.exe itself cannot run, the check is skipped and the launch reports problems.
+ */
+async function assertEditorExists(runner: CommandRunner, editor: string): Promise<void> {
+  const sep = Math.max(editor.lastIndexOf('\\'), editor.lastIndexOf('/'));
+  const query = sep === -1 ? editor : `${editor.slice(0, sep)}:${editor.slice(sep + 1)}`;
+  let result: ExecResult;
+  try {
+    result = await runner.exec('where.exe', ['/q', query], { timeoutMs: 5_000 });
+  } catch {
+    return;
+  }
+  if (result.code !== 0) {
+    // The editor name is a setting, not an IPC payload, so it may appear in the message.
+    throw new NestboxError('NOT_FOUND', `Editor command "${editor}" was not found on PATH. Change it in Settings.`);
+  }
 }
 
 export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
@@ -27,6 +46,7 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       const args = line === undefined ? [path] : ['-g', `${path}:${line}`];
       // Outside the try: a VALIDATION error from unsafe input must not become NOT_FOUND.
       const inv = cmdInvocation(editor, args);
+      await assertEditorExists(deps.runner, editor);
       try {
         await deps.runner.launch(inv.file, inv.args, { verbatim: true, hidden: true });
       } catch {

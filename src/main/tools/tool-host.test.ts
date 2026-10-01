@@ -10,6 +10,7 @@ import { projectInfoTool } from './project-info';
 import { createSharedContext } from './shared-context';
 import { createToolHost } from './tool-host';
 import { defineMainTool } from './types';
+import { noopRunner } from '../platform/testing';
 
 const project: DetectedProject = {
   id: 'p1', rootId: 'p1', path: '/p', relPath: '', name: 'shop', missing: false,
@@ -46,7 +47,7 @@ function host(getProject = (id: string) => {
     tools: [projectInfoTool, echoTool],
     getProject,
     shared,
-    platform: createDarwinAdapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' }),
+    platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
     emit,
     logger: createMemoryLogger(),
   });
@@ -105,7 +106,7 @@ describe('tool host', () => {
       tools: [leaky],
       getProject: () => project,
       shared: createSharedContext(),
-      platform: createDarwinAdapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' }),
+      platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
       emit: vi.fn(),
       logger,
     });

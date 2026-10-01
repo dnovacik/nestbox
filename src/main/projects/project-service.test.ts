@@ -7,8 +7,9 @@ import { createWin32Adapter } from '../platform/win32';
 import { createMemoryBackend } from '../store/backend';
 import { StoreService } from '../store/store-service';
 import { ProjectService } from './project-service';
+import { noopRunner } from '../platform/testing';
 
-const win32 = createWin32Adapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' });
+const win32 = createWin32Adapter({ runner: noopRunner, getEditorCommand: () => 'code' });
 
 function fakeDetect(input: DetectInput): DetectedProject {
   const folder = input.path.split('\\').pop() ?? input.path;

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import type { CommandRunner } from './adapter';
+import { type ExecCall, type ExecScript, noopRunner, scriptedExec } from './testing';
 import { createWin32Adapter } from './win32';
 
 interface Call {
@@ -9,10 +10,16 @@ interface Call {
   opts: { cwd?: string; verbatim?: boolean; hidden?: boolean } | undefined;
 }
 
-function fakeRunner(failFiles: string[] = []): CommandRunner & { calls: Call[] } {
+function fakeRunner(failFiles: string[] = [], script: ExecScript = {}): CommandRunner & { calls: Call[]; execCalls: ExecCall[] } {
   const calls: Call[] = [];
+  const { calls: execCalls, exec } = scriptedExec(script);
   return {
     calls,
+    execCalls,
+    exec: vi.fn(exec),
+    spawn: vi.fn(() => {
+      throw new Error('spawn not expected');
+    }),
     launch: vi.fn(async (file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }) => {
       calls.push({ file, args, opts });
       if (failFiles.includes(file)) {
@@ -82,6 +89,47 @@ describe('win32 openInEditor', () => {
   });
 });
 
+describe('win32 openInEditor pre-check', () => {
+  it('checks the editor with where.exe before launching', async () => {
+    const runner = fakeRunner();
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a');
+    expect(runner.execCalls).toEqual([{ file: 'where.exe', args: ['/q', 'code'] }]);
+    expect(runner.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports NOT_FOUND with a helpful message when the editor is not on PATH', async () => {
+    const runner = fakeRunner([], { 'where.exe': { code: 1, stdout: '' } });
+    await expect(
+      createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a'),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Editor command "code" was not found on PATH. Change it in Settings.',
+    });
+    expect(runner.launch).not.toHaveBeenCalled();
+  });
+
+  it('checks an editor given as a path with the dir:pattern form', async () => {
+    const runner = fakeRunner();
+    const editor = 'C:\\Tools\\ed it\\code.cmd';
+    await createWin32Adapter({ runner, getEditorCommand: () => editor }).openInEditor('C:\\a');
+    expect(runner.execCalls[0]).toEqual({ file: 'where.exe', args: ['/q', 'C:\\Tools\\ed it:code.cmd'] });
+  });
+
+  it('skips the check when where.exe itself cannot run', async () => {
+    const runner = fakeRunner([], { 'where.exe': Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) });
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a');
+    expect(runner.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates the path before running where.exe', async () => {
+    const runner = fakeRunner();
+    await expect(
+      createWin32Adapter({ runner, getEditorCommand: () => 'code' }).openInEditor('C:\\a"b'),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.execCalls).toEqual([]);
+  });
+});
+
 describe('win32 openTerminal', () => {
   it.each(Object.entries(PATHS))('opens Windows Terminal with an escaped -d for %s paths', async (_n, path) => {
     const runner = fakeRunner();
@@ -135,6 +183,7 @@ describe('win32 openTerminal', () => {
 
   it('reports INTERNAL when both wt and the cmd fallback fail', async () => {
     const runner: CommandRunner = {
+      ...noopRunner,
       launch: vi.fn(async (file: string) => {
         if (file === 'wt.exe') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
         throw new Error('boom');
@@ -145,7 +194,7 @@ describe('win32 openTerminal', () => {
   });
 
   it('does not fall back on errors other than ENOENT', async () => {
-    const runner: CommandRunner = { launch: vi.fn().mockRejectedValue(new Error('EACCES')) };
+    const runner: CommandRunner = { ...noopRunner, launch: vi.fn().mockRejectedValue(new Error('EACCES')) };
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
     await expect(adapter.openTerminal('C:\\a')).rejects.toBeInstanceOf(NestboxError);
     expect(runner.launch).toHaveBeenCalledTimes(1);

@@ -27,9 +27,26 @@ export interface WindowChrome {
   titleBarOverlay?: OverlayColors;
 }
 
+export interface ExecResult {
+  /** null when the process was killed by the timeout or a signal. */
+  code: number | null;
+  /** Capped at 64 KiB. */
+  stdout: string;
+}
+
+export interface PipedSpawnOpts {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  verbatim?: boolean;
+}
+
 export interface CommandRunner {
   /** Starts a detached process and resolves once it has spawned. Rejects (e.g. ENOENT) if it cannot start. */
   launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }): Promise<void>;
+  /** Runs to completion with a hidden window and no shell. Rejects only if it cannot start. */
+  exec(file: string, args: readonly string[], opts?: { timeoutMs?: number }): Promise<ExecResult>;
+  /** A long-running child with piped stdout/stderr, ignored stdin and a hidden window. */
+  spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
 }
 
 export interface PlatformDeps {

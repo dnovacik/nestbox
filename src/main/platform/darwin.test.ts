@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createDarwinAdapter } from './darwin';
+import { noopRunner } from './testing';
 
 describe('darwin stub', () => {
-  const adapter = createDarwinAdapter({ runner: { launch: async () => {} }, getEditorCommand: () => 'code' });
+  const adapter = createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' });
 
   it('compares paths case-sensitively', () => {
     expect(adapter.samePath('/Users/me/Shop/', '/Users/me/Shop')).toBe(true);
