@@ -25,6 +25,9 @@ export function displayName(detectedName: string, path: string): string {
   return name.slice(0, MAX_NAME_LENGTH);
 }
 
+/** How long a tool call waits for a project that is still being detected. */
+export const DETECTION_WAIT_MS = 15_000;
+
 export class ProjectService {
   /** Detection results by root project id. In memory only — never persisted. */
   private readonly detected = new Map<string, DetectedProject>();
@@ -129,6 +132,22 @@ export class ProjectService {
     this.deps.store.updateProjects((ps) =>
       ps.map((p) => (p.id === project.id ? { ...p, toolSettings: { ...p.toolSettings, [toolId]: value } } : p)),
     );
+  }
+
+  /**
+   * Like getDetected, but first waits (up to DETECTION_WAIT_MS) for a detection of the project that is
+   * still running, e.g. at startup. Tool calls use this so they don't fail while the project loads.
+   */
+  async getDetectedAsync(projectId: string): Promise<DetectedProject> {
+    const rootId = splitProjectId(projectId).rootId;
+    const running = this.inflight.get(rootId);
+    if (running && !this.detected.has(rootId)) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const limit = new Promise<void>((resolve) => (timer = setTimeout(resolve, DETECTION_WAIT_MS)));
+      await Promise.race([running.then(() => undefined, () => undefined), limit]);
+      clearTimeout(timer);
+    }
+    return this.getDetected(projectId);
   }
 
   getDetected(projectId: string): DetectedProject {

@@ -31,7 +31,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
     },
-    toolHost: { list: vi.fn(() => []), invoke: vi.fn(), disposeAll: vi.fn() },
+    toolHost: { list: vi.fn(async () => []), invoke: vi.fn(), disposeAll: vi.fn() },
     platform: {
       openInEditor: vi.fn(async () => {}),
       openTerminal: vi.fn(async () => {}),

@@ -15,8 +15,8 @@ export interface ToolEventPayload {
 
 export interface ToolHostDeps {
   tools: readonly AnyMainTool[];
-  /** Throws NestboxError NOT_FOUND for unknown ids. */
-  getProject(projectId: string): DetectedProject;
+  /** Throws (or rejects with) NestboxError NOT_FOUND for unknown ids; may wait for a detection in flight. */
+  getProject(projectId: string): DetectedProject | Promise<DetectedProject>;
   shared: SharedContext;
   platform: PlatformAdapter;
   emit(payload: ToolEventPayload): void;
@@ -34,7 +34,7 @@ export interface DisposeResult {
 }
 
 export interface ToolHost {
-  list(projectId: string): ToolSummary[];
+  list(projectId: string): Promise<ToolSummary[]>;
   invoke(toolId: string, projectId: string, method: string, input: unknown): Promise<unknown>;
   /** Disposes every tool in parallel; a tool that rejects or outlasts the timeout is logged by id. */
   disposeAll(timeoutMs?: number): Promise<DisposeResult>;
@@ -74,8 +74,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   return {
-    list(projectId) {
-      const project = deps.getProject(projectId);
+    async list(projectId) {
+      const project = await deps.getProject(projectId);
       return deps.tools
         .filter((tool) => tool.appliesTo(project))
         .map(({ id, name, icon }) => ({ id, name, icon }));
@@ -84,7 +84,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     async invoke(toolId, projectId, method, input) {
       const tool = byId.get(toolId);
       if (!tool) throw new NestboxError('NOT_FOUND', `Unknown tool: ${toolId}`);
-      const project = deps.getProject(projectId);
+      const project = await deps.getProject(projectId);
       if (!tool.appliesTo(project)) {
         throw new NestboxError('NOT_FOUND', `Tool ${toolId} does not apply to this project`);
       }

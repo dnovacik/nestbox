@@ -139,7 +139,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     const toolHost = createToolHost({
       tools,
-      getProject: (id) => projects.getDetected(id),
+      getProject: (id) => projects.getDetectedAsync(id),
       shared,
       platform,
       emit: (payload) => emit('tools:event', payload),

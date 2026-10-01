@@ -46,7 +46,7 @@ function memoryToolSettings(initial: Record<string, unknown> = {}) {
   };
 }
 
-function host(getProject = (id: string) => {
+function host(getProject: (id: string) => typeof project | Promise<typeof project> = (id: string) => {
   if (id !== 'p1') throw new NestboxError('NOT_FOUND', 'Project not found');
   return project;
 }) {
@@ -65,8 +65,8 @@ function host(getProject = (id: string) => {
 }
 
 describe('tool host', () => {
-  it('lists tools that apply to the project', () => {
-    expect(host().h.list('p1')).toEqual([
+  it('lists tools that apply to the project', async () => {
+    expect(await host().h.list('p1')).toEqual([
       { id: 'project-info', name: 'Project info', icon: 'info' },
       { id: 'echo', name: 'Echo', icon: 'repeat' },
     ]);
@@ -94,9 +94,20 @@ describe('tool host', () => {
     await expect(host().h.invoke(toolId, projectId, method, input)).rejects.toMatchObject({ code });
   });
 
+  it('waits for a project that is still being detected', async () => {
+    let resolveProject = (_p: typeof project): void => {};
+    const detection = new Promise<typeof project>((r) => (resolveProject = r));
+    const { h } = host(() => detection);
+    const listed = h.list('p1');
+    const invoked = h.invoke('echo', 'p1', 'echo', { text: 'hi' });
+    resolveProject(project);
+    expect((await listed).map((t) => t.id)).toEqual(['project-info', 'echo']);
+    await expect(invoked).resolves.toBeDefined();
+  });
+
   it('refuses tools that do not apply to the project', async () => {
     const { h } = host(() => ({ ...project, packageManager: null }));
-    expect(h.list('p1').map((t) => t.id)).toEqual(['project-info']);
+    expect((await h.list('p1')).map((t) => t.id)).toEqual(['project-info']);
     await expect(h.invoke('echo', 'p1', 'echo', { text: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
