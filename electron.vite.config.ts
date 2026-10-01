@@ -2,6 +2,8 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import svgr from 'vite-plugin-svgr';
 import { buildCsp } from './src/main/security/csp';
 
 const shared = resolve('src/shared');
@@ -37,6 +39,6 @@ export default defineConfig({
         '@brand': resolve('resources/brand'),
       },
     },
-    plugins: [react(), cspMeta()],
+    plugins: [react(), tailwindcss(), svgr(), cspMeta()],
   },
 });

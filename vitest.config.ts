@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import svgr from 'vite-plugin-svgr';
 
 const alias = {
   '@': resolve('src/renderer'),
@@ -11,7 +12,6 @@ const alias = {
 export default defineConfig({
   resolve: { alias },
   test: {
-    passWithNoTests: true,
     projects: [
       {
         extends: true,
@@ -23,11 +23,12 @@ export default defineConfig({
       },
       {
         extends: true,
-        plugins: [react()],
+        plugins: [react(), svgr()],
         test: {
           name: 'renderer',
           environment: 'jsdom',
           include: ['src/renderer/**/*.test.{ts,tsx}'],
+          setupFiles: ['src/renderer/test/setup.ts'],
         },
       },
     ],
