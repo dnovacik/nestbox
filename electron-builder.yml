@@ -1,0 +1,20 @@
+appId: dev.nestbox.app
+productName: Nestbox
+directories:
+  buildResources: resources
+  output: release/${version}
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: resources/brand
+    to: brand
+win:
+  target: nsis
+  icon: resources/brand/png/nestbox.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+  icon: resources/brand/png/app-icon-512.png
