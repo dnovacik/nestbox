@@ -41,11 +41,11 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'projects:list': () => deps.projects.list(),
     'projects:add': ({ path }) => deps.projects.add(path),
     'projects:remove': async ({ id }) => {
-      // Fail the same way remove() would before touching any process.
+      // Fail the way remove() would before touching any process. An unknown id matches no process,
+      // so remove() reports NOT_FOUND; detection results are not needed (they may still be loading).
       if (splitProjectId(id).relPath !== '') {
         throw new NestboxError('VALIDATION', 'Workspace packages cannot be changed individually');
       }
-      deps.projects.getDetected(id);
       const ofProject = (processProjectId: string) => belongsTo(processProjectId, id);
       await deps.processes.stopAll(ofProject);
       deps.processes.forget(ofProject);

@@ -49,6 +49,9 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     if (event.type === 'changed') publishFacts();
   });
 
+  /** Projects with a published fact, so one whose processes are all forgotten gets an empty list. */
+  let published = new Set<string>();
+
   function publishFacts(): void {
     const byProject = new Map<string, { script: string; pid: number | null; state: ProcessState }[]>();
     for (const p of deps.processes.list()) {
@@ -56,7 +59,11 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       facts.push({ script: p.script, pid: p.pid, state: p.state });
       byProject.set(p.projectId, facts);
     }
+    for (const projectId of published) {
+      if (!byProject.has(projectId)) deps.shared.forProject(projectId).publish(PROCESSES_FACT, []);
+    }
     for (const [projectId, facts] of byProject) deps.shared.forProject(projectId).publish(PROCESSES_FACT, facts);
+    published = new Set(byProject.keys());
   }
 
   const hasScript = (project: DetectedProject, script: string): boolean =>
@@ -250,9 +257,12 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         const ids = new Set(
           group.entries.map((e) => JSON.stringify([e.relPath === '' ? ctx.project.rootId : workspaceId(ctx.project.rootId, e.relPath), e.script])),
         );
+        // Live members, and crashed ones waiting out an auto-restart backoff (or they would come back).
         const targets = deps.processes
           .list()
-          .filter((p) => isLive(p.state) && ids.has(JSON.stringify([p.projectId, p.script])));
+          .filter(
+            (p) => (isLive(p.state) || p.nextRestartAt !== null) && ids.has(JSON.stringify([p.projectId, p.script])),
+          );
         await Promise.allSettled(targets.map((p) => deps.processes.stop(p.projectId, p.script)));
       },
     },

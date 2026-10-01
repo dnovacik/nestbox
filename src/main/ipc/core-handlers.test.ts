@@ -137,6 +137,15 @@ describe('core handlers', () => {
       expect(d.processes.stopAll).not.toHaveBeenCalled();
     });
 
+    it('removes a stored project even when its detection is not available', async () => {
+      const d = deps();
+      vi.mocked(d.projects.getDetected).mockImplementation(() => {
+        throw new NestboxError('NOT_FOUND', 'Project not found');
+      });
+      await createCoreHandlers(d)['projects:remove']({ id: 'r1' });
+      expect(d.projects.remove).toHaveBeenCalledWith('r1');
+    });
+
     it('stops and forgets a project\'s processes before removing it', async () => {
       const order: string[] = [];
       const d = deps();

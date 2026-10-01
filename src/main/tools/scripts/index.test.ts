@@ -182,6 +182,14 @@ describe('scripts tool: logs', () => {
     expect(deps.shared.forProject('r1').get(PROCESSES_FACT)).toEqual([{ script: 'dev', pid: 1000, state: 'starting' }]);
   });
 
+  it('empties the published facts of a project whose processes were forgotten', async () => {
+    const { call, deps, processes } = setup();
+    await call('r1', 'start', { script: 'dev' });
+    await processes.stopAll((id) => id === 'r1');
+    processes.forget((id) => id === 'r1');
+    expect(deps.shared.forProject('r1').get(PROCESSES_FACT)).toEqual([]);
+  });
+
   it('clears logs', async () => {
     const { call } = setup();
     await call('r1', 'start', { script: 'dev' });
@@ -287,6 +295,20 @@ describe('scripts tool: run groups', () => {
       ]),
     );
     expect(platform.spawnScript).toHaveBeenCalledWith(expect.objectContaining({ cwd: API }));
+  });
+
+  it('stopping a group also cancels a member waiting to auto-restart', async () => {
+    const { call, setGroups, processes, platform, toolSettings } = setup();
+    toolSettings.set('r1/scripts', { autoRestart: [{ relPath: 'packages/api', script: 'dev' }] });
+    setGroups([group('dev', [['packages/api', 'dev']])]);
+    await call('r1', 'startRunGroup', { name: 'dev' });
+    platform.last().exit(1);
+    await flushIo();
+    expect(processes.get(api.id, 'dev')?.nextRestartAt).not.toBeNull();
+    await call('r1', 'stopRunGroup', { name: 'dev' });
+    expect(processes.get(api.id, 'dev')).toMatchObject({ state: 'stopped', nextRestartAt: null });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(platform.spawnScript).toHaveBeenCalledTimes(1);
   });
 
   it('stops only the group\'s live entries', async () => {
