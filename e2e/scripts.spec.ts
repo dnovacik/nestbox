@@ -1,4 +1,6 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { addProjectAndOpenScripts, copyFixture, isAlive, launch, messageBoxes, readPid } from './helpers';
 
 let app: ElectronApplication;
@@ -69,6 +71,11 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   await expect.poll(() => isAlive(mainPid), { timeout: 10_000 }).toBe(false);
   closed = true;
   expect(isAlive(serverPid)).toBe(true);
+  // The single-instance lock is the userData 'lockfile' (delete-on-close). Relaunching before Windows
+  // has released it makes the new instance quit at once, so wait for it to go.
+  await expect
+    .poll(() => existsSync(join(userData, 'lockfile')), { timeout: 15_000, message: 'single-instance lock released' })
+    .toBe(false);
 
   ({ app, page } = await launch(project, { userData }));
   track(app);
