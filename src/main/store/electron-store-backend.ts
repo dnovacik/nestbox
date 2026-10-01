@@ -9,7 +9,7 @@ const NAME = 'config';
 export function createElectronStoreBackend(userDataDir: string): StoreBackend {
   let store: Store<Record<string, unknown>> | null = null;
   const open = (): Store<Record<string, unknown>> => {
-    // Throws SyntaxError on malformed JSON; StoreService treats that as corruption.
+    // Throws SyntaxError on malformed JSON (StoreService treats only that as corruption); other errors (EBUSY, EPERM) leave the file alone.
     store ??= new Store<Record<string, unknown>>({
       name: NAME,
       cwd: userDataDir,

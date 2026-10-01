@@ -60,4 +60,53 @@ describe('StoreService', () => {
     expect(() => store.updateProjects((ps) => [...ps, { ...project, id: '' }])).toThrow();
     expect(store.getProjects()).toHaveLength(1);
   });
+
+  it('keeps a transiently unreadable file untouched and goes read-only', () => {
+    const backend = createMemoryBackend({ ...defaultStoreData(), projects: [project] });
+    backend.read = () => {
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+    };
+    let writes = 0;
+    const write = backend.write;
+    backend.write = (d) => {
+      writes++;
+      write(d);
+    };
+    const logger = createMemoryLogger();
+    const store = new StoreService(backend, logger);
+    expect(store.getProjects()).toEqual([]);
+    expect(backend.backups).toBe(0);
+    expect(writes).toBe(0);
+    expect(logger.entries[0]).toMatchObject({
+      level: 'warn',
+      message: 'Store unavailable, using defaults in memory',
+      fields: { code: 'EBUSY' },
+    });
+    expect(() => store.updateProjects((ps) => [...ps, project])).toThrow(
+      expect.objectContaining({ code: 'INTERNAL' }),
+    );
+    expect(writes).toBe(0);
+  });
+
+  it('survives a failing backup, keeps defaults in memory and goes read-only', () => {
+    const backend = createMemoryBackend({ schemaVersion: 1, settings: {}, projects: [{ id: 5 }] });
+    backend.backupCorrupt = () => {
+      throw Object.assign(new Error('locked'), { code: 'EPERM' });
+    };
+    let writes = 0;
+    backend.write = () => {
+      writes++;
+    };
+    const logger = createMemoryLogger();
+    const store = new StoreService(backend, logger);
+    expect(store.getProjects()).toEqual([]);
+    expect(writes).toBe(0);
+    expect(logger.entries[0]).toMatchObject({
+      level: 'warn',
+      fields: { reason: 'invalid', backup: null, code: 'EPERM' },
+    });
+    expect(() => store.updateProjects((ps) => [...ps, project])).toThrow(
+      expect.objectContaining({ code: 'INTERNAL' }),
+    );
+  });
 });
