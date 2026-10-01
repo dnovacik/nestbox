@@ -6,3 +6,9 @@ export const WINDOW_COLORS = {
 } as const;
 
 export const TITLE_BAR_HEIGHT = 40;
+
+/**
+ * Height of the native window-control overlay (Windows). One pixel short of the title bar, so the title
+ * bar's bottom border also runs under the minimise, maximise and close buttons.
+ */
+export const TITLE_BAR_OVERLAY_HEIGHT = TITLE_BAR_HEIGHT - 1;

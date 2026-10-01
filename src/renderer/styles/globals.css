@@ -123,6 +123,15 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
   }
+
+  /* Thin, token-coloured scrollbars everywhere (Chromium honours these over ::-webkit-scrollbar). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--nb-border) transparent;
+  }
+  *:hover {
+    scrollbar-color: var(--nb-text-faint) transparent;
+  }
 }
 
 /* ANSI colours in the log viewer (classes produced by tools/scripts/ansi.ts). */

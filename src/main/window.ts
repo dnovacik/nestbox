@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import type { PlatformAdapter } from './platform/adapter';
-import { TITLE_BAR_HEIGHT, WINDOW_COLORS } from './window-theme';
+import { TITLE_BAR_OVERLAY_HEIGHT, WINDOW_COLORS } from './window-theme';
 
 export interface MainWindowOptions {
   platform: PlatformAdapter;
@@ -23,7 +23,7 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
     ...opts.platform.windowChrome({
       color: WINDOW_COLORS.titleBar,
       symbolColor: WINDOW_COLORS.titleBarSymbols,
-      height: TITLE_BAR_HEIGHT,
+      height: TITLE_BAR_OVERLAY_HEIGHT,
     }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
