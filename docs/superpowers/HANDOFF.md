@@ -2,15 +2,18 @@
 
 **State as of 2026-10-01**
 
-- M0 (Skeleton) is complete on branch `m0-skeleton`.
-- Draft PR #1 is open on `dnovacik/nestbox`, and CI is green on windows-latest and macos-latest. 223 tests pass.
-- M1 has not started. It needs the owner's go-ahead.
+- M0 (Skeleton) is merged to `main` (PR #1).
+- M1 (Scripts and logs) is implemented on branch `m1-scripts-logs`, in draft PR #2 on `dnovacik/nestbox`.
+  - Lint, typecheck, 575 unit tests (4 Windows-only skipped elsewhere) and the build pass on windows-latest and macos-latest.
+  - A new `e2e (windows-latest)` CI job runs Playwright against the built app: start, output, stop the whole tree, crash display, quit.
+  - What's left before merging: the owner's manual checklist on Windows (in the PR body), then marking the PR ready.
+- M2 has not started. It needs the owner's go-ahead.
 
 **Read, in order**
 
 1. `CLAUDE.md`: commands, structure, conventions, gotchas.
 2. `docs/nestbox-spec.md`: the source of truth.
-3. `docs/superpowers/specs/2026-10-01-nestbox-m0-design.md` and `docs/superpowers/plans/2026-10-01-nestbox-m0-skeleton.md`. The plan ends with the M1–M3 outlines.
+3. The milestone designs and plans in `docs/superpowers/specs/` and `docs/superpowers/plans/`. The M0 plan ends with the M1–M3 outlines.
 
 **Workflow the owner expects**
 
@@ -20,30 +23,33 @@
 - Stop with a summary after each milestone.
 - Commits are conventional and end with the trailer the session's attribution gives.
 - Owner identity in this repo: Daniel Novacik <novacik.daniel@gmail.com>.
+- One PR per milestone, from its own branch (`m1-scripts-logs`, then e.g. `m2-ports-env`), merged to `main`.
 
-**Open follow-ups from the M0 reviews (feed into the M1 plan)**
+**Cloud-session notes**
 
-*M1*
-- **Startup:** create the window before detection finishes, detect lazily, and use `allSettled` in init.
-- **Stale data:** invalidate the `['tool']` queries on `projects:changed`.
-- **Graceful quit:** prevent the default in `before-quit`, await `toolHost.disposeAll()` with a timeout, then quit. Log `dispose` failures.
-- **Missing editor:** run a `where code` pre-check and return NOT_FOUND with a helpful message.
-- **Store writes:** handle `store.write()` failures on the defaults and after-backup paths. Fix the misleading "Store reset" wording on backup failure. Consider a read-only mode for newer schema versions.
-- **IPC hardening:** fail closed if `isTrustedSender` throws, bound the size of `tools:invoke` input, and add `web-contents-created` hardening.
-- **Tool errors:** add a test that tool errors exclude input values.
-- **UI:**
-  - the "All projects" count ignores the filter, and there's no "no matches" hint
-  - the Project info card has no skeleton or error state
-  - ToolTabs lacks `aria-controls`, `tabpanel` and arrow-key support
-- **Test gaps:** pending state and the stale-selection fallback, the other mutation hooks, "add when detect throws", and the title bar workspace display.
+- Superpowers isn't installed in cloud sessions: the same steps are followed by hand.
+- `ui.shadcn.com` was blocked by the network policy, so `components/ui/dialog.tsx` and `switch.tsx` are hand-written (new-york style). Regenerate them with the CLI when it is reachable.
+- The Electron binary can be installed (`node node_modules/electron/install.js`), and the built app runs under `xvfb-run`. On Linux the platform adapter is the macOS stub, so scripts cannot start, but the UI and IPC can be checked with Playwright.
+
+**M1 follow-ups (from M0 reviews): all done in PR #2**
+
+Startup, stale data, graceful quit, missing editor, store writes and read-only mode, IPC hardening, tool error hygiene, the UI items and the test gaps.
+
+**Open follow-ups**
+
+*Before or during M2*
+- **Log performance at very large buffers.** Every 50 ms batch copies the renderer's line array, and an active search rescans every line. That's fine at the default 50 000 lines but heavy near the 1 000 000 maximum. Consider a chunked store and incremental search hits. (M1 review #8; contexts are already incremental.)
+- **Tool calls during detection.** `tools:invoke` fails with NOT_FOUND while a project is still being detected at startup. Panels recover (log panes retry every 2 s; queries refetch), but a short wait in `getDetected` would be cleaner.
+- **Notifications in `pnpm dev`.** Windows only shows toasts for an app with an AppUserModelID and a Start-menu shortcut. Check them in a packaged build.
 
 *M2*
 - **Detection:** warn when `readdir` fails, stop matching `.envrc` as an env file, and handle symlinks, including symlinked workspaces that point outside the root.
+- **Ports:** read the `scripts.processes` shared fact (`{ script, pid, state }[]` per project) to attribute ports.
 
 *M3*
 - **Terminal commands:** `openTerminal` with a command expands `%VAR%` twice through `start`, and the `wt` path has no `/s`. Do an end-to-end test with `claude`.
 - **Packaging:** check the asar `entryFileUrl` against the `loadFile` URL, and recheck electron-winstaller's build script.
-- **Editor command:** check editor paths that contain spaces.
+- **Editor command:** check editor paths that contain spaces (the `where` pre-check handles `dir:pattern`; the launch through `cmd.exe` still needs a test with a real path).
 
 **Machine notes (owner's Windows box)**
 
