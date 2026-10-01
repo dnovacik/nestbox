@@ -140,7 +140,7 @@ export function LogToolbar(props: LogToolbarProps) {
           className="h-7 w-36 bg-app text-xs"
         />
         {structuredFilterActive(filters) && (
-          <span className="text-[11px] text-fg-faint">Plain lines hidden while filtering</span>
+          <span className="text-[11px] text-fg-faint">Showing matching entries and the lines under them</span>
         )}
       </div>
     </div>

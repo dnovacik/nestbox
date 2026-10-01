@@ -37,6 +37,20 @@ describe('filters', () => {
     expect(searchHits(lines, '  ')).toEqual([]);
   });
 
+  it('keeps plain lines under the structured entry they follow (stack traces)', () => {
+    const stack = [
+      json(30, 'ok'),
+      line('not shown: belongs to an info entry'),
+      json(50, 'boom'),
+      line('Error: boom'),
+      line('    at main (src/main.ts:3:9)'),
+      line('▸ restart', 'system'),
+      line('after a system line'),
+    ];
+    const out = visibleLines(stack, { ...NO_FILTERS, levels: new Set(['error']) });
+    expect(out.map((l) => l.text)).toEqual([stack[2]?.text, 'Error: boom', '    at main (src/main.ts:3:9)']);
+  });
+
   it('lists contexts sorted and unique', () => {
     expect(contextsOf(lines)).toEqual(['Db', 'Http']);
   });

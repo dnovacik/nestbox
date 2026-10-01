@@ -86,7 +86,7 @@ describe('LogPane', () => {
     expect(screen.queryByText('plain text')).toBeNull();
     expect(screen.queryByText('info line')).toBeNull();
     expect(screen.getByText('error line')).toBeInTheDocument();
-    expect(screen.getByText('Plain lines hidden while filtering')).toBeInTheDocument();
+    expect(screen.getByText('Showing matching entries and the lines under them')).toBeInTheDocument();
   });
 
   it('filters by context', async () => {

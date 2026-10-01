@@ -51,6 +51,52 @@ describe('parseStructured', () => {
   });
 });
 
+describe('parseStructured: NestJS text logger', () => {
+  const ESC = '\u001b';
+
+  it('parses a coloured default ConsoleLogger line', () => {
+    const line =
+      `${ESC}[32m[Nest] 20596  - ${ESC}[39m10/01/2026, 4:01:34 PM ${ESC}[32m    LOG${ESC}[39m ` +
+      `${ESC}[33m[NestFactory] ${ESC}[39m${ESC}[32mStarting Nest application...${ESC}[39m${ESC}[33m +2ms${ESC}[39m`;
+    expect(parseStructured(line)).toMatchObject({
+      level: 'info',
+      context: 'NestFactory',
+      message: 'Starting Nest application...',
+      time: null,
+      requestId: null,
+      raw: { app: 'Nest', pid: 20596, level: 'LOG', context: 'NestFactory' },
+    });
+  });
+
+  it.each([
+    ['  ERROR', 'error'],
+    ['   WARN', 'warn'],
+    ['  DEBUG', 'debug'],
+    ['VERBOSE', 'trace'],
+    ['  FATAL', 'fatal'],
+  ])('maps %s to %s', (label, level) => {
+    expect(parseStructured(`[Nest] 1  - 10/01/2026, 4:01:34 PM ${label} [App] x`)?.level).toBe(level);
+  });
+
+  it('handles a missing context and a custom app name, and leaves the locale date to the arrival time', () => {
+    expect(parseStructured('[Nest] 7  - 1. 10. 2026 16:01:34     LOG plain message +15ms')).toMatchObject({
+      context: null,
+      message: 'plain message',
+      time: null,
+    });
+    expect(parseStructured('[shop-api] 7  - 10/01/2026, 4:01:34 PM   ERROR [Db] down')).toMatchObject({
+      level: 'error',
+      context: 'Db',
+      raw: { app: 'shop-api' },
+    });
+  });
+
+  it('leaves other bracketed lines alone', () => {
+    expect(parseStructured('[vite] hmr update /src/App.tsx')).toBeNull();
+    expect(parseStructured('[Nest] starting')).toBeNull();
+  });
+});
+
 describe('structuredOf', () => {
   it('caches per line and skips system lines', () => {
     const line = { seq: 1, ts: 1, stream: 'stdout' as const, text: '{"level":30,"msg":"x"}' };
