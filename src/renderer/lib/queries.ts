@@ -12,6 +12,7 @@ export const queryKeys = {
   appInfo: ['app-info'] as const,
   settings: ['settings'] as const,
   processes: ['processes'] as const,
+  ports: ['ports'] as const,
   tools: (projectId: string) => ['tools', projectId] as const,
   toolCalls: ['tool'] as const,
   tool: (toolId: string, projectId: string, method: string) => ['tool', toolId, projectId, method] as const,
