@@ -44,14 +44,14 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       } catch (error) {
         if (!isEnoent(error)) throw new NestboxError('INTERNAL', 'Could not start Windows Terminal');
       }
-      // Fallback: plain console. The folder goes through the process cwd, never the command line.
-      // With a command, /s strips the outer quotes so cmd runs the Nestbox-built line as-is.
-      const [args, opts] =
+      // Fallback: `start` gives the console its own window and handles (a detached cmd with
+      // ignored stdio reads EOF and exits at once). The folder goes through cwd, never the command line.
+      const line =
         command === undefined
-          ? [['/d', '/k'], { cwd }]
-          : [['/d', '/s', '/k', `"${command}"`], { cwd, verbatim: true }];
+          ? '/d /c start "" cmd.exe /d /k'
+          : `/d /c start "" cmd.exe /d /s /k "${command}"`;
       try {
-        await deps.runner.launch('cmd.exe', args, opts);
+        await deps.runner.launch('cmd.exe', [line], { cwd, verbatim: true });
       } catch {
         throw new NestboxError('INTERNAL', 'Could not open a terminal');
       }

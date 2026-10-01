@@ -106,7 +106,11 @@ describe('win32 openTerminal', () => {
     const runner = fakeRunner(['wt.exe']);
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
     await adapter.openTerminal(path);
-    expect(runner.calls[1]).toEqual({ file: 'cmd.exe', args: ['/d', '/k'], opts: { cwd: path } });
+    expect(runner.calls[1]).toEqual({
+      file: 'cmd.exe',
+      args: ['/d /c start "" cmd.exe /d /k'],
+      opts: { cwd: path, verbatim: true },
+    });
     // the path must never be spliced into the cmd command line
     expect(runner.calls[1]?.args.join(' ')).not.toContain(path);
   });
@@ -117,7 +121,7 @@ describe('win32 openTerminal', () => {
     await adapter.openTerminal('C:\\a', 'echo one; echo two');
     expect(runner.calls[1]).toEqual({
       file: 'cmd.exe',
-      args: ['/d', '/s', '/k', '"echo one; echo two"'],
+      args: ['/d /c start "" cmd.exe /d /s /k "echo one; echo two"'],
       opts: { cwd: 'C:\\a', verbatim: true },
     });
   });
