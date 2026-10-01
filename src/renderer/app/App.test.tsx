@@ -5,6 +5,7 @@ import type { ProjectSummary } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { installMockBridge } from '@/test/mock-bridge';
 import { makeSummary } from '@/test/fixtures';
+import { useUiStore } from '@/state/ui-store';
 import { renderWithProviders } from '@/test/render';
 import { App } from './App';
 
@@ -80,5 +81,17 @@ describe('App shell', () => {
     projects = [makeSummary()];
     bridge.emit('projects:changed');
     await waitFor(() => expect(screen.getByText('1 project')).toBeInTheDocument());
+  });
+
+  it('falls back to the first project when the selection no longer exists', async () => {
+    useUiStore.getState().select('gone');
+    installMockBridge({
+      ...baseHandlers,
+      'projects:list': () => [makeSummary({ id: 'p1', name: 'shop' }), makeSummary({ id: 'p2', name: 'blog' })],
+    });
+    renderWithProviders(<App />);
+    const main = await screen.findByRole('main');
+    expect(await within(main).findByRole('heading', { name: 'shop' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'shop' })).toHaveAttribute('aria-current', 'page');
   });
 });
