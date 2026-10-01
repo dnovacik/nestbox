@@ -14,7 +14,8 @@ export interface ClaudeDocs {
   write(dir: string, file: ClaudeDoc, text: string, version: string | null): Promise<{ version: string }>;
 }
 
-const usesCrlf = (text: string) => {
+/** Whether a text mostly uses CRLF line endings. */
+export const usesCrlf = (text: string) => {
   const crlf = text.match(/\r\n/g)?.length ?? 0;
   return crlf > 0 && crlf >= (text.match(/\n/g)?.length ?? 0) - crlf;
 };
