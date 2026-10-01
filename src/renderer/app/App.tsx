@@ -18,14 +18,9 @@ export function App() {
       <TitleBar node={node} />
       <div className="flex min-h-0 flex-1">
         <Sidebar projects={projects} selectedId={node?.detected.id ?? null} />
-        {isPending ? (
-          // No <main> until the first projects fetch resolves, so the landmark only appears with real content.
-          <div className="flex min-w-0 flex-1 flex-col" />
-        ) : (
-          <main className="flex min-w-0 flex-1 flex-col">
-            {node ? <ProjectView key={node.detected.id} node={node} /> : <EmptyState />}
-          </main>
-        )}
+        <main className="flex min-w-0 flex-1 flex-col">
+          {isPending ? null : node ? <ProjectView key={node.detected.id} node={node} /> : <EmptyState />}
+        </main>
       </div>
       <StatusBar projectCount={projects.length} />
     </div>

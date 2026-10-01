@@ -22,6 +22,20 @@ describe('App shell', () => {
     expect(await screen.findByText('v0.0.0')).toBeInTheDocument();
   });
 
+  it('keeps an empty main landmark while projects load', async () => {
+    let release: (value: ProjectSummary[]) => void = () => {};
+    const pending = new Promise<ProjectSummary[]>((resolve) => {
+      release = resolve;
+    });
+    installMockBridge({ ...baseHandlers, 'projects:list': () => pending });
+    renderWithProviders(<App />);
+    const main = screen.getByRole('main');
+    expect(main).toBeEmptyDOMElement();
+    expect(screen.queryByRole('heading', { name: 'No projects yet' })).toBeNull();
+    release([]);
+    expect(await within(main).findByRole('heading', { name: 'No projects yet' })).toBeInTheDocument();
+  });
+
   it('adds a project from the empty state and selects it', async () => {
     let projects: ProjectSummary[] = [];
     installMockBridge({
@@ -34,7 +48,8 @@ describe('App shell', () => {
       },
     });
     renderWithProviders(<App />);
-    const main = await screen.findByRole('main');
+    await screen.findByRole('heading', { name: 'No projects yet' });
+    const main = screen.getByRole('main');
     await userEvent.click(within(main).getByRole('button', { name: /add project/i }));
     expect(await within(main).findByRole('heading', { name: 'shop' })).toBeInTheDocument();
     expect(within(screen.getByRole('complementary', { name: 'Projects' })).getByRole('button', { name: 'shop' })).toHaveAttribute('aria-current', 'page');
@@ -51,7 +66,8 @@ describe('App shell', () => {
       },
     });
     renderWithProviders(<App />);
-    const main = await screen.findByRole('main');
+    await screen.findByRole('heading', { name: 'No projects yet' });
+    const main = screen.getByRole('main');
     await userEvent.click(within(main).getByRole('button', { name: /add project/i }));
     expect(await screen.findByText('This folder is already added as "shop"')).toBeInTheDocument();
   });
