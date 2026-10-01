@@ -20,6 +20,24 @@
   --nb-red: #f85149;
   --nb-grey: #8b949e;
 
+  /* Terminal palette for script output (ANSI 0–15). Not UI accents. */
+  --ansi-0: #484f58;
+  --ansi-1: #ff7b72;
+  --ansi-2: #3fb950;
+  --ansi-3: #d29922;
+  --ansi-4: #58a6ff;
+  --ansi-5: #d2a8ff;
+  --ansi-6: #39c5cf;
+  --ansi-7: #b1bac4;
+  --ansi-8: #6e7681;
+  --ansi-9: #ffa198;
+  --ansi-10: #56d364;
+  --ansi-11: #e3b341;
+  --ansi-12: #79c0ff;
+  --ansi-13: #e2c5ff;
+  --ansi-14: #56d4dd;
+  --ansi-15: #f0f6fc;
+
   /* shadcn/ui variables mapped onto the Nestbox tokens */
   --radius: 0.375rem;
   --background: var(--nb-bg);
@@ -105,4 +123,109 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
   }
+}
+
+/* ANSI colours in the log viewer (classes produced by tools/scripts/ansi.ts). */
+.ansi-fg-0 {
+  color: var(--ansi-0);
+}
+.ansi-bg-0 {
+  background-color: var(--ansi-0);
+}
+.ansi-fg-1 {
+  color: var(--ansi-1);
+}
+.ansi-bg-1 {
+  background-color: var(--ansi-1);
+}
+.ansi-fg-2 {
+  color: var(--ansi-2);
+}
+.ansi-bg-2 {
+  background-color: var(--ansi-2);
+}
+.ansi-fg-3 {
+  color: var(--ansi-3);
+}
+.ansi-bg-3 {
+  background-color: var(--ansi-3);
+}
+.ansi-fg-4 {
+  color: var(--ansi-4);
+}
+.ansi-bg-4 {
+  background-color: var(--ansi-4);
+}
+.ansi-fg-5 {
+  color: var(--ansi-5);
+}
+.ansi-bg-5 {
+  background-color: var(--ansi-5);
+}
+.ansi-fg-6 {
+  color: var(--ansi-6);
+}
+.ansi-bg-6 {
+  background-color: var(--ansi-6);
+}
+.ansi-fg-7 {
+  color: var(--ansi-7);
+}
+.ansi-bg-7 {
+  background-color: var(--ansi-7);
+}
+.ansi-fg-8 {
+  color: var(--ansi-8);
+}
+.ansi-bg-8 {
+  background-color: var(--ansi-8);
+}
+.ansi-fg-9 {
+  color: var(--ansi-9);
+}
+.ansi-bg-9 {
+  background-color: var(--ansi-9);
+}
+.ansi-fg-10 {
+  color: var(--ansi-10);
+}
+.ansi-bg-10 {
+  background-color: var(--ansi-10);
+}
+.ansi-fg-11 {
+  color: var(--ansi-11);
+}
+.ansi-bg-11 {
+  background-color: var(--ansi-11);
+}
+.ansi-fg-12 {
+  color: var(--ansi-12);
+}
+.ansi-bg-12 {
+  background-color: var(--ansi-12);
+}
+.ansi-fg-13 {
+  color: var(--ansi-13);
+}
+.ansi-bg-13 {
+  background-color: var(--ansi-13);
+}
+.ansi-fg-14 {
+  color: var(--ansi-14);
+}
+.ansi-bg-14 {
+  background-color: var(--ansi-14);
+}
+.ansi-fg-15 {
+  color: var(--ansi-15);
+}
+.ansi-bg-15 {
+  background-color: var(--ansi-15);
+}
+.ansi-inverse {
+  color: var(--nb-bg);
+  background-color: var(--nb-text);
+}
+.ansi-fg-inverse {
+  color: var(--nb-bg);
 }
