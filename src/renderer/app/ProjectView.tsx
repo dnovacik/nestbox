@@ -14,13 +14,14 @@ export function ProjectView({ node }: { node: ProjectNode }) {
   const stored = useUiStore((s) => s.activeTab[projectId]);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const active = stored && tools.some((t) => t.id === stored) ? stored : OVERVIEW_TAB;
-  const Panel = active === OVERVIEW_TAB ? undefined : getRendererTool(active)?.Panel;
+  const tool = active === OVERVIEW_TAB ? undefined : getRendererTool(active);
+  const Panel = tool?.Panel;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ProjectHeader node={node} />
       {!missing && <ToolTabs tools={tools} active={active} onSelect={(tab) => setActiveTab(projectId, tab)} />}
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className={tool?.fullHeight ? 'min-h-0 flex-1 overflow-hidden p-4' : 'min-h-0 flex-1 overflow-y-auto p-6'}>
         {missing ? (
           <p className="text-sm text-fg-muted">
             The project folder no longer exists at <span className="font-mono text-fg">{node.detected.path}</span>.

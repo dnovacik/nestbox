@@ -11,4 +11,6 @@ export interface RendererTool {
   id: string;
   Panel: ToolComponent;
   OverviewCard?: ToolComponent;
+  /** The panel fills the tab and scrolls itself (no outer scroll or padding). */
+  fullHeight?: boolean;
 }

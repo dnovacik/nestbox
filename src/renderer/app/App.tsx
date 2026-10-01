@@ -1,3 +1,4 @@
+import { useNavigateSubscription } from '@/lib/navigate';
 import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { EmptyState } from './EmptyState';
@@ -10,6 +11,7 @@ import { TitleBar } from './TitleBar';
 export function App() {
   useProjectsChangedSubscription();
   useProcessesChangedSubscription();
+  useNavigateSubscription();
   const { data: projects = [], isPending } = useProjects();
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);
