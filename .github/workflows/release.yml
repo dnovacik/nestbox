@@ -1,0 +1,35 @@
+name: Release
+
+# Builds the Windows installer and attaches it to a draft GitHub Release. Push a tag like v1.0.0
+# (matching package.json's version), then review and publish the draft on GitHub.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: windows installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec electron-builder --win --publish never
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: release/*/NestBox-Setup-*.exe
+          fail_on_unmatched_files: true
