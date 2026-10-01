@@ -1,0 +1,9 @@
+
+Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    [::]:135               [::]:0                 LISTENING       1032
+  TCP    [::]:3000              [::]:0                 LISTENING       8108
+  TCP    [::1]:5432             [::]:0                 LISTENING       5120
+  TCP    [fe80::1%12]:5353     [::]:0                 LISTENING       7000
+  TCP    [::1]:52300            [::1]:5432             ESTABLISHED     9002
