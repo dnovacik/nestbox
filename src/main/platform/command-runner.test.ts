@@ -20,6 +20,13 @@ describe('spawnRunner.exec', () => {
     expect(stdout).toHaveLength(65_536);
   });
 
+  it('runs in the given folder', async () => {
+    const { tmpdir } = await import('node:os');
+    const { realpathSync } = await import('node:fs');
+    const { stdout } = await spawnRunner.exec(node, ['-e', 'process.stdout.write(process.cwd())'], { cwd: tmpdir() });
+    expect(realpathSync(stdout)).toBe(realpathSync(tmpdir()));
+  });
+
   it('takes a larger cap when asked', async () => {
     const { stdout } = await spawnRunner.exec(node, ['-e', 'process.stdout.write("x".repeat(200000))'], { maxBytes: 1_048_576 });
     expect(stdout).toHaveLength(200_000);

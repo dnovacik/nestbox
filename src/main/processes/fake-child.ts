@@ -75,6 +75,7 @@ export function fakePlatform() {
     killTree: vi.fn(async (pid: number): Promise<void> => {
       children.find((c) => c.pid === pid)?.exit(1);
     }),
+    execCommand: vi.fn(async () => ({ code: 0, stdout: '' })),
     listProcesses: vi.fn(async () => []),
     listListeningPorts: vi.fn(async () => []),
     describeProcesses: vi.fn(async () => new Map<number, string | null>()),

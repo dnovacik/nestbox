@@ -24,7 +24,12 @@ export const spawnRunner: CommandRunner = {
 
   exec(file, args, opts = {}) {
     return new Promise<ExecResult>((resolve, reject) => {
-      const child = spawn(file, [...args], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+      const child = spawn(file, [...args], {
+        cwd: opts.cwd,
+        windowsHide: true,
+        windowsVerbatimArguments: opts.verbatim ?? false,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
       let stdout = '';
       let settled = false;
       const finish = (settle: () => void): void => {

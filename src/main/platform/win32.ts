@@ -83,6 +83,11 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       return deps.runner.spawn(inv.file, inv.args, { cwd: opts.cwd, env: opts.env, verbatim: true });
     },
 
+    execCommand(command, args, opts) {
+      const inv = cmdInvocation(command, args);
+      return deps.runner.exec(inv.file, inv.args, { ...opts, verbatim: true });
+    },
+
     spawnCommand(opts) {
       const inv = cmdInvocation(opts.command, opts.args);
       return deps.runner.spawn(inv.file, inv.args, {

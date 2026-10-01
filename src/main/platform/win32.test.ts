@@ -267,6 +267,22 @@ describe('win32 other members', () => {
   });
 });
 
+describe('win32 execCommand', () => {
+  it('runs through cmd.exe verbatim in the given folder and returns the result', async () => {
+    const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '2.1.0 (Claude Code)\r\n' } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    expect(await adapter.execCommand('claude', ['--version'], { cwd: 'C:\\a', timeoutMs: 10_000 })).toEqual({
+      code: 0,
+      stdout: '2.1.0 (Claude Code)\r\n',
+    });
+    expect(runner.exec).toHaveBeenCalledWith('cmd.exe', cmdInvocation('claude', ['--version']).args, {
+      cwd: 'C:\\a',
+      timeoutMs: 10_000,
+      verbatim: true,
+    });
+  });
+});
+
 describe('win32 spawnCommand', () => {
   it('runs the command through cmd.exe and hands stdin to the runner', () => {
     const runner = fakeRunner();
