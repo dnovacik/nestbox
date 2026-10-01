@@ -14,7 +14,7 @@ import { spawnRunner } from './platform/command-runner';
 import { createPlatformAdapter } from './platform';
 import { ProjectService } from './projects/project-service';
 import { buildCsp } from './security/csp';
-import { applySessionSecurity } from './security/harden';
+import { applySessionSecurity, hardenAllWebContents } from './security/harden';
 import { isAppUrl } from './security/origin';
 import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
@@ -97,12 +97,12 @@ if (!app.requestSingleInstanceLock()) {
     });
     registerIpc(ipcMain, dispatch);
 
+    hardenAllWebContents(app, isTrusted);
     applySessionSecurity(session.defaultSession, devServerUrl ? { devCsp: buildCsp({ dev: true }) } : {});
 
     mainWindow = createMainWindow({
       platform,
       devServerUrl,
-      isAllowedUrl: isTrusted,
       icon: brandAsset(
         { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath },
         'png/nestbox.ico',
