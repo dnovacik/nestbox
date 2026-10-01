@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join, posix } from 'node:path';
+import { isAbsolute, join, posix, relative, resolve } from 'node:path';
 import { glob } from 'tinyglobby';
 import { parse as parseYaml } from 'yaml';
 import { isRecord } from '@shared/is-record';
@@ -37,6 +37,22 @@ function clean(pattern: string): string {
   return pattern.trim().replace(/^\.\//, '').replace(/\/+$/, '');
 }
 
+/** tinyglobby accepts `../*` and absolute patterns; neither may leave the project root. */
+function escapesRoot(pattern: string): boolean {
+  return (
+    isAbsolute(pattern) ||
+    pattern.startsWith('/') ||
+    pattern.startsWith('\\') ||
+    /^[a-zA-Z]:/.test(pattern) ||
+    pattern.split(/[\\/]/).includes('..')
+  );
+}
+
+function insideRoot(root: string, dir: string): boolean {
+  const rel = relative(resolve(root), resolve(root, dir));
+  return !rel.startsWith('..') && !isAbsolute(rel);
+}
+
 export async function findWorkspaceDirs(
   root: string,
   packageJson: Record<string, unknown> | null,
@@ -45,8 +61,8 @@ export async function findWorkspaceDirs(
   const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
   if (patterns.length === 0) return [];
 
-  const include = patterns.filter((p) => !p.startsWith('!')).map(clean).filter((p) => p && p !== '.');
-  const exclude = patterns.filter((p) => p.startsWith('!')).map((p) => clean(p.slice(1)));
+  const include = patterns.filter((p) => !p.startsWith('!')).map(clean).filter((p) => p && p !== '.' && !escapesRoot(p));
+  const exclude = patterns.filter((p) => p.startsWith('!')).map((p) => clean(p.slice(1))).filter((p) => !escapesRoot(p));
   if (include.length === 0) return [];
 
   const manifests = await glob(
@@ -59,5 +75,5 @@ export async function findWorkspaceDirs(
   );
   const dirs = new Set(manifests.map((file) => posix.dirname(file.replace(/\\/g, '/'))));
   dirs.delete('.');
-  return [...dirs].sort();
+  return [...dirs].filter((dir) => insideRoot(root, dir)).sort();
 }

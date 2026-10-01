@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeTree, removeTree } from './test-fixtures';
 import { findWorkspaceDirs } from './workspaces';
@@ -52,5 +53,14 @@ describe('findWorkspaceDirs', () => {
   it('ignores non-string patterns', async () => {
     dir = await makeTree({ 'packages/a/package.json': PKG });
     expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*', 42, null] })).toEqual(['packages/a']);
+  });
+
+  it('ignores patterns that escape the project root', async () => {
+    dir = await makeTree({
+      'proj/pnpm-workspace.yaml': "packages:\n  - '../*'\n  - '/abs/*'\n  - 'packages/*'\n",
+      'proj/packages/a/package.json': PKG,
+      'sibling/package.json': PKG,
+    });
+    expect(await findWorkspaceDirs(join(dir, 'proj'), {})).toEqual(['packages/a']);
   });
 });
