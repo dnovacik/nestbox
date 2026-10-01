@@ -2,13 +2,13 @@
 
 **State as of 2026-10-01**
 
-- M0 (Skeleton) is merged to `main` (PR #1).
-- M1 (Scripts and logs) is implemented on branch `m1-scripts-logs`, in draft PR #2 on `dnovacik/nestbox`.
-  - Lint, typecheck, 590 unit tests (4 Windows-only skipped elsewhere) and the build pass on windows-latest and macos-latest.
-  - A new `e2e (windows-latest)` CI job runs Playwright against the built app: start, output, stop the whole tree, crash display, quit, and the orphan prompt after the main process is killed.
-  - Owner feedback from two PR rounds is addressed (NestJS text-log levels, filtered export, editor check, renderer reload, orphans, NestBox naming, title bar, scrollbars, select, ANSI crash line).
-  - The owner tested the branch on Windows: everything works. What's left: mark the PR ready and merge it.
-- M2 has not started. It needs the owner's go-ahead.
+- M0 (Skeleton) and M1 (Scripts and logs) are merged to `main` (PRs #1 and #2).
+- M2 (Ports and env) is implemented on branch `m2-ports-env`, in draft PR #3 on `dnovacik/nestbox`.
+  - Design: `docs/superpowers/specs/2026-10-01-nestbox-m2-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-01-nestbox-m2-ports-env.md`.
+  - A global Ports page (sidebar), a Ports card on each Overview with the watch list, "Kill and restart" on `EADDRINUSE`, and the Env tool (matrix, masked values, copy without reveal, edits that keep formatting, profiles).
+  - New e2e tests: Ports attribution and stop (Windows), env add-from-example.
+  - What's left before merging: the owner's manual checklist on Windows (in the PR body), then marking the PR ready.
+- M3 has not started. It needs the owner's go-ahead.
 
 **Read, in order**
 
@@ -40,14 +40,14 @@ Startup, stale data, graceful quit, missing editor, store writes and read-only m
 
 - **Orphans.** The PID ledger records each script root's spawn time (PowerShell can take over 10 s cold). At startup one `listProcesses` call feeds `findOrphans`, which offers a live root within 3 s of it, or the children a dead root `cmd.exe` left behind.
 
-*Before or during M2*
+*Before or during M3*
 - **Log performance at very large buffers.** Every 50 ms batch copies the renderer's line array, and an active search rescans every line. That's fine at the default 50 000 lines but heavy near the 1 000 000 maximum. Consider a chunked store and incremental search hits. (M1 review #8; contexts are already incremental.)
-- **Tool calls during detection.** `tools:invoke` fails with NOT_FOUND while a project is still being detected at startup. Panels recover (log panes retry every 2 s; queries refetch), but a short wait in `getDetected` would be cleaner.
 - **Notifications in `pnpm dev`.** Windows only shows toasts for an app with an AppUserModelID and a Start-menu shortcut. Check them in a packaged build.
 
-*M2*
-- **Detection:** warn when `readdir` fails, stop matching `.envrc` as an env file, and handle symlinks, including symlinked workspaces that point outside the root.
-- **Ports:** read the `scripts.processes` shared fact (`{ script, pid, state }[]` per project) to attribute ports.
+*M2 leftovers*
+- **Port listing on macOS** stays a stub until the v2 macOS phase (`lsof -iTCP -sTCP:LISTEN`).
+- **Env variable expansion** (`${VAR}`) is shown and written verbatim; no dotenv-expand preview.
+- **Attribution cost.** The first owner lookup runs PowerShell (seconds when cold). A persistent PowerShell or a native module could make it instant if it matters in daily use.
 
 *M3*
 - **Terminal commands:** `openTerminal` with a command expands `%VAR%` twice through `start`, and the `wt` path has no `/s`. Do an end-to-end test with `claude`.

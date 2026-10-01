@@ -25,6 +25,7 @@ src/main/        Electron main. index.ts is the only file wiring real Electron o
   store/         StoreService over electron-store (Zod + schemaVersion + migrations)
   projects/      ProjectService (add/remove/rename/pin/refresh, workspace lookup, run groups, tool settings)
   processes/     ProcessManager (spawn, states, crash/auto-restart, per-script log ring buffers), PID ledger
+  ports/         PortService (machine-wide listening ports, attribution to scripts, kill rules)
   lifecycle/     quit controller (close to tray, confirmed graceful quit), orphan prompt
   tray/          tray menu model (pure), tray controller, crash notification text
   ipc/           router (validates every payload), register, core-handlers
@@ -33,7 +34,7 @@ src/main/        Electron main. index.ts is the only file wiring real Electron o
 src/preload/     window.nestbox bridge (whitelisted channels, returns envelopes)
 e2e/             Playwright Electron tests and fixture projects
 src/shared/      Zod schemas, channel contract, typed client, tool contracts
-src/renderer/    React app: app/ (shell), tools/ (panels), components/ (ui = shadcn), lib/, state/
+src/renderer/    React app: app/ (shell), ports/ (Ports page), tools/ (panels), components/ (ui = shadcn), lib/, state/
 resources/brand/ Brand assets (packaged as extraResources → brand/)
 ```
 
@@ -44,7 +45,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - TDD: write the failing Vitest test first. Tests sit next to the source (`foo.ts` → `foo.test.ts`).
 - Security: `contextIsolation` on, `nodeIntegration` off, sandboxed renderer, strict CSP (a meta tag in builds, a header in dev), whitelisted IPC, and the sender origin checked on every call.
 - No `process.platform` outside `src/main/platform/`. Lint enforces this.
-- Never store or log env values or project file contents. `Logger` fields are primitives only; log channel, tool, method, file names and codes.
+- Never store or log env values or project file contents. Env values reach the renderer only through the env tool's `reveal` (one value) and travel back only in an edit the user typed; `copy` writes the clipboard from main. The env matrix carries presence (set/empty/absent), never values. `Logger` fields are primitives only; log channel, tool, method, file names and codes.
 - Paths are stored and displayed in their original casing. `normalizePath` is for comparison only (`samePath`, duplicate detection).
 - Arguments passed through cmd.exe go through `cmdInvocation`/`escapeCmdArg`; `wt.exe` is spawned directly (Node quoting) with `;` escaped via `escapeWtArg`; the folder for the cmd fallback travels only as `cwd`.
 - Renderer colours come from tokens in `src/renderer/styles/globals.css` only. Lint rejects hex literals elsewhere. Dark theme only for now; one accent (`brand`); flat (no glow or blur).
@@ -57,6 +58,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Envelopes.** Main returns `{ ok, data } | { ok: false, error: { code, message } }`. The preload passes it through unchanged, because `contextBridge` drops custom `Error` fields. `createNestboxClient` (`src/shared/client.ts`) unwraps it and throws `NestboxError` with the code.
 - **Error codes:** `VALIDATION`, `NOT_FOUND`, `CONFLICT`, `NOT_IMPLEMENTED`, `FORBIDDEN`, `INTERNAL`. Messages never contain payload values (tool/method ids may appear in NOT_FOUND messages).
 - **Core channels added in M1:** `settings:get`/`settings:update` (the Settings dialog; `readOnly` when the store can't be saved), `processes:list`/`processes:stopAll` (the shell: sidebar dots, status bar, Stop all). Events: `processes:changed` (throttled, no payload) and `app:navigate` (`{ projectId, tab, script? }`, tray and notifications).
+- **Core channels added in M2:** `ports:list` (cached 1 s in main; the renderer polls every 3 s only while the Ports page or a Ports card is mounted), `ports:kill` (`{ pid, port, confirmed }`: a NestBox-owned port stops its script; anything else answers `needs-confirm` until confirmed; System and NestBox itself are FORBIDDEN), `ports:waitFree`.
 - **Payload limit.** The router rejects payloads whose JSON is over 2 MiB before parsing.
 - **Logs flow one way.** Log text only goes main → renderer (`tools:event` batches every 50 ms). Export sends seq numbers, never text.
 
@@ -85,4 +87,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Quitting.** Every exit goes through the quit controller (`lifecycle/quit-controller.ts`): confirm when scripts run, stop them and dispose tools within 5 s, then quit. `window-all-closed` deliberately does nothing.
 - **react-virtual in jsdom.** It sizes the viewport from `offsetWidth`/`offsetHeight`, which jsdom reports as 0, so tests that render a `LogPane` give `HTMLElement.prototype` a layout size (see `LogPane.test.tsx`). `initialRect` does not help.
 - **End-to-end.** On Windows, `app.process()` is a launcher: the real main process is its child. Use `app.evaluate(() => process.pid)` to kill the app's main process. `NESTBOX_USER_DATA_DIR` gives the app an isolated profile, and is honoured only when unpackaged. The tests stub `dialog.showOpenDialog`/`showMessageBox` from the main process. The empty state and the sidebar both have an "Add project" button: scope locators.
+- **Ports.** Ports are a core service, not a tool (they're machine-wide): the sidebar's "Ports" entry sets `view: 'ports'` in the UI store. Attribution walks the parent chain from the listening PID to a live script root using `listProcesses` (PowerShell), fetched only when an unseen PID starts listening. `describeProcesses` reads command lines (UI only, never logged). netstat's state column is localised, so a listening row is recognised by its `0.0.0.0:0`/`[::]:0` foreign address.
+- **Env tool.** `.env` edits go through `tools/env/dotenv.ts`, which keeps untouched lines byte-identical. Versions are `ino:mtimeNs:size` (atomic writes change the inode); a stale version is CONFLICT. The tool watches a package folder from its first `matrix` call (the tool host never calls `activate`). `watchedPorts` came with a Zod default, so the store stayed at v2.
+- **Command output.** `CommandRunner.exec` caps stdout at 64 KiB unless the call passes `maxBytes` (netstat and tasklist do). Fixtures under `src/main/platform/__fixtures__/` are `-text` in `.gitattributes` so their CRLF bytes survive.
 - **shadcn registry.** `ui.shadcn.com` can be blocked by a sandbox's network policy. `dialog.tsx`, `switch.tsx` and `select.tsx` were then written by hand in the new-york style; regenerate them with the CLI when it is reachable.
