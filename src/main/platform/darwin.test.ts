@@ -24,5 +24,7 @@ describe('darwin stub', () => {
     await expect(adapter.openTerminal('/a')).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
     await expect(adapter.resolveShellEnv()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
     await expect(adapter.listProcesses()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+    await expect(adapter.listListeningPorts()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+    await expect(adapter.describeProcesses([1])).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
   });
 });

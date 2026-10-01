@@ -39,7 +39,8 @@ export const spawnRunner: CommandRunner = {
       }, opts.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS);
       child.stdout?.setEncoding('utf8');
       child.stdout?.on('data', (chunk: string) => {
-        if (stdout.length < STDOUT_CAP) stdout = (stdout + chunk).slice(0, STDOUT_CAP);
+        const cap = opts.maxBytes ?? STDOUT_CAP;
+        if (stdout.length < cap) stdout = (stdout + chunk).slice(0, cap);
       });
       child.once('error', (error) => finish(() => reject(error)));
       child.once('close', (code) => finish(() => resolve({ code, stdout })));

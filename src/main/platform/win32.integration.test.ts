@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -79,4 +80,28 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     await waitUntil(() => !isAlive(leafPid));
     await closed;
   }, 30_000);
+});
+
+describe.runIf(process.platform === 'win32')('win32 ports (integration)', () => {
+  const adapter = createWin32Adapter({ runner: spawnRunner, getEditorCommand: () => 'code' });
+
+  it('lists a listening node server with its PID and command line', async () => {
+    const child = spawn(
+      process.execPath,
+      ['-e', "require('net').createServer().listen(0, '127.0.0.1', function () { console.log(this.address().port) })"],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    try {
+      const port = await new Promise<number>((resolve) => {
+        child.stdout?.once('data', (chunk: Buffer) => resolve(Number.parseInt(chunk.toString(), 10)));
+      });
+      const rows = await adapter.listListeningPorts();
+      const row = rows.find((r) => r.port === port);
+      expect(row).toMatchObject({ pid: child.pid, addresses: ['127.0.0.1'], processName: 'node.exe' });
+      const commands = await adapter.describeProcesses([child.pid ?? 0]);
+      expect(commands.get(child.pid ?? 0)).toContain('createServer');
+    } finally {
+      child.kill();
+    }
+  }, 60_000);
 });

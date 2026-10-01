@@ -70,6 +70,8 @@ export function fakePlatform() {
       children.find((c) => c.pid === pid)?.exit(1);
     }),
     listProcesses: vi.fn(async () => []),
+    listListeningPorts: vi.fn(async () => []),
+    describeProcesses: vi.fn(async () => new Map<number, string | null>()),
     resolveShellEnv: vi.fn(async (): Promise<NodeJS.ProcessEnv> => ({ PATH: 'x', SECRET: 'do-not-log' })),
   };
 }

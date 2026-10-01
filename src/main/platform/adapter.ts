@@ -2,11 +2,14 @@ import type { ChildProcess } from 'node:child_process';
 import { NestboxError } from '@shared/errors';
 import type { PlatformId } from '@shared/types';
 
+/** A listening TCP port and the process that owns it (one entry per port and PID, all addresses merged). */
 export interface PortEntry {
   port: number;
   pid: number;
-  processName: string;
-  command: string | null;
+  /** '0.0.0.0', '::', '127.0.0.1', '::1', … */
+  addresses: string[];
+  /** Image name ('node.exe'); null when it could not be read. */
+  processName: string | null;
 }
 
 export interface ProcessInfo {
@@ -37,7 +40,7 @@ export interface WindowChrome {
 export interface ExecResult {
   /** null when the process was killed by the timeout or a signal. */
   code: number | null;
-  /** Capped at 64 KiB. */
+  /** Capped at 64 KiB unless the call asks for more (maxBytes). */
   stdout: string;
 }
 
@@ -51,7 +54,7 @@ export interface CommandRunner {
   /** Starts a detached process and resolves once it has spawned. Rejects (e.g. ENOENT) if it cannot start. */
   launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }): Promise<void>;
   /** Runs to completion with a hidden window and no shell. Rejects only if it cannot start. */
-  exec(file: string, args: readonly string[], opts?: { timeoutMs?: number }): Promise<ExecResult>;
+  exec(file: string, args: readonly string[], opts?: { timeoutMs?: number; maxBytes?: number }): Promise<ExecResult>;
   /** A long-running child with piped stdout/stderr, ignored stdin and a hidden window. */
   spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
 }
@@ -63,7 +66,13 @@ export interface PlatformDeps {
 
 export interface PlatformAdapter {
   readonly id: PlatformId;
+  /** Every listening TCP port (IPv4 and IPv6), sorted by port then PID. Throws INTERNAL when it cannot be read. */
   listListeningPorts(): Promise<PortEntry[]>;
+  /**
+   * Command lines of up to 64 PIDs (null when unknown or unreadable). Shown in the UI only: command lines
+   * can contain secrets, so they are never logged or stored.
+   */
+  describeProcesses(pids: readonly number[]): Promise<Map<number, string | null>>;
   killTree(pid: number): Promise<void>;
   /**
    * Every running process with its parent and start time (the start time tells a reused PID apart); null

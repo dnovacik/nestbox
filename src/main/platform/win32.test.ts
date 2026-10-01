@@ -1,4 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import type { CommandRunner } from './adapter';
@@ -239,10 +241,6 @@ describe('win32 other members', () => {
     expect(env).toEqual(process.env);
     expect(env).not.toBe(process.env);
   });
-
-  it('stubs M2 members with NOT_IMPLEMENTED', async () => {
-    await expect(adapter.listListeningPorts()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-  });
 });
 
 describe('win32 spawnScript', () => {
@@ -323,5 +321,78 @@ describe('win32 listProcesses', () => {
   ])('returns null on %s', async (_label, result) => {
     const runner = fakeRunner([], { 'powershell.exe': result });
     expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listProcesses()).toBeNull();
+  });
+});
+
+describe('win32 listListeningPorts', () => {
+  const read = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
+  const script: ExecScript = {
+    'netstat.exe': (args) => ({ code: 0, stdout: read(args.includes('TCPv6') ? 'netstat-tcpv6.txt' : 'netstat-tcp.txt') }),
+    'tasklist.exe': { code: 0, stdout: read('tasklist.csv') },
+  };
+
+  it('joins both netstat calls with tasklist names, one row per port and PID', async () => {
+    const runner = fakeRunner([], script);
+    const rows = await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listListeningPorts();
+    expect(rows.find((r) => r.port === 3000)).toEqual({ port: 3000, pid: 8108, addresses: ['0.0.0.0', '::'], processName: 'node.exe' });
+    expect(rows.find((r) => r.port === 5432)).toEqual({ port: 5432, pid: 5120, addresses: ['::1'], processName: null });
+    expect(rows.map((r) => r.port)).toEqual([135, 3000, 5000, 5000, 5353, 5432, 6379, 8080]);
+    expect(runner.execCalls.map((c) => [c.file, ...c.args])).toEqual(
+      expect.arrayContaining([
+        ['netstat.exe', '-ano', '-p', 'TCP'],
+        ['netstat.exe', '-ano', '-p', 'TCPv6'],
+        ['tasklist.exe', '/FO', 'CSV', '/NH'],
+      ]),
+    );
+  });
+
+  it('still lists ports when tasklist fails, without names', async () => {
+    const runner = fakeRunner([], { ...script, 'tasklist.exe': { code: 1, stdout: '' } });
+    const rows = await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listListeningPorts();
+    expect(rows.every((r) => r.processName === null)).toBe(true);
+  });
+
+  it('throws INTERNAL when netstat fails', async () => {
+    const runner = fakeRunner([], { ...script, 'netstat.exe': { code: 1, stdout: '' } });
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).listListeningPorts()).rejects.toMatchObject({
+      code: 'INTERNAL',
+      message: 'Could not list ports',
+    });
+  });
+});
+
+describe('win32 describeProcesses', () => {
+  it('reads command lines for the given PIDs in one PowerShell call', async () => {
+    const stdout = '8108\tnode  server.js --port 3000\r\n4420\t\r\n';
+    const runner = fakeRunner([], { 'powershell.exe': { code: 0, stdout } });
+    const result = await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).describeProcesses([8108, 4420, 7]);
+    expect(result).toEqual(
+      new Map([
+        [8108, 'node  server.js --port 3000'],
+        [4420, null],
+        [7, null],
+      ]),
+    );
+    expect(runner.execCalls).toHaveLength(1);
+    expect(runner.execCalls[0]?.args.at(-1)).toContain('ProcessId=8108 OR ProcessId=4420 OR ProcessId=7');
+  });
+
+  it('returns an empty map for no PIDs without running anything', async () => {
+    const runner = fakeRunner();
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).describeProcesses([])).toEqual(new Map());
+    expect(runner.execCalls).toEqual([]);
+  });
+
+  it('rejects invalid or too many PIDs', async () => {
+    const adapter = createWin32Adapter({ runner: fakeRunner(), getEditorCommand: () => 'code' });
+    await expect(adapter.describeProcesses([0])).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(adapter.describeProcesses(Array.from({ length: 65 }, (_, i) => i + 1))).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+  });
+
+  it('maps every PID to null when PowerShell fails', async () => {
+    const runner = fakeRunner([], { 'powershell.exe': new Error('ENOENT') });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).describeProcesses([5])).toEqual(new Map([[5, null]]));
   });
 });

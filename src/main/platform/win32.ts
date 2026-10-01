@@ -1,6 +1,7 @@
 import { NestboxError } from '@shared/errors';
-import { type CommandRunner, type ExecResult, notImplemented, type PlatformAdapter, type PlatformDeps, type ProcessInfo } from './adapter';
+import { type CommandRunner, type ExecResult, type PlatformAdapter, type PlatformDeps, type ProcessInfo } from './adapter';
 import { normalizeWin32Path } from './paths';
+import { groupSockets, parseNetstat, parseTasklist } from './win32-ports';
 import { assertCmdSafe, cmdInvocation, escapeWtArg } from './win32-escape';
 
 function isEnoent(error: unknown): boolean {
@@ -27,11 +28,54 @@ function assertPid(pid: number): void {
   if (!Number.isInteger(pid) || pid <= 0) throw new NestboxError('VALIDATION', 'Invalid process id');
 }
 
+const MAX_DESCRIBE_PIDS = 64;
+
 export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
   return {
     id: 'win32',
 
-    listListeningPorts: async () => notImplemented('listListeningPorts'),
+    async listListeningPorts() {
+      const big = { timeoutMs: 10_000, maxBytes: 4 * 1024 * 1024 };
+      const [v4, v6, tasks] = await Promise.all([
+        deps.runner.exec('netstat.exe', ['-ano', '-p', 'TCP'], big).catch(() => null),
+        deps.runner.exec('netstat.exe', ['-ano', '-p', 'TCPv6'], big).catch(() => null),
+        deps.runner.exec('tasklist.exe', ['/FO', 'CSV', '/NH'], big).catch(() => null),
+      ]);
+      if (v4?.code !== 0 || v6?.code !== 0) throw new NestboxError('INTERNAL', 'Could not list ports');
+      // Names are a nicety: without tasklist the ports are still listed.
+      const names = tasks?.code === 0 ? parseTasklist(tasks.stdout) : new Map<number, string>();
+      return groupSockets([...parseNetstat(v4.stdout), ...parseNetstat(v6.stdout)]).map((s) => ({
+        ...s,
+        processName: names.get(s.pid) ?? null,
+      }));
+    },
+
+    async describeProcesses(pids) {
+      if (pids.length > MAX_DESCRIBE_PIDS) throw new NestboxError('VALIDATION', 'Too many processes');
+      pids.forEach(assertPid);
+      const result = new Map<number, string | null>(pids.map((pid) => [pid, null]));
+      if (pids.length === 0) return result;
+      // The filter is built from validated integers only.
+      const filter = pids.map((pid) => `ProcessId=${pid}`).join(' OR ');
+      const script = `Get-CimInstance Win32_Process -Filter "${filter}" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`;
+      try {
+        const { code, stdout } = await deps.runner.exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+          timeoutMs: 30_000,
+          maxBytes: 1024 * 1024,
+        });
+        if (code !== 0) return result;
+        for (const line of stdout.split(/\r?\n/)) {
+          const tab = line.indexOf('\t');
+          const pid = Number(line.slice(0, tab));
+          if (tab < 0 || !result.has(pid)) continue;
+          const command = line.slice(tab + 1).trim();
+          result.set(pid, command === '' ? null : command);
+        }
+      } catch {
+        // PowerShell missing or blocked: command lines stay unknown.
+      }
+      return result;
+    },
 
     /** npm, pnpm and yarn are .cmd shims, which current Node refuses to spawn directly: go through cmd.exe. */
     spawnScript(opts) {
