@@ -72,32 +72,21 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
   await expect.poll(() => isAlive(mainPid), { timeout: 10_000 }).toBe(false);
   closed = true;
   expect(isAlive(serverPid)).toBe(true);
-  // The single-instance lock is the userData 'lockfile' (delete-on-close). Relaunching before Windows
-  // has released it makes the new instance quit at once, so wait for it to go.
-  // TEMPORARY diagnostics: find out who keeps the lock after the main process is gone.
+  // The orphans inherit the single-instance lock (the userData 'lockfile'), so it stays held: the relaunch
+  // must notice the lock is stale and start anyway. Logged to diagnose CI if this regresses.
   const lock = join(userData, 'lockfile');
-  const deadline = Date.now() + 8_000;
-  while (existsSync(lock) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
   if (existsSync(lock)) {
-    const ps = (cmd: string) => {
-      try {
-        return execFileSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8' });
-      } catch (e) {
-        return String(e);
-      }
-    };
-    console.log(`[diag] lock held after main exit; server ${serverPid}`);
-    console.log(
-      ps(
-        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd|crashpad' } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | Format-Table -AutoSize -Wrap | Out-String -Width 400",
-      ),
+    const tree = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd' } | Select-Object ProcessId,ParentProcessId,Name | Format-Table -AutoSize | Out-String -Width 200",
+      ],
+      { encoding: 'utf8' },
     );
-    execFileSync('taskkill.exe', ['/PID', String(serverPid), '/T', '/F']);
-    await new Promise((r) => setTimeout(r, 2_000));
-    console.log(`[diag] lock after killing the server: ${existsSync(lock) ? 'still held' : 'released'}`);
-    console.log(ps("Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'electron|node|cmd|crashpad' } | Select-Object ProcessId,ParentProcessId,Name | Format-Table -AutoSize | Out-String -Width 400"));
+    console.log(`lockfile still present after the kill; server ${serverPid}\n${tree}`);
   }
-  expect(existsSync(lock), 'single-instance lock released').toBe(false);
 
   ({ app, page } = await launch(project, { userData }));
   track(app);
@@ -106,4 +95,8 @@ test('offers to stop a script left running when Nestbox itself was killed', asyn
     .poll(() => messageBoxes(app), { timeout: 30_000 })
     .toContainEqual('1 script from the last session is still running');
   await expect.poll(() => isAlive(serverPid), { timeout: 10_000 }).toBe(false);
+  // With the orphans gone the lock is free again, and NestBox takes it.
+  await expect
+    .poll(() => app.evaluate(({ app: electronApp }) => electronApp.hasSingleInstanceLock()), { timeout: 10_000 })
+    .toBe(true);
 });
