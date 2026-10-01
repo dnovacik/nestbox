@@ -16,10 +16,11 @@ const row = (port: number, pid: number, extra: Partial<PortRow> = {}): PortRow =
   ...extra,
 });
 
-function setup(rows: PortRow[]) {
+function setup(rows: PortRow[], envPort: number | null = null) {
   installMockBridge({
     'ports:list': () => ({ rows, scannedAt: 1, stale: false }),
     'settings:get': () => ({ ...AppSettingsSchema.parse({ watchedPorts: [3000, 5432, 6379] }), readOnly: false }),
+    'tools:invoke': (() => ({ port: envPort })) as never,
   });
   renderWithProviders(<PortsCard projectId="p1" />);
 }
@@ -44,5 +45,10 @@ describe('PortsCard', () => {
   it('says when the project has no ports', async () => {
     setup([]);
     expect(await screen.findByText('No ports open by this project.')).toBeInTheDocument();
+  });
+
+  it('shows PORT from .env and who uses it', async () => {
+    setup([row(3000, 40, { owner: { projectId: 'p1', script: 'dev' } })], 3000);
+    expect(await screen.findByText(/from \.env: used by dev/)).toBeInTheDocument();
   });
 });

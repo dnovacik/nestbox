@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { portsForProject, usePorts } from '@/lib/ports';
 import { useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
+import { useEnvFacts } from '@/tools/env/use-env';
 import { useUiStore } from '@/state/ui-store';
 
 /** The owner's script, prefixed by its package path when it is a workspace package of this project. */
@@ -19,6 +20,9 @@ export function PortsCard({ projectId }: { projectId: string }) {
   const rows = data?.rows ?? [];
   const own = portsForProject(rows, projectId);
   const watched = settings?.watchedPorts ?? [];
+  const { data: facts } = useEnvFacts(projectId);
+  const envPort = facts?.port ?? null;
+  const envPortUser = envPort === null ? null : (rows.find((r) => r.port === envPort) ?? null);
 
   return (
     <section aria-label="Ports" className="flex flex-col gap-3 rounded-lg border border-line bg-card p-4">
@@ -54,6 +58,14 @@ export function PortsCard({ projectId }: { projectId: string }) {
             );
           })}
         </ul>
+      )}
+      {envPort !== null && (
+        <p className="text-xs text-fg-muted">
+          <span className="font-mono text-fg">PORT {envPort}</span> from .env:{' '}
+          {envPortUser
+            ? `used by ${envPortUser.owner ? scriptLabel(envPortUser.owner, projectId) : (envPortUser.processName ?? `PID ${envPortUser.pid}`)}`
+            : 'free'}
+        </p>
       )}
       <Button variant="secondary" size="sm" className="self-start" onClick={showPorts}>
         Open Ports
