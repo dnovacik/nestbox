@@ -50,15 +50,18 @@ export function buildBlock(facts: ContextFacts): string {
 }
 
 /**
- * Puts block (LF) into existing: between the markers when both are there, else appended after one blank
- * line. The file's line endings are kept.
+ * Puts block (LF) into existing: between a start marker and the end marker that follows it, else appended
+ * after one blank line. The file's line endings are kept.
  */
 export function applyBlock(existing: string, block: string): string {
   const eol = usesCrlf(existing) ? '\r\n' : '\n';
   const converted = block.split('\n').join(eol);
-  const start = existing.indexOf(CONTEXT_START);
-  const end = start === -1 ? -1 : existing.indexOf(CONTEXT_END, start);
-  if (start !== -1 && end !== -1) return existing.slice(0, start) + converted + existing.slice(end + CONTEXT_END.length);
-  const body = existing.replace(/(\r?\n|\s)*$/, '');
+  // Pair the first end marker with the start marker just before it: a stray start marker (its end deleted
+  // by hand) never pulls the hand-written text after it into the block.
+  const end = existing.indexOf(CONTEXT_END);
+  const start = end === -1 ? -1 : existing.lastIndexOf(CONTEXT_START, end);
+  if (start !== -1) return existing.slice(0, start) + converted + existing.slice(end + CONTEXT_END.length);
+  // trimEnd, not a regex: (\r?\n|\s)*$ backtracks exponentially on runs of blank lines.
+  const body = existing.trimEnd();
   return body === '' ? `${converted}${eol}` : `${body}${eol}${eol}${converted}${eol}`;
 }

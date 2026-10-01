@@ -66,6 +66,20 @@ describe('applyBlock', () => {
     expect(applyBlock('# Shop\r\n', block)).toBe(`# Shop\r\n\r\n${CONTEXT_START}\r\nnew\r\n${CONTEXT_END}\r\n`);
   });
 
+  it('never touches text outside a paired block, even with a stray start marker', () => {
+    const existing = `# Notes\n${CONTEXT_START}\nold\n## My rules\nDo X.\n`;
+    const once = applyBlock(existing, block);
+    expect(once).toBe(`${existing}\n${block}\n`);
+    expect(applyBlock(once, block)).toBe(once);
+  });
+
+  it('copes with many blank lines quickly', () => {
+    const existing = `# Shop${'\r\n'.repeat(40)}text\r\n${'\r\n'.repeat(40)}`;
+    const started = performance.now();
+    expect(applyBlock(existing, block)).toBe(`# Shop${'\r\n'.repeat(40)}text\r\n\r\n${CONTEXT_START}\r\nnew\r\n${CONTEXT_END}\r\n`);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
   it('is stable when applied twice', () => {
     const once = applyBlock('# Shop\n', buildBlock(facts));
     expect(applyBlock(once, buildBlock(facts))).toBe(once);
