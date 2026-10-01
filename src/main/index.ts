@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { app, type BrowserWindow, dialog, ipcMain, session } from 'electron';
 import type { EventChannel } from '@shared/ipc-names';
 import { brandAsset } from './assets';
@@ -74,7 +75,8 @@ if (!app.requestSingleInstanceLock()) {
       void toolHost.disposeAll();
     });
 
-    const isTrusted = (url: string): boolean => isAppUrl(url, devServerUrl);
+    const entryFileUrl = pathToFileURL(join(__dirname, '../renderer/index.html')).href;
+    const isTrusted = (url: string): boolean => isAppUrl(url, { devServerUrl, entryFileUrl });
     const dispatch = createRouter({
       handlers: createCoreHandlers({
         projects,

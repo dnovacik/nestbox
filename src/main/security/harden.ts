@@ -4,6 +4,9 @@ export function hardenWebContents(contents: WebContents, isAllowedUrl: (url: str
   contents.on('will-navigate', (event, url) => {
     if (!isAllowedUrl(url)) event.preventDefault();
   });
+  contents.on('will-redirect', (event, url) => {
+    if (!isAllowedUrl(url)) event.preventDefault();
+  });
   contents.on('will-attach-webview', (event) => event.preventDefault());
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }

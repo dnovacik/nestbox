@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
-import { NestboxError } from '@shared/errors';
 import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
@@ -55,7 +54,12 @@ describe('core handlers', () => {
   it('refuses when detection already marked the project missing', async () => {
     const d = deps();
     vi.mocked(d.projects.getDetected).mockReturnValue(detected({ missing: true }));
-    await expect(createCoreHandlers(d)['projects:openTerminal']({ id: 'p1' })).rejects.toBeInstanceOf(NestboxError);
+    await expect(createCoreHandlers(d)['projects:openTerminal']({ id: 'p1' })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'The project folder no longer exists',
+    });
+    expect(d.projects.refresh).toHaveBeenCalledWith('p1');
+    expect(d.platform.openTerminal).not.toHaveBeenCalled();
   });
 
   it('delegates tools:invoke to the tool host', async () => {
