@@ -19,7 +19,7 @@ import { BatchedLog } from '../batched-log';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import type { CertStore } from './cert-store';
 import { createStaticHandler, type RequestLog } from './handler';
-import { firstFreePort } from './net';
+import { firstFreePort, isPortFree } from './net';
 
 export interface StaticToolDeps {
   certStore: CertStore;
@@ -124,6 +124,7 @@ export function createStaticTool(deps: StaticToolDeps): AnyMainTool {
     const host = config.lan ? '0.0.0.0' : '127.0.0.1';
     const port = config.port ?? (await firstFreePort(DEFAULT_STATIC_PORT, host));
     if (port === null) throw new NestboxError('CONFLICT', 'No free port found');
+    if (config.port !== null && !(await isPortFree(port, host))) throw new NestboxError('CONFLICT', `Port ${port} is in use`);
 
     const handler = createStaticHandler({
       folder,

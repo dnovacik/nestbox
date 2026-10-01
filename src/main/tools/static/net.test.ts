@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { firstFreePort, lanAddresses } from './net';
+import { firstFreePort, isPortFree, lanAddresses } from './net';
 
 const open: Server[] = [];
 afterEach(async () => {
@@ -27,6 +27,27 @@ describe('firstFreePort', () => {
     const busy = await occupy();
     const port = await firstFreePort(busy, '127.0.0.1');
     expect(port).toBeGreaterThan(busy);
+  });
+});
+
+describe('isPortFree', () => {
+  it('counts a port taken on [::1] as busy, where IPv6 exists', async (ctx) => {
+    const server = createServer();
+    const bound = await new Promise<boolean>((resolve) => {
+      server.once('error', () => resolve(false));
+      server.listen(0, '::1', () => resolve(true));
+    });
+    if (!bound) ctx.skip();
+    open.push(server);
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no port');
+    expect(await isPortFree(address.port, '127.0.0.1')).toBe(false);
+  });
+
+  it('is free when nothing listens', async () => {
+    const busy = await occupy();
+    await new Promise<void>((r) => open.pop()?.close(() => r()));
+    expect(await isPortFree(busy, '127.0.0.1')).toBe(true);
   });
 });
 
