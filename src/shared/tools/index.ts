@@ -1,13 +1,18 @@
 import type { z } from 'zod';
 import type { ToolDefinition, ToolEvents } from '../tool';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
+import { scriptsContract, scriptsDefinition, scriptsEvents } from './scripts/contract';
 
 /** Tool registry, shared half. Adding a tool = one line here, one in main/tools, one in renderer/tools. */
 export const toolContracts = {
   'project-info': projectInfoContract,
+  scripts: scriptsContract,
 } as const;
 
-export const toolDefinitions: readonly ToolDefinition<unknown>[] = [projectInfoDefinition];
+export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
+  projectInfoDefinition,
+  scriptsDefinition as ToolDefinition<unknown>,
+];
 
 export type ToolId = keyof typeof toolContracts;
 export type ToolMethodName<T extends ToolId> = keyof (typeof toolContracts)[T] & string;
@@ -21,6 +26,7 @@ export type ToolMethodOutput<T extends ToolId, M extends ToolMethodName<T>> = z.
 /** Event payload schemas per tool. A tool without events maps to {}. */
 export const toolEvents = {
   'project-info': {},
+  scripts: scriptsEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, type BrowserWindow, dialog, ipcMain, session } from 'electron';
@@ -21,7 +22,7 @@ import { StoreService } from './store/store-service';
 import { createPidLedger } from './processes/pid-ledger';
 import { ProcessManager } from './processes/process-manager';
 import { throttle } from './processes/throttle';
-import { mainTools } from './tools';
+import { createMainTools } from './tools';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
 import { createMainWindow } from './window';
@@ -81,10 +82,42 @@ if (!app.requestSingleInstanceLock()) {
       if (event.type === 'changed') notifyProcesses();
     });
 
+    const shared = createSharedContext();
+    const tools = createMainTools({
+      scripts: {
+        processes,
+        runGroups: {
+          get: (rootId) => projects.getRunGroups(rootId),
+          set: (rootId, groups) => projects.setRunGroups(rootId, groups),
+        },
+        getDetected: (id) => projects.getDetected(id),
+        shared,
+        saveFile: async (defaultName) => {
+          const options = {
+            defaultPath: join(app.getPath('downloads'), defaultName),
+            filters: [{ name: 'Log', extensions: ['log', 'txt'] }],
+          };
+          const result = mainWindow
+            ? await dialog.showSaveDialog(mainWindow, options)
+            : await dialog.showSaveDialog(options);
+          return result.canceled || !result.filePath ? null : result.filePath;
+        },
+        writeFile: (path, text) => writeFile(path, text, 'utf8'),
+        isFile: async (path) => {
+          try {
+            return (await stat(path)).isFile();
+          } catch {
+            return false;
+          }
+        },
+        emit: (projectId, event, payload) => emit('tools:event', { toolId: 'scripts', projectId, event, payload }),
+        logger,
+      },
+    });
     const toolHost = createToolHost({
-      tools: mainTools,
+      tools,
       getProject: (id) => projects.getDetected(id),
-      shared: createSharedContext(),
+      shared,
       platform,
       emit: (payload) => emit('tools:event', payload),
       logger,
