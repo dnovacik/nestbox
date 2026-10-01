@@ -1,7 +1,8 @@
 import { NestboxError } from '@shared/errors';
-import type { AppInfo } from '@shared/types';
+import type { AppInfo, AppSettings } from '@shared/types';
 import type { PlatformAdapter } from '../platform/adapter';
 import type { ProjectService } from '../projects/project-service';
+import type { StoreService } from '../store/store-service';
 import type { ToolHost } from '../tools/tool-host';
 import type { CoreHandlers } from './router';
 
@@ -12,6 +13,9 @@ export interface CoreHandlerDeps {
   appInfo(): AppInfo;
   pickFolder(): Promise<string | null>;
   isDirectory(path: string): Promise<boolean>;
+  settings: Pick<StoreService, 'getSettings' | 'updateSettings' | 'isReadOnly'>;
+  /** Called after a successful settings:update (tray theme and friends react here). */
+  onSettingsChanged(settings: AppSettings): void;
 }
 
 export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
@@ -24,6 +28,8 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     }
     return project.path;
   }
+
+  const settingsView = () => ({ ...deps.settings.getSettings(), readOnly: deps.settings.isReadOnly() });
 
   return {
     'app:getInfo': async () => deps.appInfo(),
@@ -44,5 +50,11 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     },
     'tools:list': async ({ projectId }) => deps.toolHost.list(projectId),
     'tools:invoke': ({ toolId, projectId, method, input }) => deps.toolHost.invoke(toolId, projectId, method, input),
+    'settings:get': async () => settingsView(),
+    'settings:update': async (patch) => {
+      deps.settings.updateSettings((current) => ({ ...current, ...patch }));
+      deps.onSettingsChanged(deps.settings.getSettings());
+      return settingsView();
+    },
   };
 }

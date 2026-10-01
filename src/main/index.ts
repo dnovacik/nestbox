@@ -83,6 +83,10 @@ if (!app.requestSingleInstanceLock()) {
         toolHost,
         platform,
         isDirectory,
+        settings: store,
+        onSettingsChanged: () => {
+          // M1 Task 21: the tray reacts to theme changes here.
+        },
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         pickFolder: async () => {
           const options = { properties: ['openDirectory' as const], title: 'Add project folder' };

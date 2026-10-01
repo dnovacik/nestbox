@@ -11,6 +11,8 @@ export const INVOKE_CHANNELS = [
   'projects:openTerminal',
   'tools:list',
   'tools:invoke',
+  'settings:get',
+  'settings:update',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 

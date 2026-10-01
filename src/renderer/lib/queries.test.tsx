@@ -6,7 +6,8 @@ import { useUiStore } from '@/state/ui-store';
 import { installMockBridge } from '@/test/mock-bridge';
 import { makeSummary } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
-import { useAddProject } from './queries';
+import { AppSettingsSchema } from '@shared/types';
+import { useAddProject, useSettings, useUpdateSettings } from './queries';
 
 function AddButton() {
   const add = useAddProject();
@@ -47,5 +48,49 @@ describe('useAddProject', () => {
     renderWithProviders(<AddButton />);
     await userEvent.click(screen.getByRole('button', { name: 'add' }));
     expect(await screen.findByText('This folder is already added as "shop"')).toBeInTheDocument();
+  });
+});
+
+function SettingsProbe() {
+  const { data } = useSettings();
+  const update = useUpdateSettings();
+  return (
+    <div>
+      <span>tray: {data ? String(data.closeToTray) : 'loading'}</span>
+      <button type="button" onClick={() => update.mutate({ closeToTray: false })}>
+        off
+      </button>
+    </div>
+  );
+}
+
+describe('settings hooks', () => {
+  it('loads settings and replaces them with the saved view', async () => {
+    let closeToTray = true;
+    const bridge = installMockBridge({
+      'settings:get': () => ({ ...AppSettingsSchema.parse({}), closeToTray, readOnly: false }),
+      'settings:update': (patch) => {
+        closeToTray = patch.closeToTray ?? closeToTray;
+        return { ...AppSettingsSchema.parse({}), closeToTray, readOnly: false };
+      },
+    });
+    renderWithProviders(<SettingsProbe />);
+    expect(await screen.findByText('tray: true')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'off' }));
+    expect(await screen.findByText('tray: false')).toBeInTheDocument();
+    expect(bridge.callsTo('settings:update')).toEqual([{ closeToTray: false }]);
+  });
+
+  it('shows a read-only failure as a toast', async () => {
+    installMockBridge({
+      'settings:get': () => ({ ...AppSettingsSchema.parse({}), readOnly: true }),
+      'settings:update': () => {
+        throw new NestboxError('INTERNAL', 'Settings are read-only; changes cannot be saved');
+      },
+    });
+    renderWithProviders(<SettingsProbe />);
+    await screen.findByText('tray: true');
+    await userEvent.click(screen.getByRole('button', { name: 'off' }));
+    expect(await screen.findByText('Settings are read-only; changes cannot be saved')).toBeInTheDocument();
   });
 });

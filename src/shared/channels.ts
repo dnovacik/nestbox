@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ProjectSummarySchema } from './detected';
 import type { InvokeChannel } from './ipc-names';
+import { SettingsPatchSchema, SettingsViewSchema } from './settings';
 import { ToolSummarySchema } from './tool';
 import { AppInfoSchema, ProjectNameSchema } from './types';
 
@@ -35,6 +36,8 @@ export const channels = {
     // Validated against the tool's own contract by the tool host.
     output: z.unknown(),
   },
+  'settings:get': { input: NoInput, output: SettingsViewSchema },
+  'settings:update': { input: SettingsPatchSchema, output: SettingsViewSchema },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;
 
 type Spec<C extends InvokeChannel> = (typeof channels)[C];

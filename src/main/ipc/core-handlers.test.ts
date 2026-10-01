@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
+import { NestboxError } from '@shared/errors';
+import { AppSettingsSchema, type AppSettings } from '@shared/types';
 import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
@@ -9,6 +11,18 @@ const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   ...over,
 });
+
+function memorySettings(readOnly = false) {
+  let current: AppSettings = AppSettingsSchema.parse({});
+  return {
+    getSettings: () => current,
+    isReadOnly: () => readOnly,
+    updateSettings: vi.fn((fn: (s: AppSettings) => AppSettings) => {
+      if (readOnly) throw new NestboxError('INTERNAL', 'Settings are read-only; changes cannot be saved');
+      current = AppSettingsSchema.parse(fn(current));
+    }),
+  };
+}
 
 function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
   return {
@@ -22,6 +36,8 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     appInfo: () => ({ version: '0.0.0', platform: 'win32' }),
     pickFolder: vi.fn(async () => null),
     isDirectory: vi.fn(async () => true),
+    settings: memorySettings(),
+    onSettingsChanged: vi.fn(),
     ...over,
   };
 }
@@ -66,5 +82,28 @@ describe('core handlers', () => {
     const d = deps();
     await createCoreHandlers(d)['tools:invoke']({ toolId: 't', projectId: 'p1', method: 'm', input: {} });
     expect(d.toolHost.invoke).toHaveBeenCalledWith('t', 'p1', 'm', {});
+  });
+
+  describe('settings', () => {
+    it('returns the settings with the read-only flag', async () => {
+      expect(await createCoreHandlers(deps())['settings:get']()).toMatchObject({ closeToTray: true, readOnly: false });
+    });
+
+    it('merges a patch, persists it and notifies once', async () => {
+      const d = deps();
+      const view = await createCoreHandlers(d)['settings:update']({ closeToTray: false });
+      expect(view).toMatchObject({ closeToTray: false, editorCommand: 'code', readOnly: false });
+      expect(d.settings.getSettings().closeToTray).toBe(false);
+      expect(d.onSettingsChanged).toHaveBeenCalledTimes(1);
+      expect(d.onSettingsChanged).toHaveBeenCalledWith(expect.objectContaining({ closeToTray: false }));
+    });
+
+    it('rejects on a read-only store without notifying', async () => {
+      const d = deps({ settings: memorySettings(true) });
+      await expect(createCoreHandlers(d)['settings:update']({ closeToTray: false })).rejects.toMatchObject({
+        code: 'INTERNAL',
+      });
+      expect(d.onSettingsChanged).not.toHaveBeenCalled();
+    });
   });
 });

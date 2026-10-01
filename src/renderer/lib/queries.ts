@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { WORKSPACE_ID_SEPARATOR } from '@shared/detected';
+import type { SettingsPatch } from '@shared/settings';
 import { useUiStore } from '@/state/ui-store';
 import { api } from './api';
 import { errorMessage } from './errors';
@@ -9,6 +10,7 @@ import { errorMessage } from './errors';
 export const queryKeys = {
   projects: ['projects'] as const,
   appInfo: ['app-info'] as const,
+  settings: ['settings'] as const,
   tools: (projectId: string) => ['tools', projectId] as const,
   toolCalls: ['tool'] as const,
   tool: (toolId: string, projectId: string, method: string) => ['tool', toolId, projectId, method] as const,
@@ -24,6 +26,19 @@ export function useProjects() {
 
 export function useAppInfo() {
   return useQuery({ queryKey: queryKeys.appInfo, queryFn: () => api.app.getInfo(), staleTime: Infinity });
+}
+
+export function useSettings() {
+  return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.settings.get() });
+}
+
+export function useUpdateSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: SettingsPatch) => api.settings.update(patch),
+    onSuccess: (view) => queryClient.setQueryData(queryKeys.settings, view),
+    onError: showError,
+  });
 }
 
 export function useTools(projectId: string | null) {
