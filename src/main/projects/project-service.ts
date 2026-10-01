@@ -15,6 +15,14 @@ export interface ProjectServiceDeps {
   onChanged(): void;
 }
 
+const MAX_NAME_LENGTH = 100;
+
+/** Stored name: trimmed, the path itself when nothing usable was detected (for example a drive root), capped at 100 characters. */
+export function displayName(detectedName: string, path: string): string {
+  const name = detectedName.trim() || path;
+  return name.slice(0, MAX_NAME_LENGTH);
+}
+
 export class ProjectService {
   /** Detection results by root project id. In memory only — never persisted. */
   private readonly detected = new Map<string, DetectedProject>();
@@ -43,7 +51,7 @@ export class ProjectService {
     const detected = await this.deps.detect({ id, path });
     // Re-check synchronously: another add may have won the race while detect was awaiting.
     this.assertNotDuplicate(path);
-    const project = ProjectSchema.parse({ id, name: detected.name, path });
+    const project = ProjectSchema.parse({ id, name: displayName(detected.name, path), path });
     this.deps.store.updateProjects((ps) => [...ps, project]);
     this.detected.set(id, detected);
     this.deps.onChanged();

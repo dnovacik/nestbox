@@ -70,6 +70,21 @@ describe('ProjectService.add', () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
+  it('falls back to the path when detection finds no name (drive root)', async () => {
+    const { service, store, detect } = setup();
+    detect.mockImplementationOnce(async (input: DetectInput) => ({ ...fakeDetect(input), name: '' }));
+    const summary = await service.add('C:\\');
+    expect(summary.name).toBe('C:\\');
+    expect(store.getProjects()[0]?.name).toBe('C:\\');
+  });
+
+  it('truncates a detected name longer than 100 characters', async () => {
+    const { service, store, detect } = setup();
+    detect.mockImplementationOnce(async (input: DetectInput) => ({ ...fakeDetect(input), name: 'x'.repeat(150) }));
+    await service.add('C:\\Dev\\Long');
+    expect(store.getProjects()[0]?.name).toBe('x'.repeat(100));
+  });
+
   it('rejects the same folder with different casing or a trailing separator', async () => {
     const { service } = setup();
     await service.add('C:\\Dev\\Shop');
