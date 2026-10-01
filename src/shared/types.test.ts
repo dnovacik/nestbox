@@ -34,6 +34,7 @@ describe('persisted types', () => {
       logBufferLines: 50_000,
       closeToTray: true,
       trayIconTheme: 'dark-taskbar',
+      watchedPorts: [3000, 5173, 5432, 6379, 8080],
     });
   });
 

@@ -19,6 +19,17 @@ describe('StoreService', () => {
     expect(new StoreService(backend, createMemoryLogger()).getProjects()).toEqual([project]);
   });
 
+  it('fills watchedPorts for a v2 store written before M2, without a migration', () => {
+    const v2 = {
+      schemaVersion: 2,
+      settings: { theme: 'system', editorCommand: 'code', terminalApp: 'auto', logBufferLines: 50_000, closeToTray: true, trayIconTheme: 'auto' },
+      projects: [project],
+    };
+    const store = new StoreService(createMemoryBackend(v2), createMemoryLogger());
+    expect(store.getSettings().watchedPorts).toEqual([3000, 5173, 5432, 6379, 8080]);
+    expect(store.isReadOnly()).toBe(false);
+  });
+
   it('runs migrations and persists the result', () => {
     const backend = createMemoryBackend({ schemaVersion: 0, projects: [project] });
     const store = new StoreService(backend, createMemoryLogger(), {
