@@ -26,13 +26,46 @@ async function assertEditorExists(runner: CommandRunner, editor: string): Promis
   }
 }
 
+function assertPid(pid: number): void {
+  if (!Number.isInteger(pid) || pid <= 0) throw new NestboxError('VALIDATION', 'Invalid process id');
+}
+
 export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
   return {
     id: 'win32',
 
     listListeningPorts: async () => notImplemented('listListeningPorts'),
-    killTree: async () => notImplemented('killTree'),
-    spawnScript: () => notImplemented('spawnScript'),
+
+    /** npm, pnpm and yarn are .cmd shims, which current Node refuses to spawn directly: go through cmd.exe. */
+    spawnScript(opts) {
+      const inv = cmdInvocation(opts.command, opts.args);
+      return deps.runner.spawn(inv.file, inv.args, { cwd: opts.cwd, env: opts.env, verbatim: true });
+    },
+
+    async killTree(pid) {
+      assertPid(pid);
+      const { code } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { timeoutMs: 10_000 });
+      // 128: no such process, which is the outcome we wanted.
+      if (code !== 0 && code !== 128) throw new NestboxError('INTERNAL', 'Could not stop the process tree');
+    },
+
+    async processStartTime(pid) {
+      assertPid(pid);
+      const script = `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`;
+      try {
+        const { code, stdout } = await deps.runner.exec(
+          'powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-Command', script],
+          { timeoutMs: 10_000 },
+        );
+        if (code !== 0) return null;
+        // .NET's round-trip format has 7 fractional digits; Date.parse wants at most 3.
+        const ms = Date.parse(stdout.trim().replace(/(\.\d{3})\d+/, '$1'));
+        return Number.isFinite(ms) ? ms : null;
+      } catch {
+        return null;
+      }
+    },
 
     /**
      * Runs the editor through cmd.exe, so a missing editor binary fails inside the console window.

@@ -1,8 +1,10 @@
+import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import type { CommandRunner } from './adapter';
 import { type ExecCall, type ExecScript, noopRunner, scriptedExec } from './testing';
 import { createWin32Adapter } from './win32';
+import { cmdInvocation } from './win32-escape';
 
 interface Call {
   file: string;
@@ -222,9 +224,93 @@ describe('win32 other members', () => {
     expect(env).not.toBe(process.env);
   });
 
-  it('stubs M1/M2 members with NOT_IMPLEMENTED', async () => {
+  it('stubs M2 members with NOT_IMPLEMENTED', async () => {
     await expect(adapter.listListeningPorts()).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    await expect(adapter.killTree(1)).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    expect(() => adapter.spawnScript({ cwd: 'C:\\', command: 'pnpm', args: [], env: {} })).toThrow(NestboxError);
+  });
+});
+
+describe('win32 spawnScript', () => {
+  it('runs the package manager through cmd.exe with escaped arguments', () => {
+    const runner = fakeRunner();
+    const child = {} as ChildProcess;
+    vi.mocked(runner.spawn).mockReturnValue(child);
+    const env = { PATH: 'x', FORCE_COLOR: '1' };
+    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code' }).spawnScript({
+      cwd: 'C:\\a b',
+      command: 'pnpm',
+      args: ['run', 'dev:api'],
+      env,
+    });
+    expect(result).toBe(child);
+    const inv = cmdInvocation('pnpm', ['run', 'dev:api']);
+    expect(inv.args).toEqual(['/d', '/s', '/c', '"pnpm ^"run^" ^"dev:api^""']);
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', inv.args, { cwd: 'C:\\a b', env, verbatim: true });
+  });
+
+  it('rejects a script name with a quote before spawning', () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    expect(() => adapter.spawnScript({ cwd: 'C:\\', command: 'pnpm', args: ['run', 'a"b'], env: {} })).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(runner.spawn).not.toHaveBeenCalled();
+  });
+});
+
+describe('win32 killTree', () => {
+  it('runs taskkill for the whole tree', async () => {
+    const runner = fakeRunner();
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321);
+    expect(runner.execCalls).toEqual([{ file: 'taskkill.exe', args: ['/PID', '4321', '/T', '/F'] }]);
+  });
+
+  it('treats "process not found" (128) as success', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': { code: 128, stdout: '' } });
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321)).resolves.toBeUndefined();
+  });
+
+  it('reports other failures as INTERNAL without the output', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': { code: 1, stdout: 'ERROR: Access is denied.' } });
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(4321)).rejects.toMatchObject({
+      code: 'INTERNAL',
+      message: 'Could not stop the process tree',
+    });
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects pid %s without running anything', async (pid) => {
+    const runner = fakeRunner();
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).killTree(pid)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+    expect(runner.execCalls).toEqual([]);
+  });
+});
+
+describe('win32 processStartTime', () => {
+  const script = "(Get-Process -Id 4321 -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')";
+
+  it('reads the start time through PowerShell', async () => {
+    const runner = fakeRunner([], { 'powershell.exe': { code: 0, stdout: '2026-10-01T10:00:00.1234567Z\r\n' } });
+    const ms = await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(4321);
+    expect(ms).toBe(Date.parse('2026-10-01T10:00:00.123Z'));
+    expect(runner.execCalls).toEqual([
+      { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] },
+    ]);
+  });
+
+  it.each([
+    ['a non-zero exit', { code: 1, stdout: '' }],
+    ['unparseable output', { code: 0, stdout: 'nope' }],
+    ['a failure to start', new Error('ENOENT')],
+  ])('returns null on %s', async (_label, result) => {
+    const runner = fakeRunner([], { 'powershell.exe': result });
+    expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(4321)).toBeNull();
+  });
+
+  it('rejects an invalid pid', async () => {
+    const runner = fakeRunner();
+    await expect(createWin32Adapter({ runner, getEditorCommand: () => 'code' }).processStartTime(0)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
   });
 });

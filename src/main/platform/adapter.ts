@@ -58,6 +58,8 @@ export interface PlatformAdapter {
   readonly id: PlatformId;
   listListeningPorts(): Promise<PortEntry[]>;
   killTree(pid: number): Promise<void>;
+  /** When the process started, in epoch ms; null when it is gone or cannot be read. Used to tell a reused PID apart. */
+  processStartTime(pid: number): Promise<number | null>;
   spawnScript(opts: SpawnOpts): ChildProcess;
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
