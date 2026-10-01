@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { LogLine } from '@shared/processes';
-import { api } from '@/lib/api';
 import { useSettings } from '@/lib/queries';
-import { subscribeToolEvent } from '@/lib/tool-events';
 import { LogLineStore } from './line-store';
+import type { LogSource } from './log-source';
 
 const DEFAULT_CAP = 50_000;
 /** A failed snapshot (e.g. the project is still being detected) is retried after this long. */
@@ -18,11 +17,11 @@ interface Shared {
   dispose: () => void;
 }
 
-/** One store per (project, script), shared by every mounted pane and dropped when the last one unmounts. */
+/** One store per source key, shared by every mounted view and dropped when the last one unmounts. */
 const streams = new Map<string, Shared>();
 
-function acquire(projectId: string, script: string, cap: number): Shared {
-  const key = JSON.stringify([projectId, script]);
+function acquire(source: LogSource, cap: number): Shared {
+  const key = source.key;
   const existing = streams.get(key);
   if (existing) {
     existing.refs++;
@@ -38,12 +37,7 @@ function acquire(projectId: string, script: string, cap: number): Shared {
   };
   const fetch = async (mode: 'replace' | 'delta'): Promise<void> => {
     try {
-      const snap = await api.tools.invoke(
-        'scripts',
-        projectId,
-        'getLogs',
-        mode === 'delta' ? { script, afterSeq: store.lastSeq } : { script },
-      );
+      const snap = await source.snapshot(mode === 'delta' ? store.lastSeq : undefined);
       if (disposed) return;
       setStatus('ready');
       if (store.applySnapshot(snap, mode) === 'gap') void fetch('delta');
@@ -54,8 +48,8 @@ function acquire(projectId: string, script: string, cap: number): Shared {
     }
   };
   // Subscribe before fetching, so no batch emitted after the snapshot can be missed.
-  const off = subscribeToolEvent('scripts', projectId, 'logs', (payload) => {
-    if (payload.script === script && store.append(payload.lines) === 'gap') void fetch('delta');
+  const off = source.subscribe((lines) => {
+    if (store.append(lines) === 'gap') void fetch('delta');
   });
   shared.dispose = () => {
     disposed = true;
@@ -67,8 +61,7 @@ function acquire(projectId: string, script: string, cap: number): Shared {
   return shared;
 }
 
-function release(projectId: string, script: string): void {
-  const key = JSON.stringify([projectId, script]);
+function release(key: string): void {
   const shared = streams.get(key);
   if (!shared) return;
   shared.refs--;
@@ -80,25 +73,28 @@ function release(projectId: string, script: string): void {
 
 const noopSubscribe = () => () => {};
 
-export function useLogStream(projectId: string, script: string | null) {
+/** Lines of a log source (null: nothing picked yet), kept live; the buffer cap follows the setting. */
+export function useLogStream(source: LogSource | null) {
   const cap = useSettings().data?.logBufferLines ?? DEFAULT_CAP;
   const [shared, setShared] = useState<Shared | null>(null);
   const [, setTick] = useState(0);
+  const key = source?.key ?? null;
 
   useEffect(() => {
-    if (script === null) return;
-    const acquired = acquire(projectId, script, cap);
+    if (source === null) return;
+    const acquired = acquire(source, cap);
     const onStatus = () => setTick((n) => n + 1);
     acquired.statusListeners.add(onStatus);
     setShared(acquired);
     return () => {
       acquired.statusListeners.delete(onStatus);
-      release(projectId, script);
+      release(source.key);
       setShared(null);
     };
-    // cap changes are applied below without re-subscribing
+    // Re-subscribe only when the stream changes (a new source object with the same key is the same
+    // stream); cap changes are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, script]);
+  }, [key]);
 
   useEffect(() => {
     shared?.store.setCap(cap);
@@ -107,10 +103,10 @@ export function useLogStream(projectId: string, script: string | null) {
   const lines = useSyncExternalStore(shared?.store.subscribe ?? noopSubscribe, shared?.store.getSnapshot ?? (() => EMPTY));
 
   const clear = useCallback(async () => {
-    if (script === null) return;
-    await api.tools.invoke('scripts', projectId, 'clearLogs', { script });
+    if (source === null) return;
+    await source.clear();
     shared?.store.clear();
-  }, [projectId, script, shared]);
+  }, [source, shared]);
 
-  return { lines, status: script === null ? ('ready' as const) : (shared?.status ?? 'loading'), clear };
+  return { lines, status: source === null ? ('ready' as const) : (shared?.status ?? 'loading'), clear };
 }

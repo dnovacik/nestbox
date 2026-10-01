@@ -83,6 +83,21 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       return deps.runner.spawn(inv.file, inv.args, { cwd: opts.cwd, env: opts.env, verbatim: true });
     },
 
+    execCommand(command, args, opts) {
+      const inv = cmdInvocation(command, args);
+      return deps.runner.exec(inv.file, inv.args, { ...opts, verbatim: true });
+    },
+
+    spawnCommand(opts) {
+      const inv = cmdInvocation(opts.command, opts.args);
+      return deps.runner.spawn(inv.file, inv.args, {
+        cwd: opts.cwd,
+        env: opts.env,
+        verbatim: true,
+        ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }),
+      });
+    },
+
     async killTree(pid) {
       assertPid(pid);
       const { code } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { timeoutMs: 10_000 });
@@ -142,9 +157,14 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
     },
 
     async openTerminal(cwd, command) {
-      if (command !== undefined) assertCmdSafe(command);
+      if (command !== undefined) {
+        assertCmdSafe(command);
+        // The cmd fallback goes through `cmd /c start … cmd /k`, which expands %VAR% twice. Commands
+        // here are NestBox-built (`claude`, `claude --continue`), so % is simply refused.
+        if (command.includes('%')) throw new NestboxError('VALIDATION', 'Terminal commands cannot contain %');
+      }
       const wtArgs = ['-d', escapeWtArg(cwd)];
-      if (command !== undefined) wtArgs.push('cmd.exe', '/k', escapeWtArg(command));
+      if (command !== undefined) wtArgs.push('cmd.exe', '/d', '/k', escapeWtArg(command));
       try {
         await deps.runner.launch('wt.exe', wtArgs);
         return;

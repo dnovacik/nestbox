@@ -65,10 +65,17 @@ export function fakePlatform() {
       children.push(child);
       return child as unknown as ChildProcess;
     }),
+    spawnCommand: vi.fn((): ChildProcess => {
+      const child = new FakeChild(nextPid++, { failSpawn: failNext });
+      failNext = false;
+      children.push(child);
+      return child as unknown as ChildProcess;
+    }),
     // Like taskkill /F: the root exits with code 1.
     killTree: vi.fn(async (pid: number): Promise<void> => {
       children.find((c) => c.pid === pid)?.exit(1);
     }),
+    execCommand: vi.fn(async () => ({ code: 0, stdout: '' })),
     listProcesses: vi.fn(async () => []),
     listListeningPorts: vi.fn(async () => []),
     describeProcesses: vi.fn(async () => new Map<number, string | null>()),

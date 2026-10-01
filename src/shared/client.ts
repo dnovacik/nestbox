@@ -16,6 +16,7 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
   return {
     app: {
       getInfo: () => call('app:getInfo'),
+      openExternal: (url: string) => call('app:openExternal', { url }),
     },
     dialog: {
       pickFolder: () => call('dialog:pickFolder'),

@@ -1,6 +1,7 @@
 import { useNavigateSubscription } from '@/lib/navigate';
 import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
+import { CommandPalette } from './CommandPalette';
 import { EmptyState } from './EmptyState';
 import { findProjectNode } from './find-project';
 import { PortsPage } from '@/ports/PortsPage';
@@ -36,6 +37,7 @@ export function App() {
       </div>
       <StatusBar projectCount={projects.length} />
       <SettingsDialog />
+      <CommandPalette />
     </div>
   );
 }

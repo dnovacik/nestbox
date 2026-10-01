@@ -146,6 +146,16 @@ describe('win32 commandExists', () => {
   });
 });
 
+describe('win32 openInEditor with a path that has spaces', () => {
+  it('passes the editor path through cmd with its spaces escaped', async () => {
+    const runner = fakeRunner();
+    const editor = 'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd';
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => editor });
+    await adapter.openInEditor('C:\\Dev\\Shop');
+    expect(runner.calls[0]?.args[3]).toBe('"C:\\Program^ Files\\Microsoft^ VS^ Code\\bin\\code.cmd ^"C:\\Dev\\Shop^""');
+  });
+});
+
 describe('win32 openTerminal', () => {
   it.each(Object.entries(PATHS))('opens Windows Terminal with an escaped -d for %s paths', async (_n, path) => {
     const runner = fakeRunner();
@@ -163,7 +173,7 @@ describe('win32 openTerminal', () => {
     const runner = fakeRunner();
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
     await adapter.openTerminal('C:\\a', 'echo one; echo two');
-    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/k', 'echo one\\; echo two']);
+    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/d', '/k', 'echo one\\; echo two']);
   });
 
   it.each(Object.entries(PATHS))('falls back to cmd /K with the path as cwd for %s paths', async (_n, path) => {
@@ -188,6 +198,20 @@ describe('win32 openTerminal', () => {
       args: ['/d /c start "" cmd.exe /d /s /k "echo one; echo two"'],
       opts: { cwd: 'C:\\a', verbatim: true },
     });
+  });
+
+  it('opens Claude Code and continues the last session', async () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.openTerminal('C:\\a', 'claude --continue');
+    expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/d', '/k', 'claude --continue']);
+  });
+
+  it('rejects % in a command: the start fallback would expand %VAR% twice', async () => {
+    const runner = fakeRunner(['wt.exe']);
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await expect(adapter.openTerminal('C:\\a', 'echo %PATH%')).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.launch).not.toHaveBeenCalled();
   });
 
   it('rejects an unsafe command with VALIDATION and never calls the runner', async () => {
@@ -240,6 +264,52 @@ describe('win32 other members', () => {
     const env = await adapter.resolveShellEnv();
     expect(env).toEqual(process.env);
     expect(env).not.toBe(process.env);
+  });
+});
+
+describe('win32 execCommand', () => {
+  it('runs through cmd.exe verbatim in the given folder and returns the result', async () => {
+    const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '2.1.0 (Claude Code)\r\n' } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    expect(await adapter.execCommand('claude', ['--version'], { cwd: 'C:\\a', timeoutMs: 10_000 })).toEqual({
+      code: 0,
+      stdout: '2.1.0 (Claude Code)\r\n',
+    });
+    expect(runner.exec).toHaveBeenCalledWith('cmd.exe', cmdInvocation('claude', ['--version']).args, {
+      cwd: 'C:\\a',
+      timeoutMs: 10_000,
+      verbatim: true,
+    });
+  });
+});
+
+describe('win32 spawnCommand', () => {
+  it('runs the command through cmd.exe and hands stdin to the runner', () => {
+    const runner = fakeRunner();
+    const child = {} as ChildProcess;
+    vi.mocked(runner.spawn).mockReturnValue(child);
+    const env = { PATH: 'x' };
+    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code' }).spawnCommand({
+      cwd: 'C:\\a',
+      command: 'claude',
+      args: ['-p'],
+      env,
+      stdin: 'what does "this" do?',
+    });
+    expect(result).toBe(child);
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', cmdInvocation('claude', ['-p']).args, {
+      cwd: 'C:\\a',
+      env,
+      verbatim: true,
+      stdin: 'what does "this" do?',
+    });
+  });
+
+  it('refuses quotes in the command line itself', () => {
+    const adapter = createWin32Adapter({ runner: fakeRunner(), getEditorCommand: () => 'code' });
+    expect(() => adapter.spawnCommand({ cwd: 'C:\\', command: 'claude', args: ['"x"'], env: {} })).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
   });
 });
 

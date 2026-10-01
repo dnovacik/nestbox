@@ -13,6 +13,7 @@ win:
   target: nsis
   icon: resources/brand/png/nestbox.ico
 nsis:
+  artifactName: NestBox-Setup-${version}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
 mac:

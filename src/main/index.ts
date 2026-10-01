@@ -3,7 +3,7 @@ import { watch } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, Tray } from 'electron';
+import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
 import type { EventChannel } from '@shared/ipc-names';
 import { brandAsset } from './assets';
@@ -26,7 +26,11 @@ import { ProcessManager } from './processes/process-manager';
 import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
+import { createClaudeCli } from './tools/claude/cli';
+import { createClaudeDocs } from './tools/claude/docs';
 import { createEnvFileAccess } from './tools/env/env-files';
+import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
+import { lanAddresses } from './tools/static/net';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
@@ -112,6 +116,7 @@ if (!app.requestSingleInstanceLock()) {
     const ports = new PortService({ platform, processes, ownPid: process.pid, now: Date.now, logger });
 
     const shared = createSharedContext();
+    const envFiles = createEnvFileAccess();
     const tools = createMainTools({
       scripts: {
         processes,
@@ -143,7 +148,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       env: {
-        files: createEnvFileAccess(),
+        files: envFiles,
         clipboard: { writeText: (text) => clipboard.writeText(text) },
         watch: (dir, onChange) => {
           try {
@@ -157,6 +162,27 @@ if (!app.requestSingleInstanceLock()) {
             return null;
           }
         },
+        logger,
+      },
+      static: {
+        certStore: createCertStore({
+          file: join(app.getPath('userData'), 'static-cert.json'),
+          generate: generateWithSelfsigned,
+          now: Date.now,
+        }),
+        pickFolder: async (defaultPath) => {
+          const options = { properties: ['openDirectory' as const], title: 'Folder to serve', defaultPath };
+          const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+          return result.canceled ? null : (result.filePaths[0] ?? null);
+        },
+        lanAddresses: () => lanAddresses(),
+        logger,
+      },
+      claude: {
+        cli: createClaudeCli({ platform, now: Date.now }),
+        docs: createClaudeDocs(),
+        envFiles,
+        runGroups: { get: (rootId) => projects.getRunGroups(rootId) },
         logger,
       },
     });
@@ -257,6 +283,7 @@ if (!app.requestSingleInstanceLock()) {
         ports,
         onSettingsChanged: () => tray?.refresh(),
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
+        openExternal: (url) => shell.openExternal(url),
         pickFolder: async () => {
           const options = { properties: ['openDirectory' as const], title: 'Add project folder' };
           const result = mainWindow

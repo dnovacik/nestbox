@@ -48,14 +48,20 @@ export interface PipedSpawnOpts {
   cwd: string;
   env: NodeJS.ProcessEnv;
   verbatim?: boolean;
+  /** Written to the child's stdin, which is then closed. Without it stdin is ignored. */
+  stdin?: string;
 }
 
 export interface CommandRunner {
   /** Starts a detached process and resolves once it has spawned. Rejects (e.g. ENOENT) if it cannot start. */
   launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }): Promise<void>;
   /** Runs to completion with a hidden window and no shell. Rejects only if it cannot start. */
-  exec(file: string, args: readonly string[], opts?: { timeoutMs?: number; maxBytes?: number }): Promise<ExecResult>;
-  /** A long-running child with piped stdout/stderr, ignored stdin and a hidden window. */
+  exec(
+    file: string,
+    args: readonly string[],
+    opts?: { timeoutMs?: number; maxBytes?: number; cwd?: string; verbatim?: boolean },
+  ): Promise<ExecResult>;
+  /** A long-running child with piped stdout/stderr, ignored stdin (unless opts.stdin) and a hidden window. */
   spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
 }
 
@@ -80,6 +86,14 @@ export interface PlatformAdapter {
    */
   listProcesses(): Promise<ProcessInfo[] | null>;
   spawnScript(opts: SpawnOpts): ChildProcess;
+  /**
+   * Runs a NestBox-built command line (e.g. `claude -p`) like spawnScript. Free text goes through stdin,
+   * never the command line: it can hold quotes and newlines that cmd.exe can't take safely.
+   */
+  spawnCommand(opts: SpawnOpts & { stdin?: string }): ChildProcess;
+  /** Runs a NestBox-built command line to completion (e.g. `claude --version`, `git check-ignore`). */
+  execCommand(command: string, args: readonly string[], opts: { cwd?: string; timeoutMs: number }): Promise<ExecResult>;
+  /** Opens a terminal in cwd, optionally running command (NestBox-built only: no quotes, newlines or %). */
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
   resolveShellEnv(): Promise<NodeJS.ProcessEnv>;

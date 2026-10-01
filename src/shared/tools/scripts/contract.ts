@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LogLineSchema, LogSnapshotSchema, ProcessSummarySchema } from '../../processes';
+import { LogLineSchema, LogSnapshotSchema, MAX_EXPORT_SEQS, ProcessSummarySchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
 import { RunGroupEntrySchema, RunGroupSchema } from '../../types';
 
@@ -30,8 +30,7 @@ export type PackageScripts = z.infer<typeof PackageScriptsSchema>;
 export const SkippedEntrySchema = RunGroupEntrySchema.extend({ reason: z.enum(['missing', 'running']) });
 export type SkippedEntry = z.infer<typeof SkippedEntrySchema>;
 
-/** Most seqs an export may name; a larger filtered export is refused in the renderer. */
-export const MAX_EXPORT_SEQS = 100_000;
+export { MAX_EXPORT_SEQS } from '../../processes';
 
 export const scriptsContract = defineContract({
   list: {

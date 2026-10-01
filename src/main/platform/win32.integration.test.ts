@@ -105,3 +105,20 @@ describe.runIf(process.platform === 'win32')('win32 ports (integration)', () => 
     }
   }, 60_000);
 });
+
+describe.runIf(process.platform === 'win32')('win32 spawnCommand (integration)', () => {
+  it('passes free text to the command through stdin, quotes and newlines included', async () => {
+    const adapter = createWin32Adapter({ runner: spawnRunner, getEditorCommand: () => 'code' });
+    const child = adapter.spawnCommand({
+      cwd: tmpdir(),
+      command: process.execPath,
+      args: ['-e', 'process.stdin.pipe(process.stdout)'],
+      env: process.env,
+      stdin: 'what does "%PATH%" & ^this do?\nsecond line',
+    });
+    let out = '';
+    child.stdout?.on('data', (c: Buffer) => (out += c.toString()));
+    await new Promise((r) => child.once('close', r));
+    expect(out).toBe('what does "%PATH%" & ^this do?\nsecond line');
+  }, 30_000);
+});

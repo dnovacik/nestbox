@@ -1,5 +1,6 @@
 export const INVOKE_CHANNELS = [
   'app:getInfo',
+  'app:openExternal',
   'dialog:pickFolder',
   'projects:list',
   'projects:add',

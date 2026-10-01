@@ -2,13 +2,14 @@
 
 **State as of 2026-10-01**
 
-- M0 (Skeleton) and M1 (Scripts and logs) are merged to `main` (PRs #1 and #2).
-- M2 (Ports and env) is implemented on branch `m2-ports-env`, in draft PR #3 on `dnovacik/nestbox`.
-  - Design: `docs/superpowers/specs/2026-10-01-nestbox-m2-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-01-nestbox-m2-ports-env.md`.
-  - A global Ports page (sidebar), a Ports card on each Overview with the watch list, "Kill and restart" on `EADDRINUSE`, and the Env tool (matrix, masked values, copy without reveal, edits that keep formatting, profiles).
-  - New e2e tests: Ports attribution and stop (Windows), env add-from-example.
+- M0, M1 and M2 are merged to `main` (PRs #1–#3).
+- M3 (Static server and ship) is implemented on branch `m3-static-ship`, in draft PR #4 on `dnovacik/nestbox`.
+  - Design: `docs/superpowers/specs/2026-10-01-nestbox-m3-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-01-nestbox-m3-static-ship.md`.
+  - Static tool (sirv, SPA fallback, LAN + QR, HTTPS with a kept self-signed certificate, request log), Claude Code tool (CLI status, `CLAUDE.md`/`CLAUDE.local.md` preview and editor, `.claude` lists, quick prompt over stdin, context block with a diff), the `Ctrl+K` palette, the generic `LogView`, `app:openExternal`.
+  - Ship: a `package (windows-latest)` CI job that smoke-tests `win-unpacked/NestBox.exe`, the tag-triggered release workflow, the README with screenshots (`scripts/screenshots.mjs`), the outlined wordmark (`scripts/outline-wordmark.mjs`).
   - What's left before merging: the owner's manual checklist on Windows (in the PR body), then marking the PR ready.
-- M3 has not started. It needs the owner's go-ahead.
+- **v1 release** after merging: set `version` in `package.json` to `1.0.0`, merge, tag `v1.0.0` and push the tag; the release workflow attaches `NestBox-Setup-1.0.0.exe` to a draft release to review and publish. Record the README GIF on Windows (placeholder in `README.md`).
+- v2 (macOS first) waits for the gate in the spec: v1 used daily on real projects.
 
 **Read, in order**
 
@@ -49,10 +50,12 @@ Startup, stale data, graceful quit, missing editor, store writes and read-only m
 - **Env variable expansion** (`${VAR}`) is shown and written verbatim; no dotenv-expand preview.
 - **Attribution cost.** The first owner lookup runs PowerShell (seconds when cold). A persistent PowerShell or a native module could make it instant if it matters in daily use.
 
-*M3*
-- **Terminal commands:** `openTerminal` with a command expands `%VAR%` twice through `start`, and the `wt` path has no `/s`. Do an end-to-end test with `claude`.
-- **Packaging:** check the asar `entryFileUrl` against the `loadFile` URL, and recheck electron-winstaller's build script.
+*M3 leftovers*
+- **Quick prompt output.** `claude -p` prints its answer when it finishes (no streaming without `--output-format stream-json`). Parsing stream JSON would show progress; not needed for v1.
+- **Context block.** Facts come from detection and the env tool; framework detection (Next, Vite, Nest) would make it richer.
+- **Static on macOS** works (Node only); LAN addresses and the certificate are platform-neutral.
 - **Editor command:** check editor paths that contain spaces (the `where` pre-check handles `dir:pattern`; the launch through `cmd.exe` still needs a test with a real path).
+- **Code signing.** The installer is unsigned (README explains SmartScreen). A certificate would go into the release workflow as a secret.
 
 **Machine notes (owner's Windows box)**
 

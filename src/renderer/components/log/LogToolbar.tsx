@@ -10,9 +10,10 @@ import { type Level, LEVELS } from './structured';
 const ALL_CONTEXTS = '\u0000all';
 
 interface LogToolbarProps {
-  scripts: string[];
-  script: string | null;
-  onScriptChange(script: string): void;
+  /** Before the search box, e.g. the script picker. */
+  leading?: React.ReactNode;
+  /** Nothing to show yet (no script picked). */
+  disabled: boolean;
   query: string;
   onQueryChange(query: string): void;
   hitIndex: number;
@@ -25,7 +26,8 @@ interface LogToolbarProps {
   follow: boolean;
   onFollowChange(follow: boolean): void;
   onClear(): void;
-  onExport(): void;
+  /** Without it there is no Export button. */
+  onExport?: () => void;
 }
 
 export function LogToolbar(props: LogToolbarProps) {
@@ -36,23 +38,12 @@ export function LogToolbar(props: LogToolbarProps) {
     else levels.add(level);
     onFiltersChange({ ...filters, levels });
   };
-  const disabled = props.script === null;
+  const disabled = props.disabled;
 
   return (
     <div className="flex flex-col gap-2 border-b border-line px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={props.script ?? undefined} onValueChange={props.onScriptChange}>
-          <SelectTrigger size="sm" aria-label="Script" className="h-7 max-w-48 font-mono text-xs">
-            <SelectValue placeholder="Pick a script…" />
-          </SelectTrigger>
-          <SelectContent>
-            {props.scripts.map((s) => (
-              <SelectItem key={s} value={s} className="font-mono text-xs">
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {props.leading}
         <div className="relative min-w-40 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-2 left-2 size-3.5 text-fg-muted" />
           <Input
@@ -95,10 +86,12 @@ export function LogToolbar(props: LogToolbarProps) {
           <Eraser />
           Clear
         </Button>
-        <Button variant="ghost" size="sm" disabled={disabled} onClick={props.onExport}>
-          <Download />
-          Export
-        </Button>
+        {props.onExport && (
+          <Button variant="ghost" size="sm" disabled={disabled} onClick={props.onExport}>
+            <Download />
+            Export
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <div role="group" aria-label="Levels" className="flex gap-1">

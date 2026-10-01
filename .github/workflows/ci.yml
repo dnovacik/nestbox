@@ -56,3 +56,31 @@ jobs:
         with:
           name: playwright-traces
           path: test-results/
+
+  package:
+    name: package (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # An unpacked build (no installer): enough to prove the packaged app loads and answers IPC.
+      - run: pnpm exec electron-builder --win --dir --publish never
+      - name: Smoke test the packaged app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem release -Recurse -Filter NestBox.exe | Where-Object { $_.FullName -like '*win-unpacked*' } | Select-Object -First 1
+          if (-not $exe) { throw 'NestBox.exe not found under release/' }
+          $env:NESTBOX_PACKAGED_EXE = $exe.FullName
+          pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: packaged-traces
+          path: test-results/
