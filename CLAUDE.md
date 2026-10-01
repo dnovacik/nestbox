@@ -15,6 +15,8 @@ Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/supe
 | `pnpm vitest run --project renderer` | Renderer tests only |
 | `pnpm e2e` | Playwright end-to-end tests against the built app (run `pnpm build` first; needs the Electron binary; scripts only run on Windows, so CI runs it on windows-latest) |
 | `pnpm format` | Prettier |
+| `node scripts/screenshots.mjs` | README screenshots from the built app with demo projects (`xvfb-run` on Linux) |
+| `node scripts/outline-wordmark.mjs` | Regenerates `nestbox-lockup-outlined.svg` from the lockup with the bundled Inter |
 
 ## Folder structure
 
@@ -29,12 +31,14 @@ src/main/        Electron main. index.ts is the only file wiring real Electron o
   lifecycle/     quit controller (close to tray, confirmed graceful quit), orphan prompt
   tray/          tray menu model (pure), tray controller, crash notification text
   ipc/           router (validates every payload), register, core-handlers
-  tools/         tool host, shared context, main halves of tools (scripts/ is built by a factory)
+  tools/         tool host, shared context, BatchedLog, main halves of tools (scripts/, env/, static/, claude/ are factories)
+  fs/            versioned-file: read/write with a version token (CONFLICT when stale), atomic, size cap, no symlink writes
   security/      CSP, origin checks, webContents/session hardening
 src/preload/     window.nestbox bridge (whitelisted channels, returns envelopes)
 e2e/             Playwright Electron tests and fixture projects
 src/shared/      Zod schemas, channel contract, typed client, tool contracts
-src/renderer/    React app: app/ (shell), ports/ (Ports page), tools/ (panels), components/ (ui = shadcn), lib/, state/
+src/renderer/    React app: app/ (shell, CommandPalette), ports/ (Ports page), tools/ (panels), components/ (ui = shadcn, log/ = LogView), lib/, state/
+scripts/         One-off Node scripts (screenshots, wordmark outlines)
 resources/brand/ Brand assets (packaged as extraResources → brand/)
 ```
 
@@ -59,6 +63,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Error codes:** `VALIDATION`, `NOT_FOUND`, `CONFLICT`, `NOT_IMPLEMENTED`, `FORBIDDEN`, `INTERNAL`. Messages never contain payload values (tool/method ids may appear in NOT_FOUND messages).
 - **Core channels added in M1:** `settings:get`/`settings:update` (the Settings dialog; `readOnly` when the store can't be saved), `processes:list`/`processes:stopAll` (the shell: sidebar dots, status bar, Stop all). Events: `processes:changed` (throttled, no payload) and `app:navigate` (`{ projectId, tab, script? }`, tray and notifications).
 - **Core channels added in M2:** `ports:list` (cached 1 s in main; the renderer polls every 3 s only while the Ports page or a Ports card is mounted), `ports:kill` (`{ pid, port, confirmed }`: a NestBox-owned port stops its script; anything else answers `needs-confirm` until confirmed; System and NestBox itself are FORBIDDEN), `ports:waitFree`.
+- **Core channel added in M3:** `app:openExternal` (`{ url }`, http/https only, otherwise VALIDATION): Markdown links and "Open in browser".
 - **Payload limit.** The router rejects payloads whose JSON is over 2 MiB before parsing.
 - **Logs flow one way.** Log text only goes main → renderer (`tools:event` batches every 50 ms). Export sends seq numbers, never text.
 
@@ -69,7 +74,8 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 3. `src/main/tools/<id>/index.ts`: `defineMainTool({ ...definition, contract, handlers })`. Handlers get a `ToolContext` (`project`, `shared`, `emit`, `platform`, `settings`). `ctx.settings.get()/update(fn)` reads and writes the tool's slice of the root project's `toolSettings`, validated by `settingsSchema` (give every field a default). A tool that needs core services is a factory (see `createScriptsTool(deps)`), wired in `createMainTools` in `src/main/tools/index.ts`.
 4. Events: declare payload schemas with `defineEvents({...})` next to the contract and register them in `toolEvents`. The renderer listens with `useToolEvent(toolId, projectId, event, cb)`, which drops payloads that fail the schema.
 5. `src/renderer/tools/<id>/`: a lazy `Panel`, an optional `OverviewCard`, and a data hook that calls `api.tools.invoke(id, projectId, method, input)`. Register it in `src/renderer/tools/registry.ts` (`fullHeight: true` for a panel that scrolls itself), and add its icon to `src/renderer/tools/icons.ts`.
-6. You never need to edit `channels.ts`, the router or the shell. The reference implementations are `project-info` (minimal) and `scripts` (factory, settings, events).
+6. A tool that keeps its own log (requests, prompt output) uses `BatchedLog` in main (ring buffer + 50 ms `logs` event, `getLogs`/`clearLogs` methods) and a `LogSource` in the renderer passed to `LogView` (see `staticLogSource`).
+7. You never need to edit `channels.ts`, the router or the shell. The reference implementations are `project-info` (minimal), `scripts` (factory, settings, events) and `static` (own log).
 
 ## Gotchas
 
@@ -91,3 +97,9 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Env tool.** `.env` edits go through `tools/env/dotenv.ts`, which keeps untouched lines byte-identical. Versions are `ino:mtimeNs:size` (atomic writes change the inode); a stale version is CONFLICT. The tool watches a package folder from its first `matrix` call (the tool host never calls `activate`). `watchedPorts` came with a Zod default, so the store stayed at v2.
 - **Command output.** `CommandRunner.exec` caps stdout at 64 KiB unless the call passes `maxBytes` (netstat and tasklist do). Fixtures under `src/main/platform/__fixtures__/` are `-text` in `.gitattributes` so their CRLF bytes survive.
 - **shadcn registry.** `ui.shadcn.com` can be blocked by a sandbox's network policy. `dialog.tsx`, `switch.tsx` and `select.tsx` were then written by hand in the new-york style; regenerate them with the CLI when it is reachable.
+- **Platform commands.** `spawnCommand({ cwd, command, args, env, stdin })` runs a NestBox-built command line like `spawnScript`, with free text only on stdin (the Claude quick prompt). `execCommand(command, args, { cwd, timeoutMs })` runs one to completion (`claude --version`, `git check-ignore`). Both go through `cmdInvocation`. `openTerminal` rejects `%` in the command.
+- **Static tool.** One server per package (`toolSettings.static.servers[relPath]`), localhost unless "Share on LAN". `isHiddenPath` runs before sirv because sirv's dev mode serves dotfiles despite `dotfiles: false`. Logged paths drop the query string. The HTTPS certificate is one per machine in `userData/static-cert.json`, renewed within 30 days of expiry or for a new LAN IP; the key is never logged.
+- **Claude tool.** `claude-files.ts` never reads MCP args, env or URL paths into results. `CLAUDE.md`/`CLAUDE.local.md` use `fs/versioned-file` and keep the file's line endings. The context block lives between `<!-- nestbox:start -->` and `<!-- nestbox:end -->`; env contributes `PORT` (a number) and `.env.example` key names only. Raw HTML in the Markdown preview is shown as text (a remark step), images show their alt text, and only http(s) links open.
+- **Command palette.** `paletteEntries` is pure (actions are data). cmdk matches the label and keywords through a custom filter: item values are ids holding random project ids, whose letters would otherwise match searches. Ctrl+K with Shift is ignored (Playwright's `Control+K` sends Shift: press `Control+k`).
+- **Release.** Tag `v<version>` (matching `package.json`) and push: `.github/workflows/release.yml` tests, builds and attaches `NestBox-Setup-<version>.exe` to a draft GitHub Release. CI's `package` job builds `--dir` and runs `e2e/packaged.spec.ts` against `win-unpacked/NestBox.exe` (that spec skips unless `NESTBOX_PACKAGED_EXE` is set). The packaged app ignores `NESTBOX_USER_DATA_DIR`.
+- **Screenshots.** `scripts/screenshots.mjs` fakes processes, ports and the claude CLI by wrapping main's handlers through `ipcMain._invokeHandlers` (Electron internals; fine for a dev script, never in the app). Run `pnpm build` first: it uses `out/`.
