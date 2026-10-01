@@ -29,7 +29,7 @@ export interface WindowChrome {
 
 export interface CommandRunner {
   /** Starts a detached process and resolves once it has spawned. Rejects (e.g. ENOENT) if it cannot start. */
-  launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean }): Promise<void>;
+  launch(file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }): Promise<void>;
 }
 
 export interface PlatformDeps {

@@ -28,7 +28,7 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       // Outside the try: a VALIDATION error from unsafe input must not become NOT_FOUND.
       const inv = cmdInvocation(editor, args);
       try {
-        await deps.runner.launch(inv.file, inv.args, { verbatim: true });
+        await deps.runner.launch(inv.file, inv.args, { verbatim: true, hidden: true });
       } catch {
         throw new NestboxError('INTERNAL', `Could not start the editor command "${editor}"`);
       }

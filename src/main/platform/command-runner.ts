@@ -8,7 +8,7 @@ export const spawnRunner: CommandRunner = {
         cwd: opts.cwd,
         detached: true,
         stdio: 'ignore',
-        windowsHide: false,
+        windowsHide: opts.hidden ?? false,
         windowsVerbatimArguments: opts.verbatim ?? false,
       });
       child.once('error', reject);

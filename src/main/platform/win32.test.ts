@@ -6,14 +6,14 @@ import { createWin32Adapter } from './win32';
 interface Call {
   file: string;
   args: readonly string[];
-  opts: { cwd?: string; verbatim?: boolean } | undefined;
+  opts: { cwd?: string; verbatim?: boolean; hidden?: boolean } | undefined;
 }
 
 function fakeRunner(failFiles: string[] = []): CommandRunner & { calls: Call[] } {
   const calls: Call[] = [];
   return {
     calls,
-    launch: vi.fn(async (file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean }) => {
+    launch: vi.fn(async (file: string, args: readonly string[], opts?: { cwd?: string; verbatim?: boolean; hidden?: boolean }) => {
       calls.push({ file, args, opts });
       if (failFiles.includes(file)) {
         throw Object.assign(new Error(`spawn ${file} ENOENT`), { code: 'ENOENT' });
@@ -39,7 +39,7 @@ describe('win32 openInEditor', () => {
     expect(runner.calls[0]).toEqual({
       file: 'cmd.exe',
       args: ['/d', '/s', '/c', '"code ^"C:\\dev\\R^&D\\app^""'],
-      opts: { verbatim: true },
+      opts: { verbatim: true, hidden: true },
     });
   });
 
