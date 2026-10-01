@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { WORKSPACE_ID_SEPARATOR } from '@shared/detected';
 import { useUiStore } from '@/state/ui-store';
 import { api } from './api';
 import { errorMessage } from './errors';
@@ -61,7 +62,7 @@ export function useRemoveProject() {
     mutationFn: (id: string) => api.projects.remove(id),
     onSuccess: async (_data, id) => {
       const { selectedProjectId, select } = useUiStore.getState();
-      if (selectedProjectId && (selectedProjectId === id || selectedProjectId.startsWith(`${id}::`))) select(null);
+      if (selectedProjectId && (selectedProjectId === id || selectedProjectId.startsWith(`${id}${WORKSPACE_ID_SEPARATOR}`))) select(null);
       await invalidate();
     },
     onError: showError,
