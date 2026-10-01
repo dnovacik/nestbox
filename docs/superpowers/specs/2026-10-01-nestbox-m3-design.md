@@ -1,7 +1,7 @@
 # NestBox M3 (Static server and ship): Design Notes
 
 Date: 2026-10-01
-Status: Draft, awaiting approval
+Status: Approved 2026-10-01
 Source of truth: `docs/nestbox-spec.md`. These notes cover only the spec's gaps for M3, plus the M3 follow-ups listed in `docs/superpowers/HANDOFF.md`. They build on the M0–M2 design notes and don't restate them.
 
 ## Scope
