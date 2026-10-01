@@ -58,7 +58,22 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
                 onCancel={() => setRenaming(false)}
               />
             ) : (
-              <h1 className="truncate text-xl font-bold tracking-tight text-fg">{detected.name}</h1>
+              <h1
+                className="truncate text-xl font-bold tracking-tight text-fg"
+                aria-label={isWorkspace ? `${summary.name} / ${detected.name}` : undefined}
+              >
+                {isWorkspace ? (
+                  <>
+                    <span className="text-fg-muted">{summary.name}</span>
+                    <span aria-hidden className="mx-2 text-fg-faint">
+                      ·
+                    </span>
+                    <span>{detected.name}</span>
+                  </>
+                ) : (
+                  detected.name
+                )}
+              </h1>
             )}
             {detected.missing && (
               <Badge variant="outline" className="border-err/30 bg-err/10 text-err">

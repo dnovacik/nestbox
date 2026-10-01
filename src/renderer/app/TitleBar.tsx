@@ -22,7 +22,18 @@ export function TitleBar({ node }: { node: ProjectNode | null }) {
         )}
       </div>
       <div className="flex flex-1 items-center justify-center gap-2 text-xs text-fg-muted">
-        {node && <span>{node.detected.name}</span>}
+        {node &&
+          (node.isWorkspace ? (
+            <span>
+              <span>{node.summary.name}</span>
+              <span aria-hidden className="mx-1.5 text-fg-faint">
+                ·
+              </span>
+              <span className="text-fg">{node.detected.name}</span>
+            </span>
+          ) : (
+            <span>{node.detected.name}</span>
+          ))}
         {node && ref && (
           <>
             <span aria-hidden className="text-fg-faint">

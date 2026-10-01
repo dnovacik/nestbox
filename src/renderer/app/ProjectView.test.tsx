@@ -38,7 +38,8 @@ describe('project header', () => {
   it('shows name, path, package manager and branch', async () => {
     setup();
     const main = await screen.findByRole('main');
-    expect(await within(main).findByRole('heading', { name: 'shop' })).toBeInTheDocument();
+    const heading = await within(main).findByRole('heading', { name: 'shop' });
+    expect(heading).toHaveTextContent(/^shop$/);
     expect(within(main).getByText('C:\\Dev\\Shop')).toBeInTheDocument();
     // 'pnpm' also appears on the Overview card once it loads
     expect(within(main).getAllByText('pnpm').length).toBeGreaterThan(0);
@@ -105,7 +106,9 @@ describe('project header', () => {
     useUiStore.getState().select('p1::packages/api');
     const bridge = setup();
     const main = await screen.findByRole('main');
-    expect(await within(main).findByRole('heading', { name: '@shop/api' })).toBeInTheDocument();
+    const heading = await within(main).findByRole('heading', { name: 'shop / @shop/api' });
+    expect(heading).toHaveTextContent('shop');
+    expect(heading).toHaveTextContent('@shop/api');
     await openMenu();
     expect(await screen.findByRole('menuitem', { name: 'Refresh' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Rename' })).toBeNull();
