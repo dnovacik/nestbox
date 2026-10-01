@@ -105,11 +105,11 @@ describe('App shell', () => {
     renderWithProviders(<App />);
     const sidebar = await screen.findByRole('complementary', { name: 'Projects' });
     await userEvent.click(within(sidebar).getByRole('button', { name: 'Ports' }));
-    expect(await screen.findByRole('region', { name: 'Ports' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Listening ports' })).toBeInTheDocument();
     expect(within(sidebar).getByRole('button', { name: 'Ports' })).toHaveAttribute('aria-current', 'page');
     expect(within(sidebar).getByRole('button', { name: 'shop' })).not.toHaveAttribute('aria-current');
     await userEvent.click(within(sidebar).getByRole('button', { name: 'shop' }));
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Ports' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('table', { name: 'Listening ports' })).toBeNull());
     expect(useUiStore.getState().view).toBe('project');
   });
 });
