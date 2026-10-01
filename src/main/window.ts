@@ -7,6 +7,8 @@ export interface MainWindowOptions {
   platform: PlatformAdapter;
   devServerUrl: string | undefined;
   icon: string;
+  /** Ctrl+Q (⌘Q on macOS) inside the window. */
+  onQuitShortcut(): void;
 }
 
 export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
@@ -33,6 +35,12 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
     },
   });
   win.once('ready-to-show', () => win.show());
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && (input.control || input.meta) && input.key.toLowerCase() === 'q') {
+      event.preventDefault();
+      opts.onQuitShortcut();
+    }
+  });
   if (opts.devServerUrl) void win.loadURL(opts.devServerUrl);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
   return win;
