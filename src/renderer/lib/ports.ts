@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NestboxError } from '@shared/errors';
 import type { PortKillInput, PortRow } from '@shared/ports';
 import { belongsTo } from '@shared/processes';
 import { api } from './api';
@@ -13,9 +14,15 @@ export function usePorts(enabled = true) {
     queryKey: queryKeys.ports,
     queryFn: () => api.ports.list(),
     enabled,
-    refetchInterval: PORTS_POLL_MS,
+    // Not available on this platform: no point retrying or polling.
+    retry: (failures, error) => !isUnsupported(error) && failures < 2,
+    refetchInterval: (query) => (isUnsupported(query.state.error) ? false : PORTS_POLL_MS),
     refetchIntervalInBackground: false,
   });
+}
+
+export function isUnsupported(error: unknown): boolean {
+  return error instanceof NestboxError && error.code === 'NOT_IMPLEMENTED';
 }
 
 export function useKillPort() {

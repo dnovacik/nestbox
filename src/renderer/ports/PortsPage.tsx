@@ -1,11 +1,10 @@
 import { Plug, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { NestboxError } from '@shared/errors';
 import type { PortRow } from '@shared/ports';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { usePorts } from '@/lib/ports';
+import { isUnsupported, usePorts } from '@/lib/ports';
 import { useProjects } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { findProjectNode } from '@/app/find-project';
@@ -50,7 +49,7 @@ export function PortsPage() {
     ui.showScript(owner.projectId, owner.script);
   };
 
-  const unsupported = error instanceof NestboxError && error.code === 'NOT_IMPLEMENTED';
+  const unsupported = isUnsupported(error);
 
   return (
     <section aria-label="Ports" className="flex min-h-0 flex-1 flex-col">

@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { NestboxError } from '@shared/errors';
 import type { PortRow } from '@shared/ports';
 import { AppSettingsSchema } from '@shared/types';
 import { installMockBridge } from '@/test/mock-bridge';
@@ -50,5 +51,19 @@ describe('PortsCard', () => {
   it('shows PORT from .env and who uses it', async () => {
     setup([row(3000, 40, { owner: { projectId: 'p1', script: 'dev' } })], 3000);
     expect(await screen.findByText(/from \.env: used by dev/)).toBeInTheDocument();
+  });
+
+  it('shows no free/used chips without a port list', async () => {
+    installMockBridge({
+      'ports:list': () => {
+        throw new NestboxError('NOT_IMPLEMENTED', 'listListeningPorts is not implemented on this platform yet');
+      },
+      'settings:get': () => ({ ...AppSettingsSchema.parse({}), readOnly: false }),
+      'tools:invoke': (() => ({ port: 3000 })) as never,
+    });
+    renderWithProviders(<PortsCard projectId="p1" />);
+    expect(await screen.findByText("Port listing isn't available on this platform yet.")).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Watched ports' })).toBeNull();
+    expect(screen.queryByText(/from \.env/)).toBeNull();
   });
 });
