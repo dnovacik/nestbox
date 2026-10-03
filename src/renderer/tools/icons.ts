@@ -1,7 +1,8 @@
-import { Box, Info, KeyRound, LayoutGrid, type LucideIcon, Server, Sparkles, SquareTerminal } from 'lucide-react';
+import { Box, GitBranch, Info, KeyRound, LayoutGrid, type LucideIcon, Server, Sparkles, SquareTerminal } from 'lucide-react';
 
 /** lucide icon names used by ToolDefinition.icon. Adding a tool with a new icon adds a line here. */
 const ICONS: Record<string, LucideIcon> = {
+  'git-branch': GitBranch,
   info: Info,
   'key-round': KeyRound,
   'layout-grid': LayoutGrid,
