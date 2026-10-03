@@ -11,8 +11,11 @@ const exe = process.env['NESTBOX_PACKAGED_EXE'];
 test.skip(!exe, 'NESTBOX_PACKAGED_EXE is not set');
 
 test('the packaged app starts, answers IPC and adds a project', async () => {
+  // The macOS x64 build runs under Rosetta, which translates the whole Electron framework on its first
+  // launch: on a fresh runner that alone can take over a minute (arm64 starts in seconds).
+  test.setTimeout(240_000);
   const project = await copyFixture('npm-app');
-  const app = await electron.launch({ executablePath: exe ?? '' });
+  const app = await electron.launch({ executablePath: exe ?? '', timeout: 180_000 });
   try {
     await app.evaluate(({ dialog }, dir) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
