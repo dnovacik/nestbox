@@ -6,7 +6,7 @@
   - The v1.0.0 draft release (built by the release workflow from `49a36cb`, `NestBox-Setup-1.0.0.exe`) waits for the owner to press Publish.
   - Publishing creates the `v1.0.0` tag. Cloud sessions can't push tags or edit releases.
 - v2 has started with the macOS build, on branch `v2-macos`, released as v1.1.0.
-  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-macos-design.md` (draft, awaiting approval). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-macos.md`.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-macos-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-macos.md`.
   - Owner's answers: unsigned (ad-hoc) DMGs; two DMGs (arm64 and x64); a terminal setting with auto-detect; no Mac to test on, so CI on `macos-latest` only, and the README calls the macOS build a preview.
 - Still open from v1: record the README GIF on Windows.
 

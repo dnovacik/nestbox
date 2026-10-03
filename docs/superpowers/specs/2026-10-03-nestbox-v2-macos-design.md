@@ -1,7 +1,7 @@
 # NestBox v2.0 (macOS build): Design Notes
 
 Date: 2026-10-03
-Status: Draft, awaiting the owner's approval
+Status: Approved 2026-10-03
 Source of truth: `docs/nestbox-spec.md` ("v2 starts with the macOS build"). These notes cover only what macOS needs. They build on the M0–M3 design notes and don't restate them.
 
 ## Scope
