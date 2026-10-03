@@ -60,6 +60,13 @@ describe('SettingsDialog', () => {
     await waitFor(() => expect(bridge.callsTo('settings:update')).toEqual([{ terminalApp: 'iterm' }]));
   });
 
+  it('has no tray icon theme on macOS: the menu bar follows the system appearance', async () => {
+    setup(false, undefined, 'darwin');
+    const dialog = await open();
+    await within(dialog).findByRole('combobox', { name: 'Terminal' });
+    expect(within(dialog).queryByRole('combobox', { name: 'Tray icon theme' })).toBeNull();
+  });
+
   it('offers Windows Terminal and cmd on Windows', async () => {
     setup();
     const dialog = await open();

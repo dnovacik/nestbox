@@ -9,8 +9,8 @@ const ws = makeDetected({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packag
 const root = makeDetected({ id: 'p1', name: 'shop', workspaces: [ws], git: { branch: 'main', head: null } });
 const summary = makeSummary({ id: 'p1', name: 'shop', detected: root });
 
-function renderBar(node: Parameters<typeof TitleBar>[0]['node']) {
-  installMockBridge({ 'app:getInfo': () => ({ version: '1.2.3', platform: 'win32' }) });
+function renderBar(node: Parameters<typeof TitleBar>[0]['node'], platform: 'win32' | 'darwin' = 'win32') {
+  installMockBridge({ 'app:getInfo': () => ({ version: '1.2.3', platform }) });
   return renderWithProviders(<TitleBar node={node} />);
 }
 
@@ -34,5 +34,11 @@ describe('TitleBar', () => {
     renderBar(null);
     await screen.findByText('v1.2.3');
     expect(screen.queryByText('shop')).toBeNull();
+  });
+
+  it('leaves room for the macOS traffic lights', async () => {
+    renderBar(null, 'darwin');
+    await screen.findByText('v1.2.3');
+    expect(screen.getByRole('banner')).toHaveStyle({ paddingLeft: '78px' });
   });
 });

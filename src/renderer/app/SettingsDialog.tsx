@@ -99,20 +99,23 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
         <Row label="Close to tray" htmlFor="settings-close-to-tray" hint="Closing the window keeps NestBox and your scripts running in the tray.">
           <Switch id="settings-close-to-tray" checked={closeToTray} onCheckedChange={setCloseToTray} disabled={readOnly} />
         </Row>
-        <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
-          <Select value={trayIconTheme} onValueChange={(value) => setTrayIconTheme(value as TrayIconTheme)} disabled={readOnly}>
-            <SelectTrigger id="settings-tray-theme" size="sm" className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {THEMES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Row>
+        {/* macOS: the menu bar follows the system appearance, so the icon always does too ('auto'). */}
+        {platform === 'win32' && (
+          <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
+            <Select value={trayIconTheme} onValueChange={(value) => setTrayIconTheme(value as TrayIconTheme)} disabled={readOnly}>
+              <SelectTrigger id="settings-tray-theme" size="sm" className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THEMES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+        )}
         <Row label="Log buffer" htmlFor="settings-log-buffer" hint="Lines kept per script, 1 000–1 000 000. Applies to scripts started afterwards.">
           <Input
             id="settings-log-buffer"

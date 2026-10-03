@@ -28,6 +28,8 @@ export interface TrayControllerDeps {
   getTheme(): TrayIconTheme;
   actions: TrayActions;
   logger: Logger;
+  /** Windows: a click shows the window (the menu is on right-click). macOS: a click opens the menu, nothing else. */
+  clickShowsWindow?: boolean;
 }
 
 export interface TrayController {
@@ -49,8 +51,10 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
   }
 
   const tray = electron.createTray(icon());
-  tray.on('click', () => deps.actions.show());
-  tray.on('double-click', () => deps.actions.show());
+  if (deps.clickShowsWindow ?? true) {
+    tray.on('click', () => deps.actions.show());
+    tray.on('double-click', () => deps.actions.show());
+  }
 
   let running = false;
   let again = false;

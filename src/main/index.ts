@@ -360,7 +360,9 @@ if (!app.requestSingleInstanceLock()) {
         getModel: async () =>
           buildTrayModel(await projects.list(), processes.list(), (rootId) => projects.getRunGroups(rootId)),
         getProcesses: () => processes.list(),
-        getTheme: () => store.getSettings().trayIconTheme,
+        // The macOS menu bar follows the system appearance, so the icon does too.
+        getTheme: () => (platform.id === 'darwin' ? 'auto' : store.getSettings().trayIconTheme),
+        clickShowsWindow: platform.id !== 'darwin',
         actions: trayActions,
         logger,
       });
