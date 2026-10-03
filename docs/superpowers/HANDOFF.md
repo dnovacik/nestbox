@@ -5,9 +5,19 @@
 - M0–M3 are merged to `main` (PRs #1–#4). v1 is done.
   - The v1.0.0 draft release (built by the release workflow from `49a36cb`, `NestBox-Setup-1.0.0.exe`) waits for the owner to press Publish.
   - Publishing creates the `v1.0.0` tag. Cloud sessions can't push tags or edit releases.
-- v2 has started with the macOS build, on branch `v2-macos`, released as v1.1.0.
+- v2 has started with the macOS build: branch `v2-macos`, draft PR #5, version 1.1.0 in `package.json`.
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-macos-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-macos.md`.
-  - Owner's answers: unsigned (ad-hoc) DMGs; two DMGs (arm64 and x64); a terminal setting with auto-detect; no Mac to test on, so CI on `macos-latest` only, and the README calls the macOS build a preview.
+  - All plan tasks are done.
+  - CI runs unit, integration, end-to-end and packaged smoke tests on both OSes. The x64 app runs under Rosetta.
+  - The code review's findings are fixed:
+    - `killTree(1)` is refused;
+    - the shell env survives a profile that starts a background job;
+    - VS Code opens files through its `vscode://` URL;
+    - Ghostty commands run through the login shell;
+    - orphans are found by process group;
+    - smaller robustness fixes.
+  - Not verifiable in CI, so it needs a real Mac before "preview" is dropped from the README: the terminal routes (iTerm and Terminal running a `.command` file; Ghostty `-e`), the VS Code URL, the menu-bar icon and the first-launch Gatekeeper steps.
+  - Release after merging: run the release workflow on `main` (or push tag `v1.1.0` from a machine), then publish the draft. It holds the installer and both DMGs.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**

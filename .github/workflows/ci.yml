@@ -81,8 +81,11 @@ jobs:
       # An unpacked build (no installer or DMG): enough to prove the packaged app loads and answers IPC.
       - if: runner.os == 'Windows'
         run: pnpm exec electron-builder --win --dir --publish never
+      # Both architectures: the x64 build is what Intel Macs get, and runs here under Rosetta.
       - if: runner.os == 'macOS'
-        run: pnpm exec electron-builder --mac --dir --arm64 --publish never
+        run: pnpm exec electron-builder --mac --dir --arm64 --x64 --publish never
+      - if: runner.os == 'macOS'
+        run: softwareupdate --install-rosetta --agree-to-license || true
       - name: Smoke test the packaged app (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,9 +98,12 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          exe=$(find release -path '*mac-arm64/NestBox.app/Contents/MacOS/NestBox' -type f | head -1)
-          if [ -z "$exe" ]; then echo 'NestBox.app not found under release/'; exit 1; fi
-          NESTBOX_PACKAGED_EXE="$PWD/$exe" pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
+          for dir in mac-arm64 mac; do
+            exe=$(find release -path "*/$dir/NestBox.app/Contents/MacOS/NestBox" -type f | head -1)
+            if [ -z "$exe" ]; then echo "NestBox.app ($dir) not found under release/"; exit 1; fi
+            echo "Smoke testing $dir ($(file -b "$exe"))"
+            NESTBOX_PACKAGED_EXE="$PWD/$exe" pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
+          done
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
