@@ -36,7 +36,7 @@ export async function checkReachable(target: DbTarget, opts: ReachOptions = {}):
   if (target.provider === 'unknown' || target.host === null) return { result: 'not-checked', reason: 'The URL was not recognised' };
   if (target.port === null) return { result: 'not-checked', reason: 'mongodb+srv finds its servers through DNS SRV records' };
 
-  const connect = opts.connect ?? ((port: number, host: string) => netConnect({ port, host }));
+  const connect: (port: number, host: string) => SocketLike = opts.connect ?? ((port, host) => netConnect({ port, host }));
   const timeoutMs = opts.timeoutMs ?? 3_000;
   const { host, port } = target;
   return new Promise<Reach>((resolve) => {
