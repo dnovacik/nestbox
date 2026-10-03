@@ -1,7 +1,7 @@
 # NestBox v2 (Git glance): Design Notes
 
 Date: 2026-10-03
-Status: Draft, waiting for approval
+Status: Approved 2026-10-03
 Source of truth: `docs/nestbox-spec.md`, "v2 tools": *Git glance: branch, uncommitted count, ahead/behind, last commit; read-only on the overview card.* These notes build on the M0–M3 and macOS design notes and don't restate them.
 
 ## Scope

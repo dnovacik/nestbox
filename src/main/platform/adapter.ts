@@ -109,7 +109,11 @@ export interface PlatformAdapter {
    */
   spawnCommand(opts: SpawnOpts & { stdin?: string }): ChildProcess;
   /** Runs a NestBox-built command line to completion (e.g. `claude --version`, `git check-ignore`). */
-  execCommand(command: string, args: readonly string[], opts: { cwd?: string; timeoutMs: number }): Promise<ExecResult>;
+  execCommand(
+    command: string,
+    args: readonly string[],
+    opts: { cwd?: string; timeoutMs: number; /** stdout cap; 64 KiB by default. */ maxBytes?: number },
+  ): Promise<ExecResult>;
   /** Opens a terminal in cwd, optionally running command (NestBox-built only: no quotes, newlines or %). */
   openTerminal(cwd: string, command?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;

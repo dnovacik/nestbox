@@ -288,6 +288,13 @@ describe('win32 execCommand', () => {
       verbatim: true,
     });
   });
+
+  it('passes an output cap to the runner', async () => {
+    const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '' } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.execCommand('git', ['status'], { cwd: 'C:\\a', timeoutMs: 10_000, maxBytes: 2_000_000 });
+    expect(runner.exec).toHaveBeenCalledWith('cmd.exe', expect.anything(), expect.objectContaining({ maxBytes: 2_000_000 }));
+  });
 });
 
 describe('win32 spawnCommand', () => {
