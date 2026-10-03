@@ -50,8 +50,9 @@ describe('darwin adapter: ports and processes', () => {
   });
 
   it('lists processes with start times from elapsed time, in the C locale', async () => {
-    const { adapter, runner } = setup({ exec: () => ({ code: 0, stdout: '  412     1      10:00\n' }) });
-    expect(await adapter.listProcesses()).toEqual([{ pid: 412, parentPid: 1, startTime: 1_000_000 - 600_000 }]);
+    const { adapter, runner } = setup({ exec: () => ({ code: 0, stdout: '  412     1   412      10:00\n' }) });
+    expect(await adapter.listProcesses()).toEqual([{ pid: 412, parentPid: 1, groupId: 412, startTime: 1_000_000 - 600_000 }]);
+    expect(runner.exec.mock.calls[0]?.[1]).toEqual(['-axo', 'pid=,ppid=,pgid=,etime=']);
     expect(runner.exec.mock.calls[0]?.[0]).toBe('/bin/ps');
     expect(runner.exec.mock.calls[0]?.[2]?.env?.['LC_ALL']).toBe('C');
   });

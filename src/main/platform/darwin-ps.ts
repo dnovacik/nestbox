@@ -13,17 +13,17 @@ export function parseEtime(text: string): number | null {
   return Number(days ?? 0) * 86_400 + hours * 3600 + minutes * 60 + Number(seconds);
 }
 
-/** `ps -axo pid=,ppid=,etime=` → processes with a start time of now − elapsed (accurate to 1 s). */
+/** `ps -axo pid=,ppid=,pgid=,etime=` → processes with their group and a start time of now − elapsed (to 1 s). */
 export function parsePsList(text: string, now: number): ProcessInfo[] {
   const out: ProcessInfo[] = [];
   for (const line of text.split('\n')) {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
-    const elapsed = match ? parseEtime(match[3] ?? '') : null;
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
+    const elapsed = match ? parseEtime(match[4] ?? '') : null;
     if (!match || elapsed === null) continue;
     // A process started a moment after ps read the clock can show a negative elapsed time wrapped to a huge
     // one (seen on Linux). Nothing started before 1970: treat it as just started.
     const startTime = elapsed * 1000 > now ? now : now - elapsed * 1000;
-    out.push({ pid: Number(match[1]), parentPid: Number(match[2]), startTime });
+    out.push({ pid: Number(match[1]), parentPid: Number(match[2]), groupId: Number(match[3]), startTime });
   }
   return out;
 }

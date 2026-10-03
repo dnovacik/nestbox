@@ -68,7 +68,7 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
 
   async function listProcesses() {
     try {
-      const { code, stdout } = await deps.runner.exec(PS, ['-axo', 'pid=,ppid=,etime='], {
+      const { code, stdout } = await deps.runner.exec(PS, ['-axo', 'pid=,ppid=,pgid=,etime='], {
         timeoutMs: 10_000,
         maxBytes: 8 * 1024 * 1024,
         env: cLocale(),

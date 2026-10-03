@@ -18,6 +18,8 @@ export interface ProcessInfo {
   parentPid: number;
   /** When the process started, in epoch ms. */
   startTime: number;
+  /** POSIX process group (macOS); absent on Windows. */
+  groupId?: number;
 }
 
 export interface SpawnOpts {

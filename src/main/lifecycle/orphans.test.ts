@@ -18,6 +18,13 @@ describe('findOrphans', () => {
     expect(findOrphans([entry(10, 10_000)], processes)).toEqual([{ entry: entry(10, 10_000), pids: [30, 31] }]);
   });
 
+  it("finds the root's process group on macOS, whose leftovers launchd adopted (parent 1)", () => {
+    const grouped = (pid: number, startTime: number, groupId: number) => ({ pid, parentPid: 1, startTime, groupId });
+    const processes = [grouped(31, 10_500, 10), grouped(32, 10_900, 10), grouped(60, 10_500, 60), grouped(33, 4_000, 10)];
+    // 60 is in another group; 33 started before the script (an older group that reused the id).
+    expect(findOrphans([entry(10, 10_000)], processes)).toEqual([{ entry: entry(10, 10_000), pids: [31, 32] }]);
+  });
+
   it('ignores the children of a reused root PID', () => {
     const processes = [proc(10, 1, 50_000), proc(30, 10, 51_000)];
     expect(findOrphans([entry(10, 10_000)], processes)).toEqual([]);
