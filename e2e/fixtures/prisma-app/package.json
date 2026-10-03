@@ -1,0 +1,7 @@
+{
+  "name": "nestbox-e2e-prisma",
+  "private": true,
+  "scripts": {
+    "db:status": "prisma migrate status"
+  }
+}

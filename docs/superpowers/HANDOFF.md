@@ -24,9 +24,14 @@
   - Owner's answers: never fetch; refresh on `.git` changes and on window focus.
   - Release after merging: run the release workflow on `main`, then the owner publishes the draft.
   - Follow-ups:
-    - **Windows current-folder lookup.** `spawnCommand` (`claude -p`) still lets cmd.exe find a program in the project folder. `execCommand` now sets `NoDefaultCurrentDirectoryInExePath`, but `spawnCommand` passes its env on to Claude's own commands, so it needs a resolved absolute path instead (`where` from NestBox's own folder, cached).
+    - **Windows current-folder lookup.** `spawnCommand` (`claude -p`, and since v1.3.0 the database tool's Prisma commands) still lets cmd.exe find a program in the project folder. `execCommand` now sets `NoDefaultCurrentDirectoryInExePath`, but `spawnCommand` passes its env on to Claude's own commands, so it needs a resolved absolute path instead (`where` from NestBox's own folder, cached).
     - **Project header branch.** The header's branch comes from detection and only updates on a project refresh. The git tool's `changed` event could also refresh detection.
-- Next v2 tools, smallest first: database panel, TODO scanner, health checks, Docker Compose, mock API, request inspector.
+- v1.2.0 (git glance) and v1.2.1 (panel scrolling, one tab inset) are released.
+- Database panel (the second v2 tool): branch `v2-database`, draft PR #11, version 1.3.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-database-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-database.md`.
+  - Owner's answers: TCP check plus a Test login button; Prisma or env files; status/generate in the panel, migrate dev in a terminal, Studio in the background; show provider, host, port and database only.
+  - Not verifiable in CI: real Prisma commands and Studio against a real database (unit tests use a fake platform; the end-to-end spec uses a TCP stand-in).
+- Next v2 tools, smallest first: TODO scanner, health checks, Docker Compose, mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
