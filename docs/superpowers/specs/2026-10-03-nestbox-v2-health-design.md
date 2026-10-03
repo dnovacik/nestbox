@@ -1,7 +1,7 @@
 # NestBox v2 (Health checks): Design Notes
 
 Date: 2026-10-03
-Status: Draft, waiting for approval
+Status: Approved 2026-10-03
 Source of truth: `docs/nestbox-spec.md`, "v2 tools". The spec's entry: *Health checks: URLs per project pinged every N seconds; green or red dot on the overview; reads `PORT`, `API_URL`.* These notes build on the earlier design notes and don't restate them.
 
 ## Scope
