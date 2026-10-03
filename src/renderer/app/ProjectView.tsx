@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { useTools } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import { getRendererTool } from '@/tools/registry';
 import type { ProjectNode } from './find-project';
@@ -25,7 +26,7 @@ export function ProjectView({ node }: { node: ProjectNode }) {
       )}
       <div
         {...(missing ? {} : { role: 'tabpanel', id: panelId(projectId), 'aria-labelledby': tabId(projectId, active), tabIndex: 0 })}
-        className={tool?.fullHeight ? 'min-h-0 flex-1 overflow-hidden p-4' : 'min-h-0 flex-1 overflow-y-auto p-6'}
+        className={cn('min-h-0 flex-1 p-6', tool?.fullHeight ? 'overflow-hidden' : 'overflow-y-auto')}
       >
         {missing ? (
           <p className="text-sm text-fg-muted">
