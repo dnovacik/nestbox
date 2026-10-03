@@ -1,15 +1,14 @@
 # Handoff (read this first in a new or cloud session)
 
-**State as of 2026-10-01**
+**State as of 2026-10-03**
 
-- M0, M1 and M2 are merged to `main` (PRs #1–#3).
-- M3 (Static server and ship) is implemented on branch `m3-static-ship`, in draft PR #4 on `dnovacik/nestbox`.
-  - Design: `docs/superpowers/specs/2026-10-01-nestbox-m3-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-01-nestbox-m3-static-ship.md`.
-  - Static tool (sirv, SPA fallback, LAN + QR, HTTPS with a kept self-signed certificate, request log), Claude Code tool (CLI status, `CLAUDE.md`/`CLAUDE.local.md` preview and editor, `.claude` lists, quick prompt over stdin, context block with a diff), the `Ctrl+K` palette, the generic `LogView`, `app:openExternal`.
-  - Ship: a `package (windows-latest)` CI job that smoke-tests `win-unpacked/NestBox.exe`, the tag-triggered release workflow, the README with screenshots (`scripts/screenshots.mjs`), the outlined wordmark (`scripts/outline-wordmark.mjs`).
-  - What's left before merging: the owner's manual checklist on Windows (in the PR body), then marking the PR ready.
-- **v1 release** after merging: set `version` in `package.json` to `1.0.0`, merge, tag `v1.0.0` and push the tag; the release workflow attaches `NestBox-Setup-1.0.0.exe` to a draft release to review and publish. Record the README GIF on Windows (placeholder in `README.md`).
-- v2 (macOS first) waits for the gate in the spec: v1 used daily on real projects.
+- M0–M3 are merged to `main` (PRs #1–#4). v1 is done.
+  - The v1.0.0 draft release (built by the release workflow from `49a36cb`, `NestBox-Setup-1.0.0.exe`) waits for the owner to press Publish.
+  - Publishing creates the `v1.0.0` tag. Cloud sessions can't push tags or edit releases.
+- v2 has started with the macOS build, on branch `v2-macos`, released as v1.1.0.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-macos-design.md` (draft, awaiting approval). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-macos.md`.
+  - Owner's answers: unsigned (ad-hoc) DMGs; two DMGs (arm64 and x64); a terminal setting with auto-detect; no Mac to test on, so CI on `macos-latest` only, and the README calls the macOS build a preview.
+- Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
 
