@@ -4,6 +4,7 @@ import { claudeContract, claudeDefinition, claudeEvents } from './claude/contrac
 import { databaseContract, databaseDefinition, databaseEvents } from './database/contract';
 import { envContract, envDefinition, envEvents } from './env/contract';
 import { gitContract, gitDefinition, gitEvents } from './git/contract';
+import { healthContract, healthDefinition, healthEvents } from './health/contract';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
 import { scriptsContract, scriptsDefinition, scriptsEvents } from './scripts/contract';
 import { staticContract, staticDefinition, staticEvents } from './static/contract';
@@ -19,6 +20,7 @@ export const toolContracts = {
   git: gitContract,
   database: databaseContract,
   todos: todosContract,
+  health: healthContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -30,6 +32,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   gitDefinition as ToolDefinition<unknown>,
   databaseDefinition as ToolDefinition<unknown>,
   todosDefinition as ToolDefinition<unknown>,
+  healthDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -51,6 +54,7 @@ export const toolEvents = {
   git: gitEvents,
   database: databaseEvents,
   todos: {},
+  health: healthEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
