@@ -179,7 +179,7 @@ export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
   const setOpen = useUiStore((s) => s.setSettingsOpen);
   const { data, isError } = useSettings();
-  const { data: info } = useAppInfo();
+  const { data: info, isError: infoError } = useAppInfo();
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-xl">
@@ -189,7 +189,7 @@ export function SettingsDialog() {
         </DialogHeader>
         {data && info ? (
           <SettingsForm key={JSON.stringify(data)} initial={data} platform={info.platform} onDone={() => setOpen(false)} />
-        ) : isError ? (
+        ) : isError || infoError ? (
           <p className="text-sm text-err">Couldn't load the settings.</p>
         ) : (
           <p className="text-sm text-fg-muted">Loading…</p>

@@ -2,7 +2,7 @@
 // a minimal PATH (no Homebrew, nvm or pnpm), so scripts and commands run with the env a terminal would give.
 // Env values are never logged: only failure codes are.
 import { constants } from 'node:fs';
-import { access as fsAccess } from 'node:fs/promises';
+import { access as fsAccess, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 // POSIX paths explicitly: this is macOS code, and its tests also run on Windows.
 import { posix } from 'node:path';
@@ -86,6 +86,17 @@ export function createShellEnv({ runner, shell, fallback, logger, now = Date.now
   };
 }
 
+/** An executable regular file (X_OK alone also matches directories). */
+async function isExecutableFile(path: string): Promise<boolean> {
+  try {
+    if (!(await stat(path)).isFile()) return false;
+    await fsAccess(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The executable a command resolves to on PATH, like `command -v`, without a subprocess; null when none.
  * A command containing a slash is a path: absolute is checked as is, relative is refused.
@@ -93,16 +104,8 @@ export function createShellEnv({ runner, shell, fallback, logger, now = Date.now
 export async function findOnPath(
   command: string,
   path: string,
-  access: (path: string, mode: number) => Promise<void> = fsAccess,
+  executable: (path: string) => Promise<boolean> = isExecutableFile,
 ): Promise<string | null> {
-  const executable = async (candidate: string) => {
-    try {
-      await access(candidate, constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  };
   if (command.includes('/')) return posix.isAbsolute(command) && (await executable(command)) ? command : null;
   for (const dir of path.split(':')) {
     if (dir === '') continue;

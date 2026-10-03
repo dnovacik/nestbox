@@ -49,7 +49,8 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 async function writeExecutable(path: string, text: string): Promise<void> {
-  await writeFile(path, text, { mode: 0o700 });
+  // wx: never follow or overwrite something already at the (random) path.
+  await writeFile(path, text, { mode: 0o700, flag: 'wx' });
   await chmod(path, 0o700);
 }
 

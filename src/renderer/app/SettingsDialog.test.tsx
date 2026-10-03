@@ -6,6 +6,7 @@ import type { SettingsPatch } from '@shared/settings';
 import { AppSettingsSchema } from '@shared/types';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
+import { useUiStore } from '@/state/ui-store';
 import { SettingsDialog } from './SettingsDialog';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
@@ -65,6 +66,18 @@ describe('SettingsDialog', () => {
     const dialog = await open();
     await within(dialog).findByRole('combobox', { name: 'Terminal' });
     expect(within(dialog).queryByRole('combobox', { name: 'Tray icon theme' })).toBeNull();
+  });
+
+  it("shows an error instead of loading forever when the platform can't be read", async () => {
+    installMockBridge({
+      'app:getInfo': () => {
+        throw new NestboxError('INTERNAL', 'nope');
+      },
+      'settings:get': () => ({ ...AppSettingsSchema.parse({}), readOnly: false }),
+    });
+    renderWithProviders(<SettingsDialog />);
+    useUiStore.getState().setSettingsOpen(true);
+    expect(await screen.findByText("Couldn't load the settings.")).toBeInTheDocument();
   });
 
   it('offers Windows Terminal and cmd on Windows', async () => {

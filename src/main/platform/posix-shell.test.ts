@@ -110,9 +110,7 @@ describe('createShellEnv', () => {
 });
 
 describe('findOnPath', () => {
-  const access = vi.fn(async (path: string) => {
-    if (!['/opt/homebrew/bin/pnpm', '/usr/local/bin/code'].includes(path)) throw new Error('ENOENT');
-  });
+  const access = vi.fn(async (path: string) => ['/opt/homebrew/bin/pnpm', '/usr/local/bin/code'].includes(path));
 
   it('finds a command in the first PATH entry that has it', async () => {
     expect(await findOnPath('pnpm', '/usr/bin:/opt/homebrew/bin', access)).toBe('/opt/homebrew/bin/pnpm');
@@ -126,5 +124,21 @@ describe('findOnPath', () => {
 
   it('is null when nothing matches', async () => {
     expect(await findOnPath('claude', '/usr/bin::/bin', access)).toBeNull();
+  });
+
+  it.skipIf(process.platform === 'win32')('skips a directory with the command name, and finds a real executable', async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'nestbox-path-'));
+    try {
+      await mkdir(join(root, 'a', 'pnpm'), { recursive: true });
+      await mkdir(join(root, 'b'));
+      await writeFile(join(root, 'b', 'pnpm'), '#!/bin/sh\n', { mode: 0o755 });
+      expect(await findOnPath('pnpm', `${join(root, 'a')}:${join(root, 'b')}`)).toBe(join(root, 'b', 'pnpm'));
+      expect(await findOnPath('pnpm', join(root, 'a'))).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
