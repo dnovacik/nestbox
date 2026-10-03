@@ -41,6 +41,16 @@ This is the second v2 tool. It ships alone as **v1.3.0**, from the branch `v2-da
 | 13 | Privacy and logs | The URL value is never logged or stored. The logger records the tool, the method, the reachability result and exit codes only. The command log holds Prisma's output, which shows in the renderer only, like script logs; Prisma doesn't print passwords. |
 | 14 | Version | 1.3.0, released with the same flow as v1.2.x. |
 
+## Implementation notes
+
+- **Prisma must be installed.** Before any Prisma command runs, the tool checks that `node_modules/prisma` resolves from the package (here or in a parent folder, as Node looks it up for a workspace root). Without it, the buttons answer "Prisma isn't installed in this package", rather than letting `npx --no-install` fail with an unclear error.
+- **Test login messages.**
+  - A failure without a P-code is reported as "Failed (exit code N)".
+  - Test login takes the command slot (`running.command` = `test-login`), so it can't overlap with Migrate status or Generate.
+- **URL description.**
+  - `DbTarget` carries `file` (the SQLite path).
+  - Prisma Accelerate URLs (`prisma://`, `prisma+postgres://`) are described as provider `accelerate`, with the host only.
+
 ## Contract (sketch)
 
 ```ts
