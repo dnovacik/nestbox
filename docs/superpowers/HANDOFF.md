@@ -23,6 +23,9 @@
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-git-glance-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-git-glance.md`.
   - Owner's answers: never fetch; refresh on `.git` changes and on window focus.
   - Release after merging: run the release workflow on `main`, then the owner publishes the draft.
+  - Follow-ups:
+    - **Windows current-folder lookup.** `spawnCommand` (`claude -p`) still lets cmd.exe find a program in the project folder. `execCommand` now sets `NoDefaultCurrentDirectoryInExePath`, but `spawnCommand` passes its env on to Claude's own commands, so it needs a resolved absolute path instead (`where` from NestBox's own folder, cached).
+    - **Project header branch.** The header's branch comes from detection and only updates on a project refresh. The git tool's `changed` event could also refresh detection.
 - Next v2 tools, smallest first: database panel, TODO scanner, health checks, Docker Compose, mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 

@@ -286,7 +286,17 @@ describe('win32 execCommand', () => {
       cwd: 'C:\\a',
       timeoutMs: 10_000,
       verbatim: true,
+      env: expect.objectContaining({ NoDefaultCurrentDirectoryInExePath: '1' }),
     });
+  });
+
+  it('never runs a program from the folder it runs in (a git.bat in a cloned repo)', async () => {
+    const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '' } });
+    await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).execCommand('git', ['status'], { cwd: 'C:\\repo', timeoutMs: 1_000 });
+    const env = vi.mocked(runner.exec).mock.calls[0]?.[2]?.env;
+    // cmd.exe searches the current folder before PATH unless this is set.
+    expect(env?.['NoDefaultCurrentDirectoryInExePath']).toBe('1');
+    expect(env?.['PATH'] ?? env?.['Path']).toBe(process.env['PATH'] ?? process.env['Path']);
   });
 
   it('passes an output cap to the runner', async () => {
