@@ -59,7 +59,7 @@
 ### Task 10: Panel (D11)
 **Files:** `Panel.tsx` (+ test), `index.ts`, `registry.ts`.
 - `fullHeight`, with a root of `h-full min-h-0 overflow-y-auto` and no outer padding.
-- The list is virtualised above 200 rows.
+- At most 1,000 rows are drawn, with a note asking for a filter past that.
 
 ## Part C: Ship
 
