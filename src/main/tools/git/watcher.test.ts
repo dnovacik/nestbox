@@ -1,7 +1,10 @@
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGitWatcher, type WatchFn } from './watcher';
 
 const dirs = { gitDir: '/r/.git', commonDir: '/r/.git' };
+// The watcher joins the refs folder with the OS separator.
+const REFS = join('/r/.git', 'refs');
 
 function fakeWatch() {
   const watchers: { dir: string; recursive: boolean; onChange: (name: string | null) => void; stopped: boolean }[] = [];
@@ -23,7 +26,7 @@ describe('createGitWatcher', () => {
     createGitWatcher(watch).ensure('p1', 'p1', dirs, vi.fn());
     expect(watchers.map((w) => [w.dir, w.recursive])).toEqual([
       ['/r/.git', false],
-      ['/r/.git/refs', true],
+      [REFS, true],
     ]);
   });
 
@@ -33,7 +36,7 @@ describe('createGitWatcher', () => {
     createGitWatcher(watch).ensure('p1', 'p1', dirs, emit);
     fire('/r/.git', 'index');
     vi.advanceTimersByTime(200);
-    fire('/r/.git/refs', 'heads/main');
+    fire(REFS, 'heads/main');
     vi.advanceTimersByTime(299);
     expect(emit).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
@@ -61,7 +64,7 @@ describe('createGitWatcher', () => {
     const emit = vi.fn();
     createGitWatcher(watch).ensure('p1', 'p1', dirs, emit);
     fire('/r/.git', 'index.lock');
-    fire('/r/.git/refs', 'heads/main.lock');
+    fire(REFS, 'heads/main.lock');
     vi.advanceTimersByTime(2_000);
     expect(emit).not.toHaveBeenCalled();
   });
@@ -80,7 +83,7 @@ describe('createGitWatcher', () => {
     expect(second).toHaveBeenCalledTimes(1);
     w.ensure('p1', 'p1', { gitDir: '/moved/.git', commonDir: '/moved/.git' }, second);
     expect(watchers.slice(0, 2).every((x) => x.stopped)).toBe(true);
-    expect(watchers.slice(2).map((x) => x.dir)).toEqual(['/moved/.git', '/moved/.git/refs']);
+    expect(watchers.slice(2).map((x) => x.dir)).toEqual(['/moved/.git', join('/moved/.git', 'refs')]);
   });
 
   it('retries next time when the gitdir cannot be watched, and still works without refs', () => {
@@ -92,7 +95,7 @@ describe('createGitWatcher', () => {
     w.ensure('p1', 'p1', dirs, vi.fn());
     w.ensure('p1', 'p1', dirs, vi.fn());
     // gitdir (failed), then gitdir + refs, then nothing new.
-    expect(vi.mocked(watch).mock.calls.map((c) => c[0])).toEqual(['/r/.git', '/r/.git', '/r/.git/refs']);
+    expect(vi.mocked(watch).mock.calls.map((c) => c[0])).toEqual(['/r/.git', '/r/.git', REFS]);
   });
 
   it('stops the watchers of a removed root and on dispose', () => {
@@ -105,7 +108,7 @@ describe('createGitWatcher', () => {
     w.forgetRoot('a');
     vi.advanceTimersByTime(1_000);
     expect(emit).not.toHaveBeenCalled();
-    expect(watchers.filter((x) => x.stopped).map((x) => x.dir)).toEqual(['/r/.git', '/r/.git/refs']);
+    expect(watchers.filter((x) => x.stopped).map((x) => x.dir)).toEqual(['/r/.git', REFS]);
     w.disposeAll();
     expect(watchers.every((x) => x.stopped)).toBe(true);
   });
