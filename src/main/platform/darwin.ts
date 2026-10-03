@@ -1,5 +1,5 @@
 import { notImplemented, type PlatformAdapter, type PlatformDeps } from './adapter';
-import { normalizePosixPath } from './paths';
+import { normalizeDarwinPath } from './paths';
 
 /** macOS stub until the v2 macOS phase. Only path comparison and window chrome are real. */
 export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
@@ -15,8 +15,8 @@ export function createDarwinAdapter(_deps: PlatformDeps): PlatformAdapter {
     openTerminal: async () => notImplemented('openTerminal'),
     openInEditor: async () => notImplemented('openInEditor'),
     resolveShellEnv: async () => notImplemented('resolveShellEnv'),
-    normalizePath: normalizePosixPath,
-    samePath: (a, b) => normalizePosixPath(a) === normalizePosixPath(b),
+    normalizePath: normalizeDarwinPath,
+    samePath: (a, b) => normalizeDarwinPath(a) === normalizeDarwinPath(b),
     windowChrome: () => ({ titleBarStyle: 'hiddenInset' }),
     notificationAppId: () => null,
     commandExists: async () => null,

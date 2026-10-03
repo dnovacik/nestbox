@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePosixPath, normalizeWin32Path } from './paths';
+import { normalizeDarwinPath, normalizePosixPath, normalizeWin32Path } from './paths';
 
 describe('normalizeWin32Path', () => {
   it('lower-cases and strips trailing separators', () => {
@@ -20,5 +20,20 @@ describe('normalizePosixPath', () => {
   it('keeps case and strips trailing slash', () => {
     expect(normalizePosixPath('/Users/Me/Shop/')).toBe('/Users/Me/Shop');
     expect(normalizePosixPath('/')).toBe('/');
+  });
+});
+
+describe('normalizeDarwinPath', () => {
+  it('compares case-insensitively, like a default APFS volume', () => {
+    expect(normalizeDarwinPath('/Users/Me/Shop/')).toBe('/users/me/shop');
+    expect(normalizeDarwinPath('/')).toBe('/');
+  });
+
+  it('treats composed and decomposed accents as the same name', () => {
+    expect(normalizeDarwinPath('/Users/me/Caf\u00e9')).toBe(normalizeDarwinPath('/Users/me/Cafe\u0301'));
+  });
+
+  it('resolves dot segments', () => {
+    expect(normalizeDarwinPath('/Users/me/x/../Shop')).toBe('/users/me/shop');
   });
 });

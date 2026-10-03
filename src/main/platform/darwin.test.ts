@@ -5,9 +5,9 @@ import { noopRunner } from './testing';
 describe('darwin stub', () => {
   const adapter = createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' });
 
-  it('compares paths case-sensitively', () => {
+  it('compares paths case-insensitively', () => {
     expect(adapter.samePath('/Users/me/Shop/', '/Users/me/Shop')).toBe(true);
-    expect(adapter.samePath('/Users/me/Shop', '/users/me/shop')).toBe(false);
+    expect(adapter.samePath('/Users/me/Shop', '/users/me/shop')).toBe(true);
   });
 
   it('needs no notification app id and cannot check commands', async () => {
