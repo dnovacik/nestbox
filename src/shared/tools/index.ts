@@ -7,6 +7,7 @@ import { gitContract, gitDefinition, gitEvents } from './git/contract';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
 import { scriptsContract, scriptsDefinition, scriptsEvents } from './scripts/contract';
 import { staticContract, staticDefinition, staticEvents } from './static/contract';
+import { todosContract, todosDefinition } from './todos/contract';
 
 /** Tool registry, shared half. Adding a tool = one line here, one in main/tools, one in renderer/tools. */
 export const toolContracts = {
@@ -17,6 +18,7 @@ export const toolContracts = {
   claude: claudeContract,
   git: gitContract,
   database: databaseContract,
+  todos: todosContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -27,6 +29,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   claudeDefinition as ToolDefinition<unknown>,
   gitDefinition as ToolDefinition<unknown>,
   databaseDefinition as ToolDefinition<unknown>,
+  todosDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -47,6 +50,7 @@ export const toolEvents = {
   claude: claudeEvents,
   git: gitEvents,
   database: databaseEvents,
+  todos: {},
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
