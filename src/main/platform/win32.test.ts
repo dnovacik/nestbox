@@ -389,6 +389,8 @@ describe('win32 listProcesses', () => {
       { pid: 4321, parentPid: 812, startTime: Date.parse('2026-10-01T10:00:00.123Z') },
     ]);
     expect(runner.execCalls).toEqual([{ file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] }]);
+    // A cold PowerShell on a loaded machine can take over 30 s.
+    expect(vi.mocked(runner.exec).mock.calls[0]?.[2]).toMatchObject({ timeoutMs: 60_000 });
   });
 
   it.each([
