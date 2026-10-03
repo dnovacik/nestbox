@@ -1,7 +1,7 @@
 # NestBox v2 (Database panel): Design Notes
 
 Date: 2026-10-03
-Status: Draft, waiting for approval
+Status: Approved 2026-10-03
 Source of truth: `docs/nestbox-spec.md`, "v2 tools", which describes this tool as: *Database panel: checks `DATABASE_URL` is reachable; one-click `prisma migrate status`, `migrate dev`, `generate`, Prisma Studio.* These notes build on the earlier design notes and don't restate them.
 
 ## Scope
