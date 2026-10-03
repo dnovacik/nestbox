@@ -37,9 +37,13 @@ jobs:
       - run: pnpm build
 
   e2e:
-    name: e2e (windows-latest)
-    runs-on: windows-latest
+    name: e2e (${{ matrix.os }})
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -54,13 +58,17 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.os }}
           path: test-results/
 
   package:
-    name: package (windows-latest)
-    runs-on: windows-latest
+    name: package (${{ matrix.os }})
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -70,17 +78,28 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      # An unpacked build (no installer): enough to prove the packaged app loads and answers IPC.
-      - run: pnpm exec electron-builder --win --dir --publish never
-      - name: Smoke test the packaged app
+      # An unpacked build (no installer or DMG): enough to prove the packaged app loads and answers IPC.
+      - if: runner.os == 'Windows'
+        run: pnpm exec electron-builder --win --dir --publish never
+      - if: runner.os == 'macOS'
+        run: pnpm exec electron-builder --mac --dir --arm64 --publish never
+      - name: Smoke test the packaged app (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $exe = Get-ChildItem release -Recurse -Filter NestBox.exe | Where-Object { $_.FullName -like '*win-unpacked*' } | Select-Object -First 1
           if (-not $exe) { throw 'NestBox.exe not found under release/' }
           $env:NESTBOX_PACKAGED_EXE = $exe.FullName
           pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
+      - name: Smoke test the packaged app (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          exe=$(find release -path '*mac-arm64/NestBox.app/Contents/MacOS/NestBox' -type f | head -1)
+          if [ -z "$exe" ]; then echo 'NestBox.app not found under release/'; exit 1; fi
+          NESTBOX_PACKAGED_EXE="$PWD/$exe" pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: packaged-traces
+          name: packaged-traces-${{ matrix.os }}
           path: test-results/
