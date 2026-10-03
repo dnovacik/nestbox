@@ -5,7 +5,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { copyFixture, launch } from './helpers';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
-const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database'];
+const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database', 'TODOs'];
 
 let app: ElectronApplication;
 let page: Page;
