@@ -55,6 +55,9 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
   const emitTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const lastEmit = new Map<string, number>();
   const live = new Set<string>();
+  /** By package id: bumped on every live change, so a run that outlasts one doesn't touch the new session. */
+  const sessions = new Map<string, number>();
+  const nextSession = (id: string) => sessions.set(id, (sessions.get(id) ?? 0) + 1);
 
   const packageOf = (project: DetectedProject): PackageSettings =>
     deps.readSettings(project.rootId).packages[project.relPath] ?? defaultPackage();
@@ -94,6 +97,7 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
     if (!project) return;
     const { checks } = packageOf(project);
     if (checks.length === 0) return;
+    const session = sessions.get(projectId) ?? 0;
     // Read only when an env check needs it, so URL checks start at once.
     let envRead: Promise<Map<string, string>> | null = null;
     const readOnce = () => (envRead ??= readEnv(project.path));
@@ -112,6 +116,15 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
     );
 
     const stored = results.get(projectId) ?? new Map<string, CheckResult>();
+    if ((sessions.get(projectId) ?? 0) !== session) {
+      // The script stopped or restarted meanwhile: keep the results, but neither notify nor remember them.
+      const idle = !live.has(projectId);
+      for (const [check, result] of outcomes)
+        stored.set(check.id, idle ? { ...result, state: 'idle' } : result);
+      results.set(projectId, stored);
+      changed(projectId);
+      return;
+    }
     const states = seen.get(projectId) ?? new Map<string, CheckResult['state']>();
     const { notify } = deps.readSettings(project.rootId);
     const env = envRead ? await envRead : new Map<string, string>();
@@ -166,6 +179,7 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
     for (const id of [...live]) {
       if (now.has(id)) continue;
       live.delete(id);
+      nextSession(id);
       scheduler.setLive(id, false);
       goIdle(id);
       changed(id);
@@ -173,6 +187,7 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
     for (const id of now) {
       if (live.has(id)) continue;
       live.add(id);
+      nextSession(id);
       scheduler.setLive(id, true);
       changed(id);
     }
@@ -189,7 +204,7 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
       live.delete(id);
       scheduler.setLive(id, false);
     }
-    for (const map of [results, seen, lastEmit])
+    for (const map of [results, seen, lastEmit, sessions])
       for (const id of [...map.keys()]) if (predicate(id)) map.delete(id);
     for (const [id, timer] of [...emitTimers]) {
       if (!predicate(id)) continue;

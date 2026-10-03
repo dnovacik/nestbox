@@ -226,6 +226,27 @@ describe('health tool: running checks', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
+  it("doesn't carry an ok from a check that finished after the script stopped", async () => {
+    const { check, notify, setRunning } = setup({
+      packages: {
+        '': { checks: [{ id: 'c1', kind: 'url', url: 'http://localhost:3000/' }], intervalSec: 30 },
+      },
+    });
+    let answer: (r: CheckResult) => void = () => undefined;
+    check
+      .mockImplementationOnce(() => new Promise<CheckResult>((resolve) => (answer = resolve)))
+      .mockResolvedValueOnce(result('fail'));
+    setRunning(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    setRunning(false);
+    answer(result('ok', 200));
+    await vi.advanceTimersByTimeAsync(0);
+    setRunning(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
   it('tells the renderer when results change, and never logs URLs', async () => {
     const { call, emit, logger, setRunning } = setup();
     await call('addCheck', { check: { kind: 'env', key: 'API_URL', path: '/' } });
