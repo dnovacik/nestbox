@@ -39,6 +39,15 @@ describe('spawnRunner.exec', () => {
     expect(stdout).toBe('C');
   });
 
+  it('resolves as soon as stdout says it is done, even while something still holds the pipe', async () => {
+    const started = Date.now();
+    // The grandchild inherits stdout and keeps it open for 5 s, like a profile's `daemon &`.
+    const script = "require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'inherit' }); process.stdout.write('ok END')";
+    const result = await spawnRunner.exec(node, ['-e', script], { doneWhen: (out) => out.includes('END') });
+    expect(result.stdout).toBe('ok END');
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
   it('gives up after the timeout with a null code', async () => {
     const started = Date.now();
     const result = await spawnRunner.exec(node, ['-e', 'setTimeout(() => {}, 5000)'], { timeoutMs: 200 });

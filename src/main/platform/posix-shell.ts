@@ -58,8 +58,14 @@ export function createShellEnv({ runner, shell, fallback, logger, now = Date.now
     // -i and -l load the same profile files a terminal does. Works in zsh, bash and fish alike.
     const script = `printf '%s' ${startMarker}; env -0; printf '%s' ${endMarker}`;
     try {
-      const { code, stdout } = await runner.exec(shell, ['-ilc', script], { timeoutMs: SHELL_TIMEOUT_MS, maxBytes: MAX_ENV_BYTES });
-      const env = code === 0 ? parseMarkedEnv(stdout, startMarker, endMarker) : null;
+      const { code, stdout } = await runner.exec(shell, ['-ilc', script], {
+        timeoutMs: SHELL_TIMEOUT_MS,
+        maxBytes: MAX_ENV_BYTES,
+        // A profile that starts a background job (`daemon &`) keeps stdout open: stop at the end marker.
+        doneWhen: (out) => out.includes(endMarker),
+      });
+      // Both markers mean env -0 ran to the end, whatever the exit code (null when we stopped reading early).
+      const env = parseMarkedEnv(stdout, startMarker, endMarker);
       if (env) return env;
       logger.warn('shell env unavailable', { code });
     } catch (error) {

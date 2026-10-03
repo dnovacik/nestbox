@@ -62,7 +62,15 @@ export interface CommandRunner {
   exec(
     file: string,
     args: readonly string[],
-    opts?: { timeoutMs?: number; maxBytes?: number; cwd?: string; env?: NodeJS.ProcessEnv; verbatim?: boolean },
+    opts?: {
+      timeoutMs?: number;
+      maxBytes?: number;
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      verbatim?: boolean;
+      /** Resolve as soon as stdout satisfies this (code: the exit code if known yet, else null). */
+      doneWhen?: (stdout: string) => boolean;
+    },
   ): Promise<ExecResult>;
   /** A long-running child with piped stdout/stderr, ignored stdin (unless opts.stdin) and a hidden window. */
   spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;

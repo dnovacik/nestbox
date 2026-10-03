@@ -28,7 +28,7 @@ describe('parseMarkedEnv', () => {
 });
 
 function fakeRunner(result: ExecResult | Error) {
-  const exec = vi.fn(async (_file: string, args: readonly string[]): Promise<ExecResult> => {
+  const exec = vi.fn(async (_file: string, args: readonly string[], _opts?: unknown): Promise<ExecResult> => {
     if (result instanceof Error) throw result;
     // Echo the markers the adapter chose, so the parser finds them.
     const [start = '', end = ''] = [...(args.at(-1) ?? '').matchAll(/printf '%s' (\S+)/g)].map((m) => m[1]?.replace(/;$/, ''));
@@ -49,6 +49,24 @@ describe('createShellEnv', () => {
     expect(exec.mock.calls[0]?.[0]).toBe('/bin/zsh');
     expect(exec.mock.calls[0]?.[1].slice(0, 1)).toEqual(['-ilc']);
     expect(JSON.stringify(logger.entries)).not.toContain('s3cr3t');
+  });
+
+  it('keeps a complete env even when the shell exit code is lost (a profile left a job holding stdout)', async () => {
+    const { runner } = fakeRunner({ code: null, stdout: '<M>PATH=/opt/homebrew/bin\0<M>' });
+    const logger = createMemoryLogger();
+    const env = createShellEnv({ runner, shell: '/bin/zsh', fallback: { PATH: '/usr/bin' }, logger });
+    expect(await env.get()).toEqual({ PATH: '/opt/homebrew/bin' });
+    expect(logger.entries).toEqual([]);
+  });
+
+  it('stops reading at the end marker', async () => {
+    const { exec, runner } = fakeRunner({ code: 0, stdout: '<M>A=1\0<M>' });
+    await createShellEnv({ runner, shell: '/bin/zsh', fallback: {}, logger: createMemoryLogger() }).get();
+    const opts = exec.mock.calls[0]?.[2] as { doneWhen?: (s: string) => boolean } | undefined;
+    const script = exec.mock.calls[0]?.[1].at(-1) ?? '';
+    const end = /printf '%s' (\S+)$/.exec(script)?.[1] ?? '';
+    expect(opts?.doneWhen?.(`x${end}`)).toBe(true);
+    expect(opts?.doneWhen?.('x')).toBe(false);
   });
 
   it('reads the shell again after 5 minutes', async () => {

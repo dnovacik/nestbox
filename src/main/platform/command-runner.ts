@@ -47,6 +47,11 @@ export const spawnRunner: CommandRunner = {
       child.stdout?.on('data', (chunk: string) => {
         const cap = opts.maxBytes ?? STDOUT_CAP;
         if (stdout.length < cap) stdout = (stdout + chunk).slice(0, cap);
+        // Something the program left running may hold stdout open long after the output we need.
+        if (opts.doneWhen?.(stdout)) {
+          finish(() => resolve({ code: child.exitCode, stdout }));
+          child.stdout?.destroy();
+        }
       });
       child.once('error', (error) => finish(() => reject(error)));
       child.once('close', (code) => finish(() => resolve({ code, stdout })));
