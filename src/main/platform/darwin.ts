@@ -8,7 +8,7 @@ import type { Logger } from '../logger';
 import type { PlatformAdapter, PlatformDeps } from './adapter';
 import { parseLsof } from './darwin-ports';
 import { parsePsCommands, parsePsList } from './darwin-ps';
-import { assertTerminalCommand, chooseTerminal, commandFileScript, openArgs } from './darwin-terminal';
+import { assertTerminalCommand, chooseTerminal, commandFileScript, loginShell, openArgs } from './darwin-terminal';
 import { normalizeDarwinPath } from './paths';
 import { killProcessTree } from './posix-kill';
 import { createShellEnv, findOnPath, type ShellEnv } from './posix-shell';
@@ -62,7 +62,7 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
   const now = extras.now ?? Date.now;
   const shellEnv =
     extras.shellEnv ??
-    createShellEnv({ runner: deps.runner, shell: process.env['SHELL'] || '/bin/zsh', fallback: process.env, logger, now });
+    createShellEnv({ runner: deps.runner, shell: loginShell(process.env['SHELL']), fallback: process.env, logger, now });
   // ps output is parsed: keep it in the C locale whatever the user's language is.
   const cLocale = () => ({ ...process.env, LC_ALL: 'C' });
 
@@ -203,7 +203,12 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
         const file = commandFile;
         setTimeout(() => void rm(file, { force: true }).catch(() => undefined), COMMAND_FILE_TTL_MS).unref();
       }
-      const args = openArgs(app, { cwd, ...(command === undefined ? {} : { command }), ...(commandFile ? { commandFile } : {}) });
+      const args = openArgs(app, {
+        cwd,
+        shell: loginShell(process.env['SHELL']),
+        ...(command === undefined ? {} : { command }),
+        ...(commandFile ? { commandFile } : {}),
+      });
       if (!(await open(args))) throw new NestboxError('INTERNAL', 'Could not open a terminal');
     },
 

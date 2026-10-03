@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertTerminalCommand, chooseTerminal, commandFileScript, openArgs, shellQuote } from './darwin-terminal';
+import { assertTerminalCommand, chooseTerminal, commandFileScript, loginShell, openArgs, shellQuote } from './darwin-terminal';
 
 describe('chooseTerminal', () => {
   it('prefers iTerm2 on auto when it is installed', () => {
@@ -43,6 +43,14 @@ describe('assertTerminalCommand', () => {
   });
 });
 
+describe('loginShell', () => {
+  it('uses $SHELL when it is an absolute path, else zsh', () => {
+    expect(loginShell('/opt/homebrew/bin/fish')).toBe('/opt/homebrew/bin/fish');
+    expect(loginShell(undefined)).toBe('/bin/zsh');
+    expect(loginShell('zsh; rm -rf ~')).toBe('/bin/zsh');
+  });
+});
+
 describe('openArgs', () => {
   it('opens a folder in Terminal or iTerm', () => {
     expect(openArgs('terminal', { cwd: '/Users/me/shop' })).toEqual(['-a', 'Terminal', '/Users/me/shop']);
@@ -55,14 +63,16 @@ describe('openArgs', () => {
 
   it('gives Ghostty the folder and the command words as arguments', () => {
     expect(openArgs('ghostty', { cwd: '/Users/me/shop' })).toEqual(['-na', 'Ghostty', '--args', '--working-directory=/Users/me/shop']);
-    expect(openArgs('ghostty', { cwd: '/x', command: 'claude --continue' })).toEqual([
+    // Through the login shell, so the profile's PATH finds claude, then a shell stays open.
+    expect(openArgs('ghostty', { cwd: '/x', command: 'claude --continue', shell: '/bin/zsh' })).toEqual([
       '-na',
       'Ghostty',
       '--args',
       '--working-directory=/x',
       '-e',
-      'claude',
-      '--continue',
+      '/bin/zsh',
+      '-lic',
+      "claude --continue; exec '/bin/zsh' -l",
     ]);
   });
 });

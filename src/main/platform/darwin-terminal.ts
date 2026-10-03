@@ -30,11 +30,19 @@ export function commandFileScript(cwd: string, command: string): string {
   return ['#!/bin/sh', 'rm -f "$0"', `cd ${shellQuote(cwd)} || exit 1`, command, 'exec "${SHELL:-/bin/zsh}" -l', ''].join('\n');
 }
 
+/** The user's login shell for commands Ghostty runs: $SHELL when it is a plain absolute path, else zsh. */
+export function loginShell(shell: string | undefined): string {
+  return shell !== undefined && /^\/[A-Za-z0-9_./+-]+$/.test(shell) ? shell : '/bin/zsh';
+}
+
 /** Arguments for /usr/bin/open. */
-export function openArgs(app: MacTerminal, target: { cwd: string; command?: string; commandFile?: string }): string[] {
+export function openArgs(app: MacTerminal, target: { cwd: string; command?: string; commandFile?: string; shell?: string }): string[] {
   if (app === 'ghostty') {
     const args = ['-na', 'Ghostty', '--args', `--working-directory=${target.cwd}`];
-    return target.command === undefined ? args : [...args, '-e', ...target.command.split(' ').filter(Boolean)];
+    if (target.command === undefined) return args;
+    // Through the login shell, so the profile's PATH applies (as with a .command file), then a shell stays open.
+    const shell = loginShell(target.shell);
+    return [...args, '-e', shell, '-lic', `${target.command}; exec ${shellQuote(shell)} -l`];
   }
   return ['-a', APP_NAMES[app], target.commandFile ?? target.cwd];
 }

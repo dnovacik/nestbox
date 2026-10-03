@@ -168,7 +168,9 @@ describe('darwin adapter: terminals', () => {
     const { adapter, runner, written } = setup({ terminal: 'ghostty' });
     await adapter.openTerminal('/x', 'claude');
     expect(written).toEqual([]);
-    expect(runner.exec).toHaveBeenCalledWith('/usr/bin/open', ['-na', 'Ghostty', '--args', '--working-directory=/x', '-e', 'claude'], expect.anything());
+    const args = runner.exec.mock.calls[0]?.[1] ?? [];
+    expect(args.slice(0, 5)).toEqual(['-na', 'Ghostty', '--args', '--working-directory=/x', '-e']);
+    expect(args.slice(6)).toEqual(['-lic', expect.stringMatching(/^claude; exec '\/.+' -l$/)]);
   });
 
   it('refuses commands that are not plain words, and reports a terminal that would not open', async () => {
