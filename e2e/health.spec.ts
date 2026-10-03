@@ -52,6 +52,8 @@ test('checks the suggested URL while the script runs', async () => {
   await page.getByRole('tab', { name: 'Health' }).click();
   const panel = page.getByRole('region', { name: 'Health' });
   await expect(panel.getByText('Running')).toBeVisible();
+  // The first check runs 2 s after the start, which can be before a slow start listens; the next is 30 s away.
+  await panel.getByRole('button', { name: 'Check now' }).click();
   const row = panel.getByRole('list', { name: 'Checks' }).getByRole('listitem');
   await expect(row.getByTitle('Healthy')).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText('200');
