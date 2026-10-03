@@ -41,14 +41,13 @@ export async function checkReachable(target: DbTarget, opts: ReachOptions = {}):
   const { host, port } = target;
   return new Promise<Reach>((resolve) => {
     let done = false;
-    let socket: SocketLike;
+    const socket = connect(port, host);
     const finish = (reach: Reach) => {
       if (done) return;
       done = true;
       socket.destroy();
       resolve(reach);
     };
-    socket = connect(port, host);
     socket.setTimeout(timeoutMs, () => finish({ result: 'timeout', reason: `No answer within ${timeoutMs / 1000} s` }));
     socket.once('connect', () => finish({ result: 'reachable', reason: null }));
     socket.once('error', (error) => {
