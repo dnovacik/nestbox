@@ -72,6 +72,8 @@ if (!app.requestSingleInstanceLock()) {
     const platform = createPlatformAdapter({
       runner: spawnRunner,
       getEditorCommand: () => store.getSettings().editorCommand,
+      getTerminalApp: () => store.getSettings().terminalApp,
+      logger,
     });
     /** False until the renderer has loaded, and again after its process died (until the reload finishes). */
     let rendererReady = false;

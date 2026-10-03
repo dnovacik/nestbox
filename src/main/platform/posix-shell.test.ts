@@ -51,6 +51,19 @@ describe('createShellEnv', () => {
     expect(JSON.stringify(logger.entries)).not.toContain('s3cr3t');
   });
 
+  it('reads the shell again after 5 minutes', async () => {
+    const { exec, runner } = fakeRunner({ code: 0, stdout: '<M>PATH=/usr/bin\0<M>' });
+    let t = 0;
+    const env = createShellEnv({ runner, shell: '/bin/zsh', fallback: {}, logger: createMemoryLogger(), now: () => t });
+    await env.get();
+    t = 299_000;
+    await env.get();
+    expect(exec).toHaveBeenCalledTimes(1);
+    t = 300_000;
+    await env.get();
+    expect(exec).toHaveBeenCalledTimes(2);
+  });
+
   it('falls back to the given env when the shell fails, and logs no values', async () => {
     const { runner } = fakeRunner({ code: 1, stdout: 'oops' });
     const logger = createMemoryLogger();

@@ -9,6 +9,8 @@ import type { Logger } from '../logger';
 import type { CommandRunner } from './adapter';
 
 const SHELL_TIMEOUT_MS = 10_000;
+/** Re-read after this long, so a tool installed while NestBox runs is found without a restart. */
+const SHELL_ENV_TTL_MS = 5 * 60_000;
 const MAX_ENV_BYTES = 1024 * 1024;
 
 /**
@@ -30,7 +32,7 @@ export function parseMarkedEnv(stdout: string, startMarker: string, endMarker: s
 }
 
 export interface ShellEnv {
-  /** The login shell's environment, resolved once (concurrent calls share the run). */
+  /** The login shell's environment, cached for 5 minutes (concurrent calls share one run). */
   get(): Promise<NodeJS.ProcessEnv>;
   /** Forget the cached result, so the next get() runs the shell again. */
   clear(): void;
@@ -43,10 +45,11 @@ export interface ShellEnvDeps {
   /** Used when the shell fails: the app's own environment. */
   fallback: NodeJS.ProcessEnv;
   logger: Logger;
+  now?: () => number;
 }
 
-export function createShellEnv({ runner, shell, fallback, logger }: ShellEnvDeps): ShellEnv {
-  let cached: Promise<NodeJS.ProcessEnv> | null = null;
+export function createShellEnv({ runner, shell, fallback, logger, now = Date.now }: ShellEnvDeps): ShellEnv {
+  let cached: { at: number; env: Promise<NodeJS.ProcessEnv> } | null = null;
 
   async function resolve(): Promise<NodeJS.ProcessEnv> {
     const id = randomUUID().replace(/-/g, '');
@@ -66,8 +69,9 @@ export function createShellEnv({ runner, shell, fallback, logger }: ShellEnvDeps
 
   return {
     get() {
-      cached ??= resolve();
-      return cached;
+      const t = now();
+      if (!cached || t - cached.at >= SHELL_ENV_TTL_MS) cached = { at: t, env: resolve() };
+      return cached.env;
     },
     clear() {
       cached = null;

@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { NestboxError } from '@shared/errors';
 import type { PlatformId } from '@shared/types';
+import type { Logger } from '../logger';
 
 /** A listening TCP port and the process that owns it (one entry per port and PID, all addresses merged). */
 export interface PortEntry {
@@ -70,6 +71,10 @@ export interface CommandRunner {
 export interface PlatformDeps {
   runner: CommandRunner;
   getEditorCommand(): string;
+  /** The terminal setting (TERMINAL_APPS); 'auto' when absent. */
+  getTerminalApp?(): string;
+  /** For failures without values (the macOS shell env). Silent when absent. */
+  logger?: Logger;
 }
 
 export interface PlatformAdapter {
