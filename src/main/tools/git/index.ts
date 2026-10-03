@@ -1,8 +1,9 @@
 import { stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, win32 } from 'node:path';
+import { join } from 'node:path';
 import { NestboxError } from '@shared/errors';
 import { gitContract, gitDefinition, type GitStatus } from '@shared/tools/git/contract';
 import { resolveGitDirs } from '../../detection/git-head';
+import { resolveInside } from '../../fs/inside';
 import type { Logger } from '../../logger';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { parseCommit } from './commit';
@@ -32,20 +33,6 @@ async function mtimeOrNull(path: string): Promise<number | null> {
 
 async function exists(path: string): Promise<boolean> {
   return (await mtimeOrNull(path)) !== null;
-}
-
-/** A path as git status printed it, resolved inside the repository; VALIDATION for anything else. */
-function insideRepo(repo: string, path: string): string {
-  const segments = path.split(/[\\/]/);
-  if (isAbsolute(path) || win32.isAbsolute(path) || segments.includes('..')) {
-    throw new NestboxError('VALIDATION', 'The path must be inside the repository');
-  }
-  const abs = resolve(repo, path);
-  const rel = relative(repo, abs);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
-    throw new NestboxError('VALIDATION', 'The path must be inside the repository');
-  }
-  return abs;
 }
 
 export function createGitTool(deps: GitToolDeps): AnyMainTool {
@@ -107,7 +94,7 @@ export function createGitTool(deps: GitToolDeps): AnyMainTool {
       },
 
       async openFile(ctx, { path }) {
-        const abs = insideRepo(ctx.project.path, path);
+        const abs = resolveInside(ctx.project.path, path);
         const st = await stat(abs).catch(() => null);
         if (!st?.isFile()) throw new NestboxError('NOT_FOUND', 'That file no longer exists');
         await ctx.platform.openInEditor(abs);

@@ -192,6 +192,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       git: { watch: watchDir, logger },
       database: { envFiles, checkReachable, firstFreePort, logger },
+      todos: { logger },
     });
     const toolHost = createToolHost({
       tools,

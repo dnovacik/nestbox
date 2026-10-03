@@ -11,6 +11,9 @@ importers:
       electron-store:
         specifier: 11.0.2
         version: 11.0.2
+      ignore:
+        specifier: 5.3.2
+        version: 5.3.2
       selfsigned:
         specifier: 5.5.0
         version: 5.5.0
