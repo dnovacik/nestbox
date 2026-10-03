@@ -34,7 +34,7 @@ The first v2 tool. It ships alone as **v1.2.0**, from the branch `v2-git-glance`
 | 1 | Which projects | `appliesTo: (p) => p.git !== null`. Detection already sets `git` only for a folder that has its own `.git` (a directory, or a file pointing to a worktree's gitdir). Workspace packages have `git: null`, so the tool appears on the root project only. A project folder that sits *inside* a repository, without its own `.git`, gets no Git tab. That case is rare for the roots NestBox adds and can come later. |
 | 2 | Git calls | Two calls per refresh, both through `ctx.platform.execCommand` (cmd.exe on Windows, the login-shell `PATH` on macOS): `git --no-optional-locks status --porcelain=v2 --branch -z --untracked-files=normal`, then `git --no-optional-locks cat-file commit HEAD` (skipped when the branch has no commits yet). No argument contains `%` or `"`, so everything passes `cmdInvocation` unchanged; `--format=%…` strings are avoided because cmd.exe could expand them. `--no-optional-locks` keeps git from rewriting the index, so a status run never triggers the `.git` watch (D5) or contends with the user's own git. |
 | 3 | Parsing status | A pure `parseStatus(stdout, truncated)` reads porcelain v2: the `# branch.oid`, `# branch.head`, `# branch.upstream` and `# branch.ab +A -B` headers, and the `1`, `2` (rename or copy, followed by a NUL and the original path), `u` (unmerged) and `?` records. Counts: staged (X ≠ `.`), unstaged (Y ≠ `.`), untracked and conflicted; `total` counts each path once. Paths may contain spaces: the path is everything after the record's fixed fields. |
-| 4 | Large repositories | `execCommand` gains an optional `maxBytes` (both adapters pass it to the runner). Status runs with a 2 MiB cap and a 10 s timeout. When the output fills the cap, the last, possibly cut, record is dropped and `truncated: true` is returned: the card shows "2 000+ changes". The panel lists at most 500 files, plus a "and N more" line. |
+| 4 | Large repositories | `execCommand` gains an optional `maxBytes` (both adapters pass it to the runner). Status runs with a 2 MiB cap and a 10 s timeout. When the output fills the cap, the last, possibly cut, record is dropped and `truncated: true` is returned: the card shows "2 000+ changes". The panel lists at most 500 file rows, then says "Only the first 500 files are listed." |
 | 5 | Watching `.git` | Started by the first `status` call (the tool host never calls `activate`, as for env). It watches the gitdir (not recursively) and `<commondir>/refs` (recursively), which covers HEAD, index, packed-refs, FETCH_HEAD, MERGE_HEAD, branch and remote refs. `*.lock` file names are ignored. Events are coalesced: one `changed` event (no payload) at most every 1 s, sent 300 ms after the last change. The gitdir and commondir come from `resolveGitDirs(dir)`, which is split out of detection's `git-head.ts` (it follows the `gitdir:` pointer and the `commondir` file of a linked worktree). The watcher stops in `dispose` and `forgetProject`, and restarts when the project's path changes. A folder that can't be watched retries on the next `status` call. |
 | 6 | Focus refresh | Electron doesn't change `visibilityState` when another app takes focus, so TanStack's focus refetch wouldn't fire (and it is off app-wide). Instead, the renderer hook listens for `window` `focus` and invalidates the git status queries. Combined with D5, this catches working-tree edits made in an editor without watching the whole tree. The panel also has a Refresh button. |
 | 7 | Ahead/behind and the last fetch | Taken from `# branch.ab` against the configured upstream, with no network access. `lastFetchAt` is the mtime of `<commondir>/FETCH_HEAD` (null if git has never fetched); the card says "as of fetch 3 h ago". No upstream shows "No upstream". A detached HEAD shows "Detached at abc1234". |
@@ -49,8 +49,14 @@ The first v2 tool. It ships alone as **v1.2.0**, from the branch `v2-git-glance`
 ## Contract (sketch)
 
 ```ts
-const ChangeKind = z.enum(['conflicted', 'staged', 'modified', 'staged-modified', 'untracked', 'deleted']);
-const GitFile = z.object({ path: z.string(), origPath: z.string().nullable(), kind: ChangeKind, exists: z.boolean() });
+// One row per group: a path changed in both the index and the tree has a 'staged' and a 'changes' row.
+const GitFile = z.object({
+  path: z.string(),
+  origPath: z.string().nullable(),
+  group: z.enum(['conflicts', 'staged', 'changes', 'untracked']),
+  status: z.string().length(1), // M, A, D, R, C, T, U or ?
+  exists: z.boolean(),
+});
 const GitStatus = z.discriminatedUnion('state', [
   z.object({
     state: z.literal('ok'),

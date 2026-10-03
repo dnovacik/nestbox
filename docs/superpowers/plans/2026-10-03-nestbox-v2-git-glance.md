@@ -85,7 +85,7 @@ Tests check the schemas: the discriminated union, and that `files` is limited to
 
 ### Task 11: Panel (D13)
 **Files:** `renderer/tools/git/Panel.tsx` (+ test), `index.ts`, `tools/registry.ts`, `tools/icons.ts` (`git-branch`).
-- The header plus the grouped lists, the Open buttons (none for deleted files), Refresh, and "and N more".
+- The header plus the grouped lists, the Open buttons (none for deleted files), Refresh, and "Only the first 500 files are listed." past the cap.
 
 ## Part C: Ship
 
