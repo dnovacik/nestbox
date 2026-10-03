@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
 import type { EventChannel } from '@shared/ipc-names';
+import { healthDefinition } from '@shared/tools/health/contract';
 import { brandAsset } from './assets';
 import { detectProject } from './detection/detect-project';
 import { isDirectory } from './detection/fs-utils';
@@ -33,6 +34,7 @@ import { watchDir } from './fs/watch-dir';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
 import { firstFreePort, lanAddresses } from './tools/static/net';
 import { checkReachable } from './tools/database/reach';
+import { checkUrl } from './tools/health/check';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
@@ -120,6 +122,7 @@ if (!app.requestSingleInstanceLock()) {
 
     const ports = new PortService({ platform, processes, ownPid: process.pid, now: Date.now, logger });
 
+    const assetEnv = { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath };
     const shared = createSharedContext();
     const envFiles = createEnvFileAccess();
     const tools = createMainTools({
@@ -193,6 +196,33 @@ if (!app.requestSingleInstanceLock()) {
       git: { watch: watchDir, logger },
       database: { envFiles, checkReachable, firstFreePort, logger },
       todos: { logger },
+      health: {
+        processes,
+        getDetected: (id) => {
+          try {
+            return projects.getDetected(id);
+          } catch {
+            return null;
+          }
+        },
+        readSettings: (rootId) => {
+          const parsed = healthDefinition.settingsSchema.safeParse(projects.getToolSettings(rootId, 'health') ?? {});
+          return parsed.success ? parsed.data : healthDefinition.settingsSchema.parse({});
+        },
+        envFiles,
+        check: checkUrl,
+        emit: (projectId, event) => emit('tools:event', { toolId: 'health', projectId, event, payload: undefined }),
+        notify: ({ projectId, title, body }) => {
+          if (!Notification.isSupported()) return;
+          const notification = new Notification({ title, body, icon: brandAsset(assetEnv, 'png/app-icon-64.png') });
+          notification.on('click', () => {
+            showWindow();
+            emit('app:navigate', { projectId, tab: 'health' });
+          });
+          notification.show();
+        },
+        logger,
+      },
     });
     const toolHost = createToolHost({
       tools,
@@ -206,7 +236,6 @@ if (!app.requestSingleInstanceLock()) {
         set: (rootId, toolId, value) => projects.setToolSettings(rootId, toolId, value),
       },
     });
-    const assetEnv = { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath };
 
     /** "shop" for a root, "shop · api" for a workspace package. Names only, never paths. */
     const projectLabel = (projectId: string): string | null => {
