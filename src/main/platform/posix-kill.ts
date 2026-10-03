@@ -32,6 +32,8 @@ export async function killProcessTree(
   deps: KillDeps,
   { graceMs = 3_000, pollMs = 100 }: { graceMs?: number; pollMs?: number } = {},
 ): Promise<void> {
+  // kill(-1) signals every process the user may signal, and kill(0) the caller's own group: never PIDs 0 or 1.
+  if (!Number.isInteger(pid) || pid <= 1) throw new NestboxError('VALIDATION', 'Invalid process id');
   const descendants = descendantsOf(pid, (await deps.list()) ?? []);
 
   const isAlive = (target: number) => {
@@ -57,6 +59,7 @@ export async function killProcessTree(
     try {
       deps.kill(-pid, signal);
     } catch (error) {
+      if (codeOf(error) === 'EPERM') throw new NestboxError('FORBIDDEN', 'This process belongs to another user');
       if (codeOf(error) !== 'ESRCH') throw error;
       viaGroup = false;
     }

@@ -70,6 +70,17 @@ describe('killProcessTree', () => {
     await expect(killProcessTree(999, t.deps)).resolves.toBeUndefined();
   });
 
+  it.each([0, 1, -5, 1.5])('refuses PID %s: kill(-1) would signal every process the user owns', async (pid) => {
+    const t = table([{ pid: 1, ppid: 0, pgid: 1 }]);
+    await expect(killProcessTree(pid, t.deps)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(t.signals).toEqual([]);
+  });
+
+  it('maps EPERM on the group to FORBIDDEN', async () => {
+    const t = table([{ pid: 500, ppid: 1, pgid: 500 }], { eperm: [500] });
+    await expect(killProcessTree(500, t.deps)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('is FORBIDDEN for a process of another user', async () => {
     const t = table([{ pid: 400, ppid: 1, pgid: 1 }], { eperm: [400] });
     await expect(killProcessTree(400, t.deps)).rejects.toMatchObject({ code: 'FORBIDDEN' });

@@ -65,6 +65,8 @@ describe('darwin adapter: ports and processes', () => {
       ]),
     );
     expect(runner.exec.mock.calls[0]?.[1]).toEqual(['-ww', '-o', 'pid=,command=', '-p', '412,999']);
+    // launchd can own a port: describing it is fine (only killing PID 1 is refused).
+    await expect(adapter.describeProcesses([1])).resolves.toBeInstanceOf(Map);
     await expect(adapter.describeProcesses([-1])).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
@@ -81,6 +83,9 @@ describe('darwin adapter: ports and processes', () => {
     await adapter.killTree(500);
     expect(signals).toEqual(['SIGTERM -500']);
     await expect(adapter.killTree(0)).rejects.toMatchObject({ code: 'VALIDATION' });
+    // launchd: killTree(1) would be kill(-1), every process of the user.
+    await expect(adapter.killTree(1)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(signals).toEqual(['SIGTERM -500']);
   });
 });
 
