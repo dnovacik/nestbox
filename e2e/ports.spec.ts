@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { addProjectAndOpenScripts, copyFixture, launch } from './helpers';
 
-// Port listing and spawning scripts are Windows-only until the v2 macOS phase.
-test.skip(platform() !== 'win32', 'Windows only');
+// Ports are listed with netstat on Windows and lsof on macOS; Linux (a dev sandbox) has neither wired up.
+test.skip(platform() === 'linux', 'Windows and macOS only');
 
 let app: ElectronApplication;
 let page: Page;
@@ -30,7 +30,7 @@ test('lists a script port with its owner and frees it by stopping the script', a
   await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Ports' }).click();
   const table = page.getByRole('table', { name: 'Listening ports' });
   const row = table.getByRole('row').filter({ has: page.getByRole('cell', { name: String(port), exact: true }) });
-  // The owner needs the process tree (PowerShell), which can be slow on a cold runner.
+  // The owner needs the process tree (PowerShell on Windows), which can be slow on a cold runner.
   await expect(row.getByRole('button', { name: 'nestbox-e2e-app · web' })).toBeVisible({ timeout: 60_000 });
 
   // A NestBox port: no confirm, the script is stopped.
