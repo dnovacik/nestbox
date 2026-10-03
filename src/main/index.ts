@@ -29,6 +29,7 @@ import { createMainTools } from './tools';
 import { createClaudeCli } from './tools/claude/cli';
 import { createClaudeDocs } from './tools/claude/docs';
 import { createEnvFileAccess } from './tools/env/env-files';
+import { watchDir } from './fs/watch-dir';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
 import { lanAddresses } from './tools/static/net';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
@@ -188,6 +189,7 @@ if (!app.requestSingleInstanceLock()) {
         runGroups: { get: (rootId) => projects.getRunGroups(rootId) },
         logger,
       },
+      git: { watch: watchDir, logger },
     });
     const toolHost = createToolHost({
       tools,

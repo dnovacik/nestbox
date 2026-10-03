@@ -20,6 +20,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 | **Env** | A matrix of keys across `.env`, `.env.example` and profiles (`.env.staging`, …): what is missing, empty or undocumented. Values stay masked until revealed. Edits keep comments and formatting, and profiles switch with a backup. |
 | **Static** | Serves the build output with SPA fallback, CORS, no-cache and simulated latency. It can share on the LAN with a QR code, and HTTPS uses a self-signed certificate. Dotfiles are never served. |
 | **Claude Code** | Shows whether the CLI is installed, previews and edits `CLAUDE.md`/`CLAUDE.local.md`, and lists commands, agents, skills, settings and MCP servers. It runs a quick `claude -p` prompt, and it writes a generated project-context block into `CLAUDE.md` after showing a diff. |
+| **Git** | A read-only glance on the overview: branch (or detached commit), a merge or rebase in progress, uncommitted changes, ahead/behind the upstream as of the last fetch, and the last commit. The Git tab lists the changed files and opens them in the editor. NestBox never fetches or writes. |
 | **Command palette** | `Ctrl+K`: jump to a project or tool, run or stop any script, start run groups, open Claude in a terminal. |
 
 <table>
@@ -136,7 +137,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
 
-v2 started with the macOS build (v1.1.0, preview), and adds one tool per release next: database panel, git glance, TODO scanner, health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+v2 started with the macOS build (v1.1.0, preview) and git glance (v1.2.0), and adds one tool per release next: database panel, TODO scanner, health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
 
 ## License
 

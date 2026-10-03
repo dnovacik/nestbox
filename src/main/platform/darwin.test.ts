@@ -113,6 +113,12 @@ describe('darwin adapter: running things', () => {
     expect(opts).toMatchObject({ cwd: '/a', timeoutMs: 5_000, env: { SHELL_ONLY: '1' } });
   });
 
+  it('passes an output cap to the runner', async () => {
+    const { adapter, runner } = setup();
+    await adapter.execCommand('git', ['status'], { cwd: '/a', timeoutMs: 5_000, maxBytes: 2_000_000 });
+    expect(runner.exec.mock.calls[0]?.[2]).toMatchObject({ maxBytes: 2_000_000 });
+  });
+
   it('uses the login shell env for scripts and an inset title bar', async () => {
     const { adapter } = setup();
     expect(await adapter.resolveShellEnv()).toMatchObject({ SHELL_ONLY: '1' });

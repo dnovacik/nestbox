@@ -37,6 +37,31 @@ export interface VersionedFiles {
 const versionOf = (s: { ino: bigint; mtimeNs: bigint; size: bigint }) =>
   `${s.ino}:${s.mtimeNs}:${s.size}`;
 
+/** Windows refuses a rename while another handle (an antivirus scan, an editor, an indexer) has the file open. */
+const BUSY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY']);
+/** 20 ms doubling: about 1.3 s in all before the error is reported. */
+const RENAME_DELAYS_MS = [20, 40, 80, 160, 320, 640];
+
+/** rename, retried briefly while the target or the temp file is held open. Other errors fail at once. */
+export async function renameWithRetry(
+  from: string,
+  to: string,
+  io: { rename: (from: string, to: string) => Promise<void>; sleep: (ms: number) => Promise<void> } = {
+    rename,
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  },
+): Promise<void> {
+  for (const delay of RENAME_DELAYS_MS) {
+    try {
+      return await io.rename(from, to);
+    } catch (error) {
+      if (!BUSY_CODES.has(String((error as NodeJS.ErrnoException).code))) throw error;
+      await io.sleep(delay);
+    }
+  }
+  return io.rename(from, to);
+}
+
 export function createVersionedFiles({
   allowName,
   maxBytes,
@@ -95,7 +120,7 @@ export function createVersionedFiles({
       const temp = join(dir, `.nestbox-${randomUUID()}.tmp`);
       try {
         await writeFile(temp, text, 'utf8');
-        await rename(temp, path);
+        await renameWithRetry(temp, path);
       } catch {
         await rm(temp, { force: true }).catch(() => undefined);
         throw new NestboxError('INTERNAL', `Could not write the ${noun}`);

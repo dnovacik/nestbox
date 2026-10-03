@@ -18,6 +18,15 @@
     - smaller robustness fixes.
   - Not verifiable in CI, so it needs a real Mac before "preview" is dropped from the README: the terminal routes (iTerm and Terminal running a `.command` file; Ghostty `-e`), the VS Code URL, the menu-bar icon and the first-launch Gatekeeper steps.
   - Release after merging: run the release workflow on `main` (or push tag `v1.1.0` from a machine), then publish the draft. It holds the installer and both DMGs.
+- v1.1.0 (macOS preview) is released: PRs #5–#7 merged, the draft published by the owner.
+- Git glance (the first v2 tool): branch `v2-git-glance`, draft PR #8, version 1.2.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-git-glance-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-git-glance.md`.
+  - Owner's answers: never fetch; refresh on `.git` changes and on window focus.
+  - Release after merging: run the release workflow on `main`, then the owner publishes the draft.
+  - Follow-ups:
+    - **Windows current-folder lookup.** `spawnCommand` (`claude -p`) still lets cmd.exe find a program in the project folder. `execCommand` now sets `NoDefaultCurrentDirectoryInExePath`, but `spawnCommand` passes its env on to Claude's own commands, so it needs a resolved absolute path instead (`where` from NestBox's own folder, cached).
+    - **Project header branch.** The header's branch comes from detection and only updates on a project refresh. The git tool's `changed` event could also refresh detection.
+- Next v2 tools, smallest first: database panel, TODO scanner, health checks, Docker Compose, mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
