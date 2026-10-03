@@ -102,8 +102,27 @@ describe('database tool: status', () => {
   });
 });
 
+const PRISMA_INSTALLED = { 'node_modules/prisma/package.json': '{"name":"prisma"}' };
+
 describe('database tool: commands', () => {
-  beforeEach(async () => files({ 'prisma/schema.prisma': SCHEMA, '.env': `DATABASE_URL=${URL}\n` }));
+  beforeEach(async () => files({ 'prisma/schema.prisma': SCHEMA, '.env': `DATABASE_URL=${URL}\n`, ...PRISMA_INSTALLED }));
+
+  it('says Prisma is not installed instead of running it', async () => {
+    await rm(join(root, 'node_modules'), { recursive: true });
+    const { call, platform } = setup();
+    await expect(call('run', { command: 'generate' })).rejects.toMatchObject({ code: 'NOT_FOUND', message: "Prisma isn't installed in this package" });
+    await expect(call('startStudio')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(call('migrateDev')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(platform.spawnCommand).not.toHaveBeenCalled();
+  });
+
+  it('finds Prisma installed in a parent folder (a workspace root)', async () => {
+    await rm(join(root, 'node_modules'), { recursive: true });
+    await files({ 'packages/api/prisma/schema.prisma': SCHEMA, ...PRISMA_INSTALLED });
+    const { call, platform } = setup({ prismaSchema: 'prisma/schema.prisma', packageManager: 'pnpm', path: join(root, 'packages', 'api') });
+    await call('run', { command: 'generate' });
+    expect(platform.spawnCommand).toHaveBeenCalled();
+  });
 
   it('runs migrate status through the package manager with the schema, one at a time, into the log', async () => {
     const { call, platform, spawned } = setup();
@@ -174,7 +193,23 @@ describe('database tool: commands', () => {
 });
 
 describe('database tool: test login', () => {
-  beforeEach(async () => files({ 'prisma/schema.prisma': SCHEMA, '.env': `DATABASE_URL=${URL}\n` }));
+  beforeEach(async () => files({ 'prisma/schema.prisma': SCHEMA, '.env': `DATABASE_URL=${URL}\n`, ...PRISMA_INSTALLED }));
+
+  it('says Prisma is not installed', async () => {
+    await rm(join(root, 'node_modules'), { recursive: true });
+    const { call, platform } = setup();
+    expect(await call('testLogin')).toEqual({ ok: false, message: "Prisma isn't installed in this package" });
+    expect(platform.spawnCommand).not.toHaveBeenCalled();
+  });
+
+  it('gives the exit code when Prisma fails without an error code', async () => {
+    const { call, platform } = setup();
+    const result = call<{ ok: boolean; message: string }>('testLogin');
+    await vi.waitFor(() => expect(platform.spawnCommand).toHaveBeenCalled());
+    await flushIo();
+    platform.last().exit(2);
+    expect(await result).toEqual({ ok: false, message: 'Failed (exit code 2)' });
+  });
 
   it('runs SELECT 1 through db execute and says it works', async () => {
     const { call, platform, spawned } = setup();

@@ -17,11 +17,9 @@ export function DatabaseCard({ projectId }: ToolPanelProps) {
       {isError && <p className="text-xs text-fg-muted">Couldn't read the database settings.</p>}
       {data && data.url.state === 'set' && (
         <div className="space-y-1 text-xs">
-          <p className="flex min-w-0 items-center gap-2">
-            {reach && <span aria-hidden className={cn('size-2 shrink-0 rounded-full', TONE_DOT[reach.tone])} />}
-            <span className="truncate font-mono text-fg" title={targetLabel(data.url.target)}>
-              {targetLabel(data.url.target)}
-            </span>
+          <p className="flex min-w-0 items-baseline gap-2">
+            {reach && <span aria-hidden className={cn('size-2 shrink-0 translate-y-[-1px] rounded-full', TONE_DOT[reach.tone])} />}
+            <span className="min-w-0 font-mono break-all text-fg">{targetLabel(data.url.target)}</span>
           </p>
           {reach && (
             <p className={TONE_TEXT[reach.tone]} title={data.reach?.reason ?? undefined}>

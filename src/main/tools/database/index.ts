@@ -46,6 +46,18 @@ async function exists(path: string): Promise<boolean> {
   return (await stat(path).catch(() => null)) !== null;
 }
 
+/** Whether `prisma` resolves from dir the way Node finds packages: node_modules here or in a parent (a workspace root). */
+export async function prismaInstalled(dir: string): Promise<boolean> {
+  for (let current = dir; ; ) {
+    if (await exists(join(current, 'node_modules', 'prisma', 'package.json'))) return true;
+    const parent = dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+const NOT_INSTALLED = "Prisma isn't installed in this package";
+
 async function stopRun(run: Run | undefined): Promise<void> {
   if (!run || run.stopping) return;
   run.stopping = true;
@@ -131,6 +143,13 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
     return ['--schema', schemaOf(ctx)];
   }
 
+  /** The schema arguments, once Prisma is known to be there: npx --no-install would only fail obscurely. */
+  async function prismaArgs(ctx: Ctx): Promise<string[]> {
+    const args = schemaArgs(ctx);
+    if (!(await prismaInstalled(ctx.project.path))) throw new NestboxError('NOT_FOUND', NOT_INSTALLED);
+    return args;
+  }
+
   return defineMainTool({
     ...databaseDefinition,
     contract: databaseContract,
@@ -154,6 +173,7 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
         const args = ['db', 'execute', '--stdin', ...schemaArgs(ctx)];
         const { datasource } = await target(ctx);
         if (datasource?.provider === 'mongodb') throw new NestboxError('VALIDATION', 'Prisma cannot run SQL against MongoDB');
+        if (!(await prismaInstalled(ctx.project.path))) return { ok: false, message: NOT_INSTALLED };
         const state = stateOf(ctx);
         if (state.command) throw new NestboxError('CONFLICT', 'A Prisma command is already running for this package');
         const { run, done } = await start(ctx, args, { quiet: true, stdin: 'SELECT 1', label: 'prisma db execute (test login)' });
@@ -169,7 +189,7 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
             ? { ok: false, message: 'No answer within 20 s' }
             : code === 0
               ? { ok: true, message: 'Login works' }
-              : { ok: false, message: loginMessage(firstPrismaCode(output)) };
+              : { ok: false, message: firstPrismaCode(output) ? loginMessage(firstPrismaCode(output)) : `Failed (exit code ${code ?? 'unknown'})` };
         state.logs.push('system', `■ ${result.message}`);
         deps.logger.info('database test login', { projectId: ctx.project.id, ok: result.ok, code: firstPrismaCode(output) ?? String(code) });
         changed(ctx, state);
@@ -177,7 +197,7 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
       },
 
       run: async (ctx: Ctx, { command }) => {
-        const args = [...COMMAND_ARGS[command], ...schemaArgs(ctx)];
+        const args = [...COMMAND_ARGS[command], ...(await prismaArgs(ctx))];
         const state = stateOf(ctx);
         if (state.command) throw new NestboxError('CONFLICT', 'A Prisma command is already running for this package');
         const { run, done } = await start(ctx, args, { label: `prisma ${COMMAND_ARGS[command].join(' ')}` });
@@ -197,12 +217,12 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
       },
 
       migrateDev: async (ctx: Ctx) => {
-        const { command, args } = prismaCommand(ctx.project.packageManager, ['migrate', 'dev', ...schemaArgs(ctx)]);
+        const { command, args } = prismaCommand(ctx.project.packageManager, ['migrate', 'dev', ...(await prismaArgs(ctx))]);
         await ctx.platform.openTerminal(ctx.project.path, [command, ...args].join(' '));
       },
 
       startStudio: async (ctx: Ctx) => {
-        const schema = schemaArgs(ctx);
+        const schema = await prismaArgs(ctx);
         const state = stateOf(ctx);
         if (state.studio) throw new NestboxError('CONFLICT', 'Prisma Studio is already running for this package');
         const port = await deps.firstFreePort(STUDIO_PORT, '127.0.0.1');
