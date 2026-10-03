@@ -4,7 +4,8 @@
 import { constants } from 'node:fs';
 import { access as fsAccess } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { delimiter, isAbsolute, join } from 'node:path';
+// POSIX paths explicitly: this is macOS code, and its tests also run on Windows.
+import { posix } from 'node:path';
 import type { Logger } from '../logger';
 import type { CommandRunner } from './adapter';
 
@@ -96,10 +97,10 @@ export async function findOnPath(
       return false;
     }
   };
-  if (command.includes('/')) return isAbsolute(command) && (await executable(command)) ? command : null;
-  for (const dir of path.split(delimiter)) {
+  if (command.includes('/')) return posix.isAbsolute(command) && (await executable(command)) ? command : null;
+  for (const dir of path.split(':')) {
     if (dir === '') continue;
-    const candidate = join(dir, command);
+    const candidate = posix.join(dir, command);
     if (await executable(candidate)) return candidate;
   }
   return null;
