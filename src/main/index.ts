@@ -31,7 +31,8 @@ import { createClaudeDocs } from './tools/claude/docs';
 import { createEnvFileAccess } from './tools/env/env-files';
 import { watchDir } from './fs/watch-dir';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
-import { lanAddresses } from './tools/static/net';
+import { firstFreePort, lanAddresses } from './tools/static/net';
+import { checkReachable } from './tools/database/reach';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
@@ -190,6 +191,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       git: { watch: watchDir, logger },
+      database: { envFiles, checkReachable, firstFreePort, logger },
     });
     const toolHost = createToolHost({
       tools,

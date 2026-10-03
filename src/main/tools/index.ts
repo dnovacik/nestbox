@@ -1,4 +1,5 @@
 import { createClaudeTool, type ClaudeToolDeps } from './claude';
+import { createDatabaseTool, type DatabaseToolDeps } from './database';
 import { createEnvTool, type EnvToolDeps } from './env';
 import { createGitTool, type GitToolDeps } from './git';
 import { projectInfoTool } from './project-info';
@@ -12,6 +13,7 @@ export interface MainToolDeps {
   static: StaticToolDeps;
   claude: ClaudeToolDeps;
   git: GitToolDeps;
+  database: DatabaseToolDeps;
 }
 
 /** Tool registry, main half. Tools that need core services are built by factories. */
@@ -23,5 +25,6 @@ export function createMainTools(deps: MainToolDeps): readonly AnyMainTool[] {
     createStaticTool(deps.static),
     createClaudeTool(deps.claude),
     createGitTool(deps.git),
+    createDatabaseTool(deps.database),
   ];
 }
