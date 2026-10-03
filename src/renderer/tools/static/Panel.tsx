@@ -49,7 +49,7 @@ export default function StaticPanel({ projectId }: ToolPanelProps) {
 
   useEffect(() => setPortText(config?.port === null || config?.port === undefined ? '' : String(config.port)), [config?.port]);
 
-  if (!status || !config) return <p className="p-6 text-sm text-fg-muted">Loading…</p>;
+  if (!status || !config) return <p className="text-sm text-fg-muted">Loading…</p>;
 
   const save = (patch: Partial<ServerConfig>) => actions.setConfig.mutate({ ...config, ...patch });
 
@@ -74,7 +74,7 @@ export default function StaticPanel({ projectId }: ToolPanelProps) {
   const others = running.filter((r) => r.projectId !== projectId);
 
   return (
-    <section aria-label="Static server" className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+    <section aria-label="Static server" className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-3 rounded-lg border border-line bg-card p-4">
           <h3 className="text-[10px] font-semibold tracking-wider text-fg-muted uppercase">Server</h3>

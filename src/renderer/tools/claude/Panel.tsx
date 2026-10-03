@@ -91,11 +91,11 @@ function ClaudeFolder({ files }: { files: ClaudeStatus['files'] }) {
 export default function ClaudePanel({ projectId }: ToolPanelProps) {
   const { data: status } = useClaudeStatus(projectId);
   const actions = useClaudeActions(projectId);
-  if (!status) return <p className="p-6 text-sm text-fg-muted">Loading…</p>;
+  if (!status) return <p className="text-sm text-fg-muted">Loading…</p>;
   const missing = status.cli.found === false;
 
   return (
-    <section aria-label="Claude Code" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+    <section aria-label="Claude Code" className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-card p-4">
         <CliStatus cli={status.cli} />
         <span className="ml-auto flex gap-2">
