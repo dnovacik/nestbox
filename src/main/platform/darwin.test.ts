@@ -128,8 +128,11 @@ describe('darwin adapter: running things', () => {
 describe('darwin adapter: editor', () => {
   it('opens VS Code through its app when the code command is not on PATH', async () => {
     const { adapter, runner } = setup({ exec: () => ({ code: 0, stdout: '' }) });
-    await adapter.openInEditor('/Users/me/shop/src/a.ts', 12);
-    expect(runner.exec).toHaveBeenCalledWith('/usr/bin/open', ['-b', 'com.microsoft.VSCode', '--args', '-g', '/Users/me/shop/src/a.ts:12'], expect.anything());
+    // A vscode:// URL reaches a VS Code that is already running too (open -b --args would only focus it).
+    await adapter.openInEditor('/Users/me/my shop/#1/a.ts', 12);
+    expect(runner.exec).toHaveBeenCalledWith('/usr/bin/open', ['vscode://file/Users/me/my%20shop/%231/a.ts:12'], expect.anything());
+    await adapter.openInEditor('/Users/me/shop');
+    expect(runner.exec).toHaveBeenLastCalledWith('/usr/bin/open', ['vscode://file/Users/me/shop'], expect.anything());
   });
 
   it('says NOT_FOUND for another missing editor, and for VS Code that is not installed', async () => {

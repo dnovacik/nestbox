@@ -21,7 +21,6 @@ const OPEN = '/usr/bin/open';
 const MAX_DESCRIBE_PIDS = 64;
 /** The .command file deletes itself when it runs; this removes it if the terminal never started. */
 const COMMAND_FILE_TTL_MS = 60_000;
-const VSCODE_BUNDLE_ID = 'com.microsoft.VSCode';
 
 /** Test seams; production uses the real process, filesystem and timers. */
 export interface DarwinExtras {
@@ -182,8 +181,11 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
           throw new NestboxError('INTERNAL', `Could not start the editor command "${editor}"`);
         }
       }
-      // VS Code without its `code` command installed on PATH: open the app itself.
-      if (editor === 'code' && (await open(['-b', VSCODE_BUNDLE_ID, '--args', ...args]))) return;
+      // VS Code without its `code` command on PATH: its URL handler, which also reaches a running VS Code.
+      if (editor === 'code') {
+        const url = `vscode://file${path.split('/').map(encodeURIComponent).join('/')}${line === undefined ? '' : `:${line}`}`;
+        if (await open([url])) return;
+      }
       // The editor name is a setting, not an IPC payload, so it may appear in the message.
       throw new NestboxError('NOT_FOUND', `Editor command "${editor}" was not found on PATH. Change it in Settings.`);
     },
