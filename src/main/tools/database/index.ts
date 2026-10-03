@@ -164,8 +164,8 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
           const configTs = (await Promise.all(CONFIG_FILES.map((f) => exists(join(ctx.project.path, f))))).some(Boolean);
           return { prisma, variable, url: { state: 'missing', configTs }, reach: null, running };
         }
+        // Not logged: status runs on every window focus.
         const reach = await deps.checkReachable(found);
-        deps.logger.info('database reach', { projectId: ctx.project.id, result: reach.result });
         return { prisma, variable, url: { state: 'set', target: found }, reach, running };
       },
 
