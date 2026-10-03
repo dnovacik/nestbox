@@ -31,7 +31,11 @@
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-database-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-database.md`.
   - Owner's answers: TCP check plus a Test login button; Prisma or env files; status/generate in the panel, migrate dev in a terminal, Studio in the background; show provider, host, port and database only.
   - Not verifiable in CI: real Prisma commands and Studio against a real database (unit tests use a fake platform; the end-to-end spec uses a TCP stand-in).
-- Next v2 tools, smallest first: TODO scanner, health checks, Docker Compose, mock API, request inspector.
+- v1.3.0 (database panel) is released. The repository is public since then (Actions minutes ran out while it was private); the packaged smoke test allows a cold Rosetta launch of the x64 app.
+- TODO scanner (the third v2 tool): branch `v2-todos`, draft PR #12, version 1.4.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-todos-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-todos.md`.
+  - Owner's answers: git file list, else a walk; default tags plus a setting; scan on first view and Refresh; open in the editor at the line.
+- Next v2 tools, smallest first: health checks, Docker Compose, mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**

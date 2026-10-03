@@ -22,6 +22,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 | **Claude Code** | Shows whether the CLI is installed, previews and edits `CLAUDE.md`/`CLAUDE.local.md`, and lists commands, agents, skills, settings and MCP servers. It runs a quick `claude -p` prompt, and it writes a generated project-context block into `CLAUDE.md` after showing a diff. |
 | **Git** | A read-only glance on the overview: branch (or detached commit), a merge or rebase in progress, uncommitted changes, ahead/behind the upstream as of the last fetch, and the last commit. The Git tab lists the changed files and opens them in the editor. NestBox never fetches or writes. |
 | **Database** | Where `DATABASE_URL` points (provider, host, port and database; never the user or password) and whether the server answers. Test login runs `SELECT 1` through Prisma. Prisma buttons: migrate status and generate with their output, migrate dev in a terminal, and Prisma Studio. |
+| **TODOs** | `TODO`, `FIXME`, `HACK`, `XXX` and `BUG` comments (the tags are editable per project), grouped by file, with counts on the overview. Files come from git (so `.gitignore` applies), or a folder walk outside git. A click opens the file at that line in the editor. |
 | **Command palette** | `Ctrl+K`: jump to a project or tool, run or stop any script, start run groups, open Claude in a terminal. |
 
 <table>
@@ -138,7 +139,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
 
-v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0) and the database panel (v1.3.0), and adds one tool per release next: TODO scanner, health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0) and the TODO scanner (v1.4.0), and adds one tool per release next: health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
 
 ## License
 
