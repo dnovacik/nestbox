@@ -207,6 +207,13 @@ describe('win32 openTerminal', () => {
     expect(runner.calls[0]?.args).toEqual(['-d', 'C:\\a', 'cmd.exe', '/d', '/k', 'claude --continue']);
   });
 
+  it('goes straight to cmd when the terminal setting says so', async () => {
+    const runner = fakeRunner();
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code', getTerminalApp: () => 'cmd' });
+    await adapter.openTerminal('C:\\a', 'claude');
+    expect(runner.calls).toEqual([{ file: 'cmd.exe', args: ['/d /c start "" cmd.exe /d /s /k "claude"'], opts: { cwd: 'C:\\a', verbatim: true } }]);
+  });
+
   it('rejects % in a command: the start fallback would expand %VAR% twice', async () => {
     const runner = fakeRunner(['wt.exe']);
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });

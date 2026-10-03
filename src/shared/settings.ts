@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AppSettingsSchema, TRAY_ICON_THEMES, WatchedPortsSchema } from './types';
+import { AppSettingsSchema, TERMINAL_APPS, TRAY_ICON_THEMES, WatchedPortsSchema } from './types';
 
 /** Editor command as the user types it. Rejects what cannot pass safely through cmd.exe (see assertCmdSafe). */
 export const EditorCommandSchema = z
@@ -18,6 +18,7 @@ export const SettingsPatchSchema = z.strictObject({
   logBufferLines: LogBufferLinesSchema.optional(),
   editorCommand: EditorCommandSchema.optional(),
   watchedPorts: WatchedPortsSchema.optional(),
+  terminalApp: z.enum(TERMINAL_APPS).optional(),
 });
 
 /** "3000, 5173" → [3000, 5173] (duplicates dropped, order kept); null when any entry is not a valid port. */

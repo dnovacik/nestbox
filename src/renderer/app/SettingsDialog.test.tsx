@@ -10,10 +10,10 @@ import { SettingsDialog } from './SettingsDialog';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
 
-function setup(readOnly = false, update?: (patch: SettingsPatch) => unknown) {
+function setup(readOnly = false, update?: (patch: SettingsPatch) => unknown, platform: 'win32' | 'darwin' = 'win32') {
   let view = { ...AppSettingsSchema.parse({}), readOnly };
   const bridge = installMockBridge({
-    'app:getInfo': () => ({ version: '1.0.0', platform: 'win32' }),
+    'app:getInfo': () => ({ version: '1.0.0', platform }),
     'settings:get': () => view,
     'settings:update': (patch) => {
       if (update) update(patch);
@@ -45,6 +45,26 @@ describe('SettingsDialog', () => {
     expect(within(dialog).getByRole('spinbutton', { name: 'Log buffer' })).toHaveValue(50000);
     expect(within(dialog).getByRole('textbox', { name: 'Editor command' })).toHaveValue('code');
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it("offers the platform's own terminals and saves the choice", async () => {
+    const bridge = setup(false, undefined, 'darwin');
+    const dialog = await open();
+    const terminal = await within(dialog).findByRole('combobox', { name: 'Terminal' });
+    expect(terminal).toHaveTextContent('Automatic');
+    await userEvent.click(terminal);
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(options).toEqual(['Automatic', 'Terminal', 'iTerm2', 'Ghostty']);
+    await userEvent.click(screen.getByRole('option', { name: 'iTerm2' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(bridge.callsTo('settings:update')).toEqual([{ terminalApp: 'iterm' }]));
+  });
+
+  it('offers Windows Terminal and cmd on Windows', async () => {
+    setup();
+    const dialog = await open();
+    await userEvent.click(await within(dialog).findByRole('combobox', { name: 'Terminal' }));
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Automatic', 'Windows Terminal', 'Command Prompt']);
   });
 
   it('saves only the changed fields and closes', async () => {

@@ -163,13 +163,16 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
         // here are NestBox-built (`claude`, `claude --continue`), so % is simply refused.
         if (command.includes('%')) throw new NestboxError('VALIDATION', 'Terminal commands cannot contain %');
       }
-      const wtArgs = ['-d', escapeWtArg(cwd)];
-      if (command !== undefined) wtArgs.push('cmd.exe', '/d', '/k', escapeWtArg(command));
-      try {
-        await deps.runner.launch('wt.exe', wtArgs);
-        return;
-      } catch (error) {
-        if (!isEnoent(error)) throw new NestboxError('INTERNAL', 'Could not start Windows Terminal');
+      // 'cmd' skips Windows Terminal; anything else tries it first and falls back to cmd when it is missing.
+      if (deps.getTerminalApp?.() !== 'cmd') {
+        const wtArgs = ['-d', escapeWtArg(cwd)];
+        if (command !== undefined) wtArgs.push('cmd.exe', '/d', '/k', escapeWtArg(command));
+        try {
+          await deps.runner.launch('wt.exe', wtArgs);
+          return;
+        } catch (error) {
+          if (!isEnoent(error)) throw new NestboxError('INTERNAL', 'Could not start Windows Terminal');
+        }
       }
       // Fallback: `start` gives the console its own window and handles (a detached cmd with
       // ignored stdio reads EOF and exits at once). The folder goes through cwd, never the command line.
