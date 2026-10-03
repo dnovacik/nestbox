@@ -1,7 +1,7 @@
 # NestBox v2 (TODO scanner): Design Notes
 
 Date: 2026-10-03
-Status: Draft, waiting for approval
+Status: Approved 2026-10-03
 Source of truth: `docs/nestbox-spec.md`, "v2 tools", which describes the TODO scanner as: *`TODO`/`FIXME`/`HACK` comments grouped by file, linked via `vscode://file/...`; respects `.gitignore`.* These notes build on the earlier design notes and don't restate them.
 
 ## Scope
