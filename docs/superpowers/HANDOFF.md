@@ -35,7 +35,12 @@
 - TODO scanner (the third v2 tool): branch `v2-todos`, draft PR #12, version 1.4.0 in `package.json`.
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-todos-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-todos.md`.
   - Owner's answers: git file list, else a walk; default tags plus a setting; scan on first view and Refresh; open in the editor at the line.
-- Next v2 tools, smallest first: health checks, Docker Compose, mock API, request inspector.
+- v1.4.0 (TODO scanner) is released.
+- Health checks (the fourth v2 tool): branch `v2-health`, draft PR #13, version 1.5.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-health-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-health.md`.
+  - Owner's answers: user-defined checks plus suggestions; run while a script runs; healthy = 2xx/3xx within 5 s; desktop notification on ok→fail.
+  - Not verifiable in CI: the desktop notification itself and its click (unit tests check when `notify` is called).
+- Next v2 tools, smallest first: Docker Compose, mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
