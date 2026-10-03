@@ -19,7 +19,11 @@ export function parsePsList(text: string, now: number): ProcessInfo[] {
   for (const line of text.split('\n')) {
     const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
     const elapsed = match ? parseEtime(match[3] ?? '') : null;
-    if (match && elapsed !== null) out.push({ pid: Number(match[1]), parentPid: Number(match[2]), startTime: now - elapsed * 1000 });
+    if (!match || elapsed === null) continue;
+    // A process started a moment after ps read the clock can show a negative elapsed time wrapped to a huge
+    // one (seen on Linux). Nothing started before 1970: treat it as just started.
+    const startTime = elapsed * 1000 > now ? now : now - elapsed * 1000;
+    out.push({ pid: Number(match[1]), parentPid: Number(match[2]), startTime });
   }
   return out;
 }

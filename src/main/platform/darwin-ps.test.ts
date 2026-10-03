@@ -29,6 +29,13 @@ describe('parsePsList', () => {
   });
 });
 
+describe('parsePsList: brand-new processes', () => {
+  it('treats an elapsed time older than the epoch as just started (ps wrapped a negative elapsed time)', () => {
+    const now = 1_759_000_000_000;
+    expect(parsePsList('  77     1 441077234-01:00:00\n', now)).toEqual([{ pid: 77, parentPid: 1, startTime: now }]);
+  });
+});
+
 describe('parsePsCommands', () => {
   it('maps PIDs to full command lines', () => {
     const out = '18244 node /Users/me/shop/node_modules/.bin/vite --port 5173\n  412 /opt/homebrew/opt/postgresql@17/bin/postgres -D x\n';
