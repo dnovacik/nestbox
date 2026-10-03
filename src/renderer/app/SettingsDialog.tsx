@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { EditorCommandSchema, LogBufferLinesSchema, parsePortList, type SettingsPatch, type SettingsView } from '@shared/settings';
-import type { TrayIconTheme } from '@shared/types';
+import { type PlatformId, type TerminalApp, TERMINALS_BY_PLATFORM, type TrayIconTheme } from '@shared/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useSettings, useUpdateSettings } from '@/lib/queries';
+import { useAppInfo, useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 
@@ -23,6 +23,20 @@ const THEMES: { value: TrayIconTheme; label: string }[] = [
   { value: 'dark-taskbar', label: 'Dark taskbar' },
   { value: 'light-taskbar', label: 'Light taskbar' },
 ];
+
+const TERMINAL_LABELS: Record<TerminalApp, string> = {
+  auto: 'Automatic',
+  'windows-terminal': 'Windows Terminal',
+  cmd: 'Command Prompt',
+  terminal: 'Terminal',
+  iterm: 'iTerm2',
+  ghostty: 'Ghostty',
+};
+
+const TERMINAL_HINTS: Record<PlatformId, string> = {
+  win32: 'Automatic uses Windows Terminal when it is installed, otherwise Command Prompt.',
+  darwin: 'Automatic uses iTerm2 when it is installed, otherwise Terminal.',
+};
 
 function Row({ label, hint, htmlFor, children }: { label: string; hint?: string; htmlFor: string; children: React.ReactNode }) {
   return (
@@ -38,8 +52,12 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: string;
   );
 }
 
-function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): void }) {
+function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; platform: PlatformId; onDone(): void }) {
   const update = useUpdateSettings();
+  const terminals: readonly TerminalApp[] = TERMINALS_BY_PLATFORM[platform];
+  // A stored value from the other platform (or an old free-text one) shows as Automatic, which is what it means.
+  const initialTerminal: TerminalApp = (terminals as readonly string[]).includes(initial.terminalApp) ? (initial.terminalApp as TerminalApp) : 'auto';
+  const [terminalApp, setTerminalApp] = useState<TerminalApp>(initialTerminal);
   const [closeToTray, setCloseToTray] = useState(initial.closeToTray);
   const [trayIconTheme, setTrayIconTheme] = useState(initial.trayIconTheme);
   const [logBufferLines, setLogBufferLines] = useState(String(initial.logBufferLines));
@@ -61,6 +79,7 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
   if (!bufferError && buffer !== initial.logBufferLines) patch.logBufferLines = buffer;
   if (editorParse.success && editorParse.data !== initial.editorCommand) patch.editorCommand = editorParse.data;
   if (ports && ports.join(',') !== initial.watchedPorts.join(',')) patch.watchedPorts = ports;
+  if (terminalApp !== initialTerminal) patch.terminalApp = terminalApp;
   const canSave = !readOnly && !bufferError && !editorError && !portsError && Object.keys(patch).length > 0 && !update.isPending;
 
   return (
@@ -80,20 +99,23 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
         <Row label="Close to tray" htmlFor="settings-close-to-tray" hint="Closing the window keeps NestBox and your scripts running in the tray.">
           <Switch id="settings-close-to-tray" checked={closeToTray} onCheckedChange={setCloseToTray} disabled={readOnly} />
         </Row>
-        <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
-          <Select value={trayIconTheme} onValueChange={(value) => setTrayIconTheme(value as TrayIconTheme)} disabled={readOnly}>
-            <SelectTrigger id="settings-tray-theme" size="sm" className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {THEMES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Row>
+        {/* macOS: the menu bar follows the system appearance, so the icon always does too ('auto'). */}
+        {platform === 'win32' && (
+          <Row label="Tray icon theme" htmlFor="settings-tray-theme" hint="Pick the set that stays visible on your taskbar.">
+            <Select value={trayIconTheme} onValueChange={(value) => setTrayIconTheme(value as TrayIconTheme)} disabled={readOnly}>
+              <SelectTrigger id="settings-tray-theme" size="sm" className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THEMES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+        )}
         <Row label="Log buffer" htmlFor="settings-log-buffer" hint="Lines kept per script, 1 000–1 000 000. Applies to scripts started afterwards.">
           <Input
             id="settings-log-buffer"
@@ -115,6 +137,20 @@ function SettingsForm({ initial, onDone }: { initial: SettingsView; onDone(): vo
             className={cn('h-8 font-mono text-sm', editorError && 'border-err')}
           />
           {editorError && <p className="text-[11px] text-err">{editorError}</p>}
+        </Row>
+        <Row label="Terminal" htmlFor="settings-terminal" hint={TERMINAL_HINTS[platform]}>
+          <Select value={terminalApp} onValueChange={(value) => setTerminalApp(value as TerminalApp)} disabled={readOnly}>
+            <SelectTrigger id="settings-terminal" size="sm" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {terminals.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TERMINAL_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Row>
         <Row label="Watched ports" htmlFor="settings-watched-ports" hint="Shown on each project's Overview, free or in use.">
           <Input
@@ -143,6 +179,7 @@ export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
   const setOpen = useUiStore((s) => s.setSettingsOpen);
   const { data, isError } = useSettings();
+  const { data: info, isError: infoError } = useAppInfo();
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-xl">
@@ -150,9 +187,9 @@ export function SettingsDialog() {
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>NestBox keeps these on this computer only.</DialogDescription>
         </DialogHeader>
-        {data ? (
-          <SettingsForm key={JSON.stringify(data)} initial={data} onDone={() => setOpen(false)} />
-        ) : isError ? (
+        {data && info ? (
+          <SettingsForm key={JSON.stringify(data)} initial={data} platform={info.platform} onDone={() => setOpen(false)} />
+        ) : isError || infoError ? (
           <p className="text-sm text-err">Couldn't load the settings.</p>
         ) : (
           <p className="text-sm text-fg-muted">Loading…</p>

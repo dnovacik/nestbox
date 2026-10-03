@@ -4,6 +4,7 @@ import type { PortRow } from '@shared/ports';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { usePlatform } from '@/lib/platform';
 import { isUnsupported, usePorts } from '@/lib/ports';
 import { useProjects } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
@@ -50,6 +51,7 @@ export function PortsPage() {
   };
 
   const unsupported = isUnsupported(error);
+  const platform = usePlatform();
 
   return (
     <section aria-label="Ports" className="flex min-h-0 flex-1 flex-col">
@@ -76,6 +78,11 @@ export function PortsPage() {
           </span>
         )}
       </header>
+      {platform === 'darwin' && (
+        <p className="border-b border-line px-5 py-1.5 text-[11px] text-fg-faint">
+          Ports of other users' processes need admin rights and are not listed.
+        </p>
+      )}
       {data?.stale && (
         <p className="border-b border-warn/30 bg-warn/10 px-5 py-1.5 text-xs text-warn">Couldn't refresh the port list</p>
       )}

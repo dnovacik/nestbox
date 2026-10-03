@@ -132,8 +132,10 @@ describe('PortService.kill', () => {
     const { service } = setup([
       { port: 445, pid: 4, addresses: ['0.0.0.0'], processName: 'System' },
       { port: 9229, pid: 999, addresses: ['127.0.0.1'], processName: 'electron.exe' },
+      { port: 5000, pid: 1, addresses: ['0.0.0.0'], processName: 'launchd' },
     ]);
     await expect(service.kill({ pid: 4, port: 445, confirmed: true })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.kill({ pid: 1, port: 5000, confirmed: true })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.kill({ pid: 999, port: 9229, confirmed: true })).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 

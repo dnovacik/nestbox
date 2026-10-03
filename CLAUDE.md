@@ -1,6 +1,6 @@
 # NestBox
 
-Electron + React desktop toolbox for Node/TypeScript projects. Windows first, macOS later (no Linux).
+Electron + React desktop toolbox for Node/TypeScript projects. Windows and macOS (macOS is a preview since v1.1.0; no Linux, though dev and e2e run there with the macOS adapter).
 Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/superpowers/`. Visual reference: `docs/design/DESIGN-NOTES.md` (the prototype is look-only; the spec wins).
 
 ## Commands
@@ -13,7 +13,7 @@ Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/supe
 | `pnpm typecheck` | `tsc` for the node and web projects |
 | `pnpm test` | Vitest: `node` project (main/shared/preload) + `renderer` project (jsdom) |
 | `pnpm vitest run --project renderer` | Renderer tests only |
-| `pnpm e2e` | Playwright end-to-end tests against the built app (run `pnpm build` first; needs the Electron binary; scripts only run on Windows, so CI runs it on windows-latest) |
+| `pnpm e2e` | Playwright end-to-end tests against the built app (run `pnpm build` first; needs the Electron binary). CI runs them on windows-latest and macos-latest; on Linux use `xvfb-run` (the ports spec is skipped there) |
 | `pnpm format` | Prettier |
 | `node scripts/screenshots.mjs` | README screenshots from the built app with demo projects (`xvfb-run` on Linux) |
 | `node scripts/outline-wordmark.mjs` | Regenerates `nestbox-lockup-outlined.svg` from the lockup with the bundled Inter |
@@ -21,8 +21,8 @@ Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/supe
 ## Folder structure
 
 ```text
-src/main/        Electron main. index.ts is the only file wiring real Electron objects.
-  platform/      PlatformAdapter (win32 real, darwin stub). The ONLY place allowed to read process.platform.
+src/main/        Electron main. index.ts is the only file wiring real Electron objects (app-menu.ts is the pure macOS menu template).
+  platform/      PlatformAdapter (win32, darwin; Linux gets darwin for development). The ONLY place allowed to read process.platform.
   detection/     detectProject(): pure filesystem detection, no Electron imports
   store/         StoreService over electron-store (Zod + schemaVersion + migrations)
   projects/      ProjectService (add/remove/rename/pin/refresh, workspace lookup, run groups, tool settings)
@@ -64,6 +64,7 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Core channels added in M1:** `settings:get`/`settings:update` (the Settings dialog; `readOnly` when the store can't be saved), `processes:list`/`processes:stopAll` (the shell: sidebar dots, status bar, Stop all). Events: `processes:changed` (throttled, no payload) and `app:navigate` (`{ projectId, tab, script? }`, tray and notifications).
 - **Core channels added in M2:** `ports:list` (cached 1 s in main; the renderer polls every 3 s only while the Ports page or a Ports card is mounted), `ports:kill` (`{ pid, port, confirmed }`: a NestBox-owned port stops its script; anything else answers `needs-confirm` until confirmed; System and NestBox itself are FORBIDDEN), `ports:waitFree`.
 - **Core channel added in M3:** `app:openExternal` (`{ url }`, http/https only, otherwise VALIDATION): Markdown links and "Open in browser".
+- **Event added in v1.1:** `app:openSettings` (no payload): the macOS menu's Settings… (`⌘,`).
 - **Payload limit.** The router rejects payloads whose JSON is over 2 MiB before parsing.
 - **Logs flow one way.** Log text only goes main → renderer (`tools:event` batches every 50 ms). Export sends seq numbers, never text.
 
@@ -101,5 +102,10 @@ resources/brand/ Brand assets (packaged as extraResources → brand/)
 - **Static tool.** One server per package (`toolSettings.static.servers[relPath]`), localhost unless "Share on LAN". `isHiddenPath` runs before sirv because sirv's dev mode serves dotfiles despite `dotfiles: false`. Logged paths drop the query string. The HTTPS certificate is one per machine in `userData/static-cert.json`, renewed within 30 days of expiry or for a new LAN IP; the key is never logged.
 - **Claude tool.** `claude-files.ts` never reads MCP args, env or URL paths into results. `CLAUDE.md`/`CLAUDE.local.md` use `fs/versioned-file` and keep the file's line endings. The context block lives between `<!-- nestbox:start -->` and `<!-- nestbox:end -->`; env contributes `PORT` (a number) and `.env.example` key names only. Raw HTML in the Markdown preview is shown as text (a remark step), images show their alt text, and only http(s) links open.
 - **Command palette.** `paletteEntries` is pure (actions are data). cmdk matches the label and keywords through a custom filter: item values are ids holding random project ids, whose letters would otherwise match searches. Ctrl+K with Shift is ignored (Playwright's `Control+K` sends Shift: press `Control+k`).
-- **Release.** Tag `v<version>` (matching `package.json`) and push: `.github/workflows/release.yml` tests, builds and attaches `NestBox-Setup-<version>.exe` to a draft GitHub Release. CI's `package` job builds `--dir` and runs `e2e/packaged.spec.ts` against `win-unpacked/NestBox.exe` (that spec skips unless `NESTBOX_PACKAGED_EXE` is set). The packaged app ignores `NESTBOX_USER_DATA_DIR`.
+- **Release.** Tag `v<version>` (matching `package.json`) and push, or run the workflow on `main`: `.github/workflows/release.yml` checks the version, builds `NestBox-Setup-<version>.exe` (Windows) and `NestBox-<version>-{arm64,x64}.dmg` (macOS, ad-hoc signed, `identity: '-'`) as artifacts, then one job attaches them all to a draft GitHub Release (publishing it creates the tag). CI's `package` job builds `--dir` on both OSes and runs `e2e/packaged.spec.ts` against `win-unpacked/NestBox.exe` or `mac-arm64/NestBox.app/Contents/MacOS/NestBox` (that spec skips unless `NESTBOX_PACKAGED_EXE` is set). The packaged app ignores `NESTBOX_USER_DATA_DIR`.
 - **Screenshots.** `scripts/screenshots.mjs` fakes processes, ports and the claude CLI by wrapping main's handlers through `ipcMain._invokeHandlers` (Electron internals; fine for a dev script, never in the app). Run `pnpm build` first: it uses `out/`.
+- **macOS adapter.** `darwin.ts` uses absolute system tools (`/usr/sbin/lsof`, `/bin/ps` with `LC_ALL=C`, `/usr/bin/open`). Scripts and commands are spawned directly (no shell) with `newProcessGroup` (POSIX `detached`, never on Windows: it opens a console). `killTree` (`posix-kill.ts`) sends SIGTERM to the group and to descendants that left it, waits up to 3 s, then SIGKILL; EPERM is FORBIDDEN. Start times come from `ps etime` (1 s precision). Ports come from `lsof -F pcftn`; without root only the user's own sockets are listed (the Ports page says so). PID 1 is protected like Windows' 0 and 4.
+- **Login-shell env (macOS).** Apps started from Finder get a minimal PATH, so `posix-shell.ts` runs `$SHELL -ilc` with **two different markers** around `env -0` (shells set `$_` to the previous command's last argument, so the env itself contains the start marker). Cached 5 minutes; falls back to `process.env`; values never logged. `commandExists`/`execCommand` resolve commands on that PATH without a subprocess.
+- **Terminals.** The `terminalApp` setting (`TERMINAL_APPS`; the dialog offers `TERMINALS_BY_PLATFORM[platform]`). Windows: `cmd` skips `wt`. macOS: no AppleScript; a folder opens with `open -a <App> <cwd>`, a command through a self-deleting `.command` file (`commandFileScript`, folder single-quoted, commands limited to plain words by `assertTerminalCommand`); Ghostty gets `--working-directory` and `-e`. Auto = iTerm2 when installed, else Terminal.
+- **macOS app shell.** `appMenuTemplate` (Edit roles so ⌘C/⌘V work; Quit through the quit controller); `activate` shows the window; the title bar pads 78 px for the traffic lights; `useModKey()` shows ⌘; the tray icon always follows the system appearance (`auto`, the theme setting is hidden) and a click opens its menu only.
+- **Zombies in containers.** Some Linux containers' PID 1 never reaps orphans, so a killed grandchild stays a zombie and `kill(pid, 0)` still succeeds. Integration tests check `ps -o stat=` instead; on macOS launchd reaps at once.

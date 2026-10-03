@@ -2,11 +2,13 @@ import { Play, Square } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { LogView } from '@/components/log/LogView';
 import { Button } from '@/components/ui/button';
+import { useModKey } from '@/lib/platform';
 import { claudeLogSource, useClaudeActions } from './use-claude';
 
 /** A one-shot `claude -p`: the text goes to its stdin, the output streams into the log below. */
 export function PromptBox({ projectId, running, disabled }: { projectId: string; running: boolean; disabled: boolean }) {
   const actions = useClaudeActions(projectId);
+  const modKey = useModKey();
   const source = useMemo(() => claudeLogSource(projectId), [projectId]);
   const [text, setText] = useState('');
   const canRun = !disabled && !running && text.trim() !== '' && !actions.prompt.isPending;
@@ -30,7 +32,7 @@ export function PromptBox({ projectId, running, disabled }: { projectId: string;
             run();
           }
         }}
-        placeholder="Ask Claude about this project… (Ctrl+Enter to run)"
+        placeholder={`Ask Claude about this project… (${modKey}+Enter to run)`}
         className="min-h-20 w-full resize-y rounded-md border border-line bg-surface p-3 text-sm text-fg outline-none placeholder:text-fg-faint focus-visible:border-brand"
       />
       <div className="flex gap-2">

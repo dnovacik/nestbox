@@ -16,8 +16,9 @@ export function TitleBar({ node }: { node: ProjectNode | null }) {
       <header
         className="flex h-full items-center pr-3"
         // Leave room for native window controls (titleBarOverlay on Windows, traffic lights on macOS).
+        // On macOS the inset traffic lights sit over the left 78 px (no Window Controls Overlay variables there).
         style={{
-          paddingLeft: 'max(12px, env(titlebar-area-x, 0px))',
+          paddingLeft: info?.platform === 'darwin' ? '78px' : 'max(12px, env(titlebar-area-x, 0px))',
           width: 'env(titlebar-area-width, 100%)',
         }}
       >

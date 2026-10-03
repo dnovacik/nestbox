@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { NestboxError } from '@shared/errors';
 import type { PlatformId } from '@shared/types';
+import type { Logger } from '../logger';
 
 /** A listening TCP port and the process that owns it (one entry per port and PID, all addresses merged). */
 export interface PortEntry {
@@ -17,6 +18,8 @@ export interface ProcessInfo {
   parentPid: number;
   /** When the process started, in epoch ms. */
   startTime: number;
+  /** POSIX process group (macOS); absent on Windows. */
+  groupId?: number;
 }
 
 export interface SpawnOpts {
@@ -50,6 +53,8 @@ export interface PipedSpawnOpts {
   verbatim?: boolean;
   /** Written to the child's stdin, which is then closed. Without it stdin is ignored. */
   stdin?: string;
+  /** POSIX: make the child the leader of a new process group, so its whole tree can be signalled. */
+  newProcessGroup?: boolean;
 }
 
 export interface CommandRunner {
@@ -59,7 +64,15 @@ export interface CommandRunner {
   exec(
     file: string,
     args: readonly string[],
-    opts?: { timeoutMs?: number; maxBytes?: number; cwd?: string; verbatim?: boolean },
+    opts?: {
+      timeoutMs?: number;
+      maxBytes?: number;
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      verbatim?: boolean;
+      /** Resolve as soon as stdout satisfies this (code: the exit code if known yet, else null). */
+      doneWhen?: (stdout: string) => boolean;
+    },
   ): Promise<ExecResult>;
   /** A long-running child with piped stdout/stderr, ignored stdin (unless opts.stdin) and a hidden window. */
   spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
@@ -68,6 +81,10 @@ export interface CommandRunner {
 export interface PlatformDeps {
   runner: CommandRunner;
   getEditorCommand(): string;
+  /** The terminal setting (TERMINAL_APPS); 'auto' when absent. */
+  getTerminalApp?(): string;
+  /** For failures without values (the macOS shell env). Silent when absent. */
+  logger?: Logger;
 }
 
 export interface PlatformAdapter {

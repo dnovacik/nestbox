@@ -4,7 +4,7 @@
 
 A desktop toolbox for Node.js and TypeScript projects. You add a project folder once, and NestBox gives you what a browser can't: run its scripts and read their logs, see which process holds port 3000 and stop it, keep `.env` files in step, serve a build to your phone, and hand the project to Claude Code with the right context.
 
-Built with Electron, React and Vite. Windows first; macOS is next. Linux is not planned.
+Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a preview for now). Linux is not planned.
 
 <!-- GIF placeholder: a 30-second capture (add a project, run scripts, kill a port, serve a build on a phone) goes here. -->
 
@@ -39,13 +39,20 @@ Built with Electron, React and Vite. Windows first; macOS is next. Linux is not 
 
 ## Install
 
-Download `NestBox-Setup-<version>.exe` from [Releases](https://github.com/dnovacik/nestbox/releases) and run it.
+The installers are built by GitHub Actions from the tagged commit ([release workflow](.github/workflows/release.yml)), so you can check what went into them. They are not code-signed yet.
 
-The installer is not code-signed yet, so Windows SmartScreen says "Windows protected your PC". Choose **More info → Run anyway**. The installer is built by GitHub Actions from the tagged commit ([release workflow](.github/workflows/release.yml)), so you can check what went into it.
+**Windows.** Download `NestBox-Setup-<version>.exe` from [Releases](https://github.com/dnovacik/nestbox/releases) and run it. SmartScreen says "Windows protected your PC": choose **More info → Run anyway**.
+
+**macOS (preview).** Download `NestBox-<version>-arm64.dmg` (Apple Silicon) or `NestBox-<version>-x64.dmg` (Intel), open it and drag NestBox to Applications. The app is ad-hoc signed but not notarized, so the first launch needs one extra step:
+- macOS 14 and earlier: right-click NestBox in Applications → **Open** → **Open**.
+- macOS 15 and later: open it once, then **System Settings → Privacy & Security → Open Anyway**.
+- Or, if you prefer the terminal: `xattr -dr com.apple.quarantine /Applications/NestBox.app`.
+
+The macOS build is tested in CI (unit, integration and end-to-end tests on `macos-latest`) but has seen little use on real Macs yet: please [open an issue](https://github.com/dnovacik/nestbox/issues) if something misbehaves. Ports of other users' processes need admin rights and are not listed.
 
 ## Development
 
-Requirements: Node 22.12+, pnpm 10, Windows (scripts, ports and terminals use Windows APIs; macOS has stubs for now).
+Requirements: Node 22.12+, pnpm 10, Windows or macOS. On Linux the app runs with the macOS adapter for development (no ports list), and the end-to-end tests run under `xvfb-run`.
 
 ```bash
 pnpm install
@@ -80,7 +87,7 @@ pnpm e2e          # Playwright against the built app (Windows)
 - **Typed IPC.** Every channel has a Zod input and output schema in `src/shared/channels.ts`. The router checks the sender's origin and validates each payload, then answers with an envelope (`{ ok, data }` or `{ ok: false, error: { code, message } }`). The renderer's typed client turns errors back into exceptions with a code.
 - **Tools are modules.** A tool is a contract (methods with Zod schemas, plus events), a main half (handlers that get a `ToolContext`) and a renderer half (a panel and an optional overview card). The core routes `tools:invoke` to them generically: adding a tool never touches the channel list, the router or the shell.
 - **Shared context.** Tools publish facts that other tools read. Scripts publishes running PIDs, which Ports uses to name the owner of a port; Env publishes `PORT`, which the overview shows.
-- **One platform adapter.** Every OS-specific call (spawning through `cmd.exe`, `taskkill /T`, `netstat`, PowerShell process lists, terminals) lives behind `PlatformAdapter`. Lint rejects `process.platform` anywhere else.
+- **One platform adapter.** Every OS-specific call lives behind `PlatformAdapter`: on Windows `cmd.exe`, `taskkill /T`, `netstat` and PowerShell; on macOS process groups, `lsof`, `ps`, the login-shell `PATH` and `open -a` for terminals. Lint rejects `process.platform` anywhere else.
 - **Logs flow one way.** Main keeps a ring buffer per process and sends batches every 50 ms. The renderer virtualises the list. Exports send sequence numbers back, never text.
 
 ### How to write a tool
@@ -127,9 +134,9 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 ## Roadmap
 
-v1 (this release): projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
+v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
 
-v2 starts with the macOS build, then adds one tool per release: database panel, git glance, TODO scanner, health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+v2 started with the macOS build (v1.1.0, preview), and adds one tool per release next: database panel, git glance, TODO scanner, health checks, Docker Compose, mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
 
 ## License
 

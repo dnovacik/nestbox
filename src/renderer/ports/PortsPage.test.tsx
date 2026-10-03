@@ -24,8 +24,13 @@ const ROWS = [
   row(5432, 77, { processName: 'postgres.exe', command: null, addresses: ['127.0.0.1'] }),
 ];
 
-function setup(list: () => PortList = () => ({ rows: ROWS, scannedAt: Date.now(), stale: false }), kill?: (i: PortKillInput) => unknown) {
+function setup(
+  list: () => PortList = () => ({ rows: ROWS, scannedAt: Date.now(), stale: false }),
+  kill?: (i: PortKillInput) => unknown,
+  platform: 'win32' | 'darwin' = 'win32',
+) {
   const bridge = installMockBridge({
+    'app:getInfo': () => ({ version: '1', platform }),
     'ports:list': list,
     'ports:kill': (input) => {
       if (kill) kill(input);
@@ -39,6 +44,18 @@ function setup(list: () => PortList = () => ({ rows: ROWS, scannedAt: Date.now()
 }
 
 describe('PortsPage', () => {
+  it("says on macOS that other users' ports need admin rights", async () => {
+    setup(undefined, undefined, 'darwin');
+    await screen.findByRole('table', { name: 'Listening ports' });
+    expect(await screen.findByText(/other users' processes/)).toBeInTheDocument();
+  });
+
+  it('has no such note on Windows', async () => {
+    setup();
+    await screen.findByRole('table', { name: 'Listening ports' });
+    expect(screen.queryByText(/other users' processes/)).toBeNull();
+  });
+
   it('lists ports with their process, owner and command', async () => {
     setup();
     const table = await screen.findByRole('table', { name: 'Listening ports' });

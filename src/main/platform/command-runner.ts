@@ -26,6 +26,7 @@ export const spawnRunner: CommandRunner = {
     return new Promise<ExecResult>((resolve, reject) => {
       const child = spawn(file, [...args], {
         cwd: opts.cwd,
+        env: opts.env,
         windowsHide: true,
         windowsVerbatimArguments: opts.verbatim ?? false,
         stdio: ['ignore', 'pipe', 'ignore'],
@@ -46,6 +47,11 @@ export const spawnRunner: CommandRunner = {
       child.stdout?.on('data', (chunk: string) => {
         const cap = opts.maxBytes ?? STDOUT_CAP;
         if (stdout.length < cap) stdout = (stdout + chunk).slice(0, cap);
+        // Something the program left running may hold stdout open long after the output we need.
+        if (opts.doneWhen?.(stdout)) {
+          finish(() => resolve({ code: child.exitCode, stdout }));
+          child.stdout?.destroy();
+        }
       });
       child.once('error', (error) => finish(() => reject(error)));
       child.once('close', (code) => finish(() => resolve({ code, stdout })));
@@ -57,6 +63,8 @@ export const spawnRunner: CommandRunner = {
       cwd: opts.cwd,
       env: opts.env,
       stdio: [opts.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      // Never on Windows: there detached opens a console window. Only the darwin adapter asks for it.
+      detached: opts.newProcessGroup ?? false,
       windowsHide: true,
       windowsVerbatimArguments: opts.verbatim ?? false,
     });

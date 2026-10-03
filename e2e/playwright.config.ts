@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// Runs the built app (pnpm build first) through Playwright's Electron support. Windows only for now:
-// spawning scripts is stubbed on macOS until the v2 macOS phase.
+// Runs the built app (pnpm build first) through Playwright's Electron support, on Windows and macOS (CI runs
+// both). On Linux the app runs with the macOS adapter, so most specs work there too (under xvfb-run).
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',

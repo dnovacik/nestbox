@@ -8,8 +8,8 @@ import { AttributionCache } from './attribution';
 /** Scans closer together than this share one result (several Overview cards poll at once). */
 export const SCAN_CACHE_MS = 1_000;
 const FREE_POLL_MS = 500;
-/** System Idle and System. */
-const PROTECTED_PIDS = new Set([0, 4]);
+/** System Idle and System on Windows; launchd on macOS. */
+const PROTECTED_PIDS = new Set([0, 1, 4]);
 
 export interface PortServiceDeps {
   platform: Pick<PlatformAdapter, 'listListeningPorts' | 'describeProcesses' | 'listProcesses' | 'killTree'>;

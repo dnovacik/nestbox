@@ -76,6 +76,14 @@ export function defaultStoreData(): StoreData {
 }
 
 export const PLATFORM_IDS = ['win32', 'darwin'] as const;
+
+/** The terminal setting. 'auto' lets the platform pick; the others name one app (each platform offers its own). */
+export const TERMINAL_APPS = ['auto', 'windows-terminal', 'cmd', 'terminal', 'iterm', 'ghostty'] as const;
+export type TerminalApp = (typeof TERMINAL_APPS)[number];
+export const TERMINALS_BY_PLATFORM = {
+  win32: ['auto', 'windows-terminal', 'cmd'],
+  darwin: ['auto', 'terminal', 'iterm', 'ghostty'],
+} as const satisfies Record<(typeof PLATFORM_IDS)[number], readonly TerminalApp[]>;
 export type PlatformId = (typeof PLATFORM_IDS)[number];
 
 export const AppInfoSchema = z.object({

@@ -36,6 +36,7 @@ import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
 import { handleOrphans } from './lifecycle/orphan-prompt';
 import { createQuitController, SHUTDOWN_TIMEOUT_MS } from './lifecycle/quit-controller';
+import { appMenuTemplate } from './app-menu';
 import { crashNotice } from './tray/crash-notifier';
 import { createTrayController, type TrayController } from './tray/tray-controller';
 import { buildTrayModel, type TrayActions } from './tray/tray-menu';
@@ -72,6 +73,8 @@ if (!app.requestSingleInstanceLock()) {
     const platform = createPlatformAdapter({
       runner: spawnRunner,
       getEditorCommand: () => store.getSettings().editorCommand,
+      getTerminalApp: () => store.getSettings().terminalApp,
+      logger,
     });
     /** False until the renderer has loaded, and again after its process died (until the reload finishes). */
     let rendererReady = false;
@@ -248,6 +251,26 @@ if (!app.requestSingleInstanceLock()) {
     });
     app.on('before-quit', (event) => quitController.onBeforeQuit(event));
 
+    if (platform.id === 'darwin') {
+      Menu.setApplicationMenu(
+        Menu.buildFromTemplate(
+          appMenuTemplate({
+            appName: app.name,
+            isDev: !app.isPackaged,
+            actions: {
+              settings: () => {
+                showWindow();
+                emit('app:openSettings');
+              },
+              quit: () => void quitController.requestQuit(),
+            },
+          }),
+        ),
+      );
+      // A click on the Dock icon brings the (hidden) window back.
+      app.on('activate', showWindow);
+    }
+
     const showLogs = (projectId: string, script: string): void => {
       showWindow();
       emit('app:navigate', { projectId, tab: 'scripts', script });
@@ -337,7 +360,9 @@ if (!app.requestSingleInstanceLock()) {
         getModel: async () =>
           buildTrayModel(await projects.list(), processes.list(), (rootId) => projects.getRunGroups(rootId)),
         getProcesses: () => processes.list(),
-        getTheme: () => store.getSettings().trayIconTheme,
+        // The macOS menu bar follows the system appearance, so the icon does too.
+        getTheme: () => (platform.id === 'darwin' ? 'auto' : store.getSettings().trayIconTheme),
+        clickShowsWindow: platform.id !== 'darwin',
         actions: trayActions,
         logger,
       });

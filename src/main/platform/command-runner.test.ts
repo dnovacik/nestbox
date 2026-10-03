@@ -32,6 +32,22 @@ describe('spawnRunner.exec', () => {
     expect(stdout).toHaveLength(200_000);
   });
 
+  it('passes the given environment', async () => {
+    const { stdout } = await spawnRunner.exec(node, ['-e', 'process.stdout.write(process.env.NESTBOX_T ?? "")'], {
+      env: { ...process.env, NESTBOX_T: 'C' },
+    });
+    expect(stdout).toBe('C');
+  });
+
+  it('resolves as soon as stdout says it is done, even while something still holds the pipe', async () => {
+    const started = Date.now();
+    // The grandchild inherits stdout and keeps it open for 5 s, like a profile's `daemon &`.
+    const script = "require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'inherit' }); process.stdout.write('ok END')";
+    const result = await spawnRunner.exec(node, ['-e', script], { doneWhen: (out) => out.includes('END') });
+    expect(result.stdout).toBe('ok END');
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
   it('gives up after the timeout with a null code', async () => {
     const started = Date.now();
     const result = await spawnRunner.exec(node, ['-e', 'setTimeout(() => {}, 5000)'], { timeoutMs: 200 });
@@ -67,5 +83,19 @@ describe('spawnRunner.spawn', () => {
     child.stdout?.on('data', (c: Buffer) => (out += c.toString()));
     await new Promise((r) => child.once('close', r));
     expect(out).toBe('say "hi"\nand bye');
+  });
+
+  // POSIX only: a new process group lets killTree signal the whole tree at once.
+  it.skipIf(process.platform === 'win32')('starts a new process group when asked', async () => {
+    const child = spawnRunner.spawn(node, ['-e', 'setTimeout(() => {}, 5000)'], {
+      cwd: process.cwd(),
+      env: process.env,
+      newProcessGroup: true,
+    });
+    await new Promise((r) => child.once('spawn', r));
+    const pid = child.pid ?? 0;
+    const { stdout } = await spawnRunner.exec('ps', ['-o', 'pgid=', '-p', String(pid)]);
+    child.kill('SIGKILL');
+    expect(Number(stdout.trim())).toBe(pid);
   });
 });

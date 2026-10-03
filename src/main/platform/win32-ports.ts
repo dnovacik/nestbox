@@ -1,16 +1,7 @@
 // Parsers for the Windows commands behind listListeningPorts. Pure, so they are tested on captured output.
+import type { ListeningSocket } from './sockets';
 
-export interface ListeningSocket {
-  port: number;
-  address: string;
-  pid: number;
-}
-
-export interface GroupedSocket {
-  port: number;
-  pid: number;
-  addresses: string[];
-}
+export { groupSockets } from './sockets';
 
 /** `1.2.3.4:80` or `[::1]:80` → { address, port }. */
 function splitEndpoint(endpoint: string): { address: string; port: number } | null {
@@ -63,16 +54,4 @@ export function parseTasklist(text: string): Map<number, string> {
     if (name && Number.isInteger(pid)) names.set(pid, name);
   }
   return names;
-}
-
-/** One entry per (port, PID) with every address it listens on, sorted by port, then PID. */
-export function groupSockets(sockets: readonly ListeningSocket[]): GroupedSocket[] {
-  const byKey = new Map<string, GroupedSocket>();
-  for (const s of sockets) {
-    const key = `${s.port}:${s.pid}`;
-    const entry = byKey.get(key) ?? { port: s.port, pid: s.pid, addresses: [] };
-    if (!entry.addresses.includes(s.address)) entry.addresses.push(s.address);
-    byKey.set(key, entry);
-  }
-  return [...byKey.values()].sort((a, b) => a.port - b.port || a.pid - b.pid);
 }
