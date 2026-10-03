@@ -1,4 +1,5 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { makeTree, removeTree } from '../../detection/test-fixtures';
@@ -46,6 +47,35 @@ describe('scanFiles', () => {
     const out = await scanFiles(dir, ['a.ts', 'b.ts'], TAGS, { timeLimitMs: 5, now: () => (t += 10), concurrency: 1 });
     expect(out.truncated).toBe('time');
     expect(out.todos.length).toBeLessThan(2);
+  });
+
+  it('never follows a symlink, which could point outside the project', async () => {
+    dir = await makeTree({ 'a.ts': '// TODO: in' });
+    const outside = await mkdtemp(join(tmpdir(), 'nestbox-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.txt'), '# TODO: private note outside the project\n');
+      // Windows needs a privilege for symlinks: nothing to check there without one.
+      const linked = await symlink(join(outside, 'secret.txt'), join(dir, 'link.txt')).then(() => true, () => false);
+      if (!linked) return;
+      const out = await scanFiles(dir, ['a.ts', 'link.txt'], TAGS);
+      expect(out.todos.map((t) => t.path)).toEqual(['a.ts']);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('never follows a symlinked folder out of the project', async () => {
+    dir = await makeTree({ 'a.ts': '// TODO: in' });
+    const outside = await mkdtemp(join(tmpdir(), 'nestbox-outside-'));
+    try {
+      await writeFile(join(outside, 'x.ts'), '// TODO: outside through a folder link\n');
+      const linked = await symlink(outside, join(dir, 'linked'), 'junction').then(() => true, () => false);
+      if (!linked) return;
+      const out = await scanFiles(dir, ['a.ts', 'linked/x.ts'], TAGS);
+      expect(out.todos.map((t) => t.path)).toEqual(['a.ts']);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it('never reads outside the folder', async () => {

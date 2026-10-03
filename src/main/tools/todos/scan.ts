@@ -1,6 +1,7 @@
 // Reads the listed files and collects tagged comments. File contents stay in memory: only the matched
 // lines' text is returned, for display; nothing is logged or stored.
-import { open, stat } from 'node:fs/promises';
+import { lstat, open, realpath } from 'node:fs/promises';
+import { isAbsolute, relative } from 'node:path';
 import type { Todo } from '@shared/tools/todos/contract';
 import { resolveInside } from '../../fs/inside';
 import { matchLine } from './match';
@@ -25,9 +26,19 @@ export interface ScanResult {
   truncated: 'matches' | 'time' | null;
 }
 
-async function readText(abs: string): Promise<string | null> {
-  const info = await stat(abs).catch(() => null);
+/** Inside realRoot once every symlink on the way is resolved: a linked folder can lead anywhere. */
+async function staysInside(realRoot: string, abs: string): Promise<boolean> {
+  const real = await realpath(abs).catch(() => null);
+  if (real === null) return false;
+  const rel = relative(realRoot, real);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+async function readText(realRoot: string, abs: string): Promise<string | null> {
+  // lstat: a symlinked file is never followed, since it can point outside the project.
+  const info = await lstat(abs).catch(() => null);
   if (!info?.isFile() || info.size > MAX_FILE_BYTES) return null;
+  if (!(await staysInside(realRoot, abs))) return null;
   const handle = await open(abs, 'r').catch(() => null);
   if (!handle) return null;
   try {
@@ -46,6 +57,7 @@ export async function scanFiles(dir: string, paths: readonly string[], tags: rea
   const timeLimitMs = opts.timeLimitMs ?? 30_000;
   const now = opts.now ?? Date.now;
   const started = now();
+  const realRoot = await realpath(dir).catch(() => dir);
   const todos: Todo[] = [];
   let files = 0;
   let truncated: ScanResult['truncated'] = null;
@@ -65,7 +77,7 @@ export async function scanFiles(dir: string, paths: readonly string[], tags: rea
       } catch {
         continue;
       }
-      const text = await readText(abs);
+      const text = await readText(realRoot, abs);
       if (text === null) continue;
       files++;
       const lines = text.split(/\r?\n/);
