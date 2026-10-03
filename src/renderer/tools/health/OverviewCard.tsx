@@ -55,7 +55,9 @@ export function HealthCard({ projectId }: ToolPanelProps) {
                   title={TONE_LABEL[tone]}
                   className={cn('size-2 shrink-0 rounded-full', DOT_CLASS[tone])}
                 />
-                <span className="min-w-0 flex-1 truncate font-mono text-fg">{check.label}</span>
+                <span title={check.label} className="min-w-0 flex-1 truncate font-mono text-fg">
+                  {check.label.replace(/^http:\/\//, '')}
+                </span>
                 <span className="shrink-0 text-fg-faint">{detail}</span>
               </li>
             );

@@ -16,9 +16,11 @@ export function useHealth(projectId: string) {
   useToolEvent('health', projectId, 'changed', refetch);
   // An env edit can change an env check's target or the suggestions.
   useToolEvent('env', projectId, 'changed', refetch);
+  // Results change in the background while no card or panel listens: always refetch on mount.
   return useQuery({
     queryKey: healthStatusKey(projectId),
     queryFn: () => api.tools.invoke('health', projectId, 'status', {}),
+    staleTime: 0,
   });
 }
 

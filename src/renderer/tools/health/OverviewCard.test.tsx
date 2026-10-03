@@ -37,7 +37,7 @@ describe('HealthCard', () => {
     expect(await within(card).findByText('Running')).toBeInTheDocument();
     const rows = within(card).getAllByRole('listitem');
     expect(rows.map((r) => r.textContent)).toEqual([
-      'http://localhost:3000/12 ms',
+      'localhost:3000/12 ms',
       'API_URL · api.local:4000/ECONNREFUSED',
     ]);
     expect(within(rows[0] as HTMLElement).getByTitle('Healthy')).toHaveClass('bg-ok');
