@@ -48,8 +48,10 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     const spawnedAt = Date.now();
     const pid = child.pid ?? 0;
     try {
-      // A cold PowerShell on a CI runner can take over 10 s.
+      // A cold PowerShell on a loaded CI runner can take over 30 s.
       const processes = await adapter.listProcesses();
+      // Separate failures: no list at all (PowerShell failed or timed out) vs. the process missing from it.
+      expect(processes).not.toBeNull();
       const root = processes?.find((p) => p.pid === pid);
       expect(root?.parentPid).toBe(process.pid);
       expect(Math.abs((root?.startTime ?? 0) - spawnedAt)).toBeLessThan(3_000);
@@ -58,7 +60,7 @@ describe.runIf(process.platform === 'win32')('win32 process control (integration
     }
     await waitUntil(() => !isAlive(pid));
     await closed;
-  }, 60_000);
+  }, 120_000);
 
   it('kills grandchildren too', async () => {
     writeFileSync(join(dir, 'leaf.js'), 'console.log(process.pid); setInterval(() => {}, 1000);');

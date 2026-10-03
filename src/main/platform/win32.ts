@@ -29,6 +29,7 @@ function assertPid(pid: number): void {
 }
 
 const MAX_DESCRIBE_PIDS = 64;
+export const LIST_PROCESSES_TIMEOUT_MS = 60_000;
 
 export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
   return {
@@ -113,8 +114,9 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
         const { code, stdout } = await deps.runner.exec(
           'powershell.exe',
           ['-NoProfile', '-NonInteractive', '-Command', script],
-          // A cold PowerShell can take over 10 s. A busy machine lists thousands of processes: lift the 64 KiB cap.
-          { timeoutMs: 30_000, maxBytes: 8 * 1024 * 1024 },
+          // A cold PowerShell on a loaded machine can take over 30 s (seen on a CI runner); callers run it in the
+          // background. A busy machine lists thousands of processes: lift the 64 KiB cap.
+          { timeoutMs: LIST_PROCESSES_TIMEOUT_MS, maxBytes: 8 * 1024 * 1024 },
         );
         if (code !== 0) return null;
         const processes: ProcessInfo[] = [];
