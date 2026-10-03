@@ -36,6 +36,7 @@ import { createSharedContext } from './tools/shared-context';
 import { createToolHost } from './tools/tool-host';
 import { handleOrphans } from './lifecycle/orphan-prompt';
 import { createQuitController, SHUTDOWN_TIMEOUT_MS } from './lifecycle/quit-controller';
+import { appMenuTemplate } from './app-menu';
 import { crashNotice } from './tray/crash-notifier';
 import { createTrayController, type TrayController } from './tray/tray-controller';
 import { buildTrayModel, type TrayActions } from './tray/tray-menu';
@@ -249,6 +250,26 @@ if (!app.requestSingleInstanceLock()) {
       logger,
     });
     app.on('before-quit', (event) => quitController.onBeforeQuit(event));
+
+    if (platform.id === 'darwin') {
+      Menu.setApplicationMenu(
+        Menu.buildFromTemplate(
+          appMenuTemplate({
+            appName: app.name,
+            isDev: !app.isPackaged,
+            actions: {
+              settings: () => {
+                showWindow();
+                emit('app:openSettings');
+              },
+              quit: () => void quitController.requestQuit(),
+            },
+          }),
+        ),
+      );
+      // A click on the Dock icon brings the (hidden) window back.
+      app.on('activate', showWindow);
+    }
 
     const showLogs = (projectId: string, script: string): void => {
       showWindow();
