@@ -32,6 +32,13 @@ describe('spawnRunner.exec', () => {
     expect(stdout).toHaveLength(200_000);
   });
 
+  it('passes the given environment', async () => {
+    const { stdout } = await spawnRunner.exec(node, ['-e', 'process.stdout.write(process.env.NESTBOX_T ?? "")'], {
+      env: { ...process.env, NESTBOX_T: 'C' },
+    });
+    expect(stdout).toBe('C');
+  });
+
   it('gives up after the timeout with a null code', async () => {
     const started = Date.now();
     const result = await spawnRunner.exec(node, ['-e', 'setTimeout(() => {}, 5000)'], { timeoutMs: 200 });
@@ -67,5 +74,19 @@ describe('spawnRunner.spawn', () => {
     child.stdout?.on('data', (c: Buffer) => (out += c.toString()));
     await new Promise((r) => child.once('close', r));
     expect(out).toBe('say "hi"\nand bye');
+  });
+
+  // POSIX only: a new process group lets killTree signal the whole tree at once.
+  it.skipIf(process.platform === 'win32')('starts a new process group when asked', async () => {
+    const child = spawnRunner.spawn(node, ['-e', 'setTimeout(() => {}, 5000)'], {
+      cwd: process.cwd(),
+      env: process.env,
+      newProcessGroup: true,
+    });
+    await new Promise((r) => child.once('spawn', r));
+    const pid = child.pid ?? 0;
+    const { stdout } = await spawnRunner.exec('ps', ['-o', 'pgid=', '-p', String(pid)]);
+    child.kill('SIGKILL');
+    expect(Number(stdout.trim())).toBe(pid);
   });
 });

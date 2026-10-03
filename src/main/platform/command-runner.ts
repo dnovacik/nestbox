@@ -26,6 +26,7 @@ export const spawnRunner: CommandRunner = {
     return new Promise<ExecResult>((resolve, reject) => {
       const child = spawn(file, [...args], {
         cwd: opts.cwd,
+        env: opts.env,
         windowsHide: true,
         windowsVerbatimArguments: opts.verbatim ?? false,
         stdio: ['ignore', 'pipe', 'ignore'],
@@ -57,6 +58,8 @@ export const spawnRunner: CommandRunner = {
       cwd: opts.cwd,
       env: opts.env,
       stdio: [opts.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      // Never on Windows: there detached opens a console window. Only the darwin adapter asks for it.
+      detached: opts.newProcessGroup ?? false,
       windowsHide: true,
       windowsVerbatimArguments: opts.verbatim ?? false,
     });

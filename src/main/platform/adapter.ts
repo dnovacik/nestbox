@@ -50,6 +50,8 @@ export interface PipedSpawnOpts {
   verbatim?: boolean;
   /** Written to the child's stdin, which is then closed. Without it stdin is ignored. */
   stdin?: string;
+  /** POSIX: make the child the leader of a new process group, so its whole tree can be signalled. */
+  newProcessGroup?: boolean;
 }
 
 export interface CommandRunner {
@@ -59,7 +61,7 @@ export interface CommandRunner {
   exec(
     file: string,
     args: readonly string[],
-    opts?: { timeoutMs?: number; maxBytes?: number; cwd?: string; verbatim?: boolean },
+    opts?: { timeoutMs?: number; maxBytes?: number; cwd?: string; env?: NodeJS.ProcessEnv; verbatim?: boolean },
   ): Promise<ExecResult>;
   /** A long-running child with piped stdout/stderr, ignored stdin (unless opts.stdin) and a hidden window. */
   spawn(file: string, args: readonly string[], opts: PipedSpawnOpts): ChildProcess;
