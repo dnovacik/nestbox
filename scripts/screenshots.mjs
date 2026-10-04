@@ -2,8 +2,11 @@
 //   node scripts/screenshots.mjs            (Windows, or Linux under xvfb-run)
 // It creates demo projects in a temp folder and an isolated profile. Data the platform can't provide
 // here (running scripts and their output, listening ports, the claude CLI) is faked by wrapping main's
-// IPC handlers, so the pictures look the same on any machine. Writes docs/screenshots/*.png.
+// IPC handlers, so the pictures look the same on any machine (Docker too: the Compose status is faked).
+// Needs git on PATH. Writes docs/screenshots/*.png.
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +52,18 @@ async function demoProjects() {
     '.claude/agents/db-expert.md': '---\nname: db-expert\ndescription: Prisma schema and migration reviews\n---\n',
     '.claude/settings.json': JSON.stringify({ permissions: { allow: ['Bash(pnpm test)', 'Bash(pnpm lint)'], deny: ['Read(.env)'] }, hooks: { PostToolUse: [] } }),
     '.mcp.json': JSON.stringify({ mcpServers: { github: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] }, sentry: { type: 'http', url: 'https://mcp.sentry.dev/mcp' } } }),
+    'src/api/client.ts': '// TODO: retry idempotent requests once on a 503\nexport const api = {};\n// FIXME(dan): the base URL ignores VITE_API_URL in previews\n',
+    'src/pages/Cart.tsx': 'export function Cart() {\n  // TODO: show the shipping estimate before checkout\n  return null;\n}\n',
+    'src/lib/money.ts': '// HACK: rounds half up until the tax service supports banker\'s rounding\nexport const cents = (n: number) => Math.round(n * 100);\n',
+    'prisma/seed.ts': '// XXX: seed data still uses the 2024 price list\n',
   });
+  // A repository with history, a change and an untracked file, for the Git tab.
+  const git = (...args) => execFileSync('git', args, { cwd: shop, stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('-c', 'user.name=Ada Lovelace', '-c', 'user.email=ada@example.com', 'add', '-A');
+  git('-c', 'user.name=Ada Lovelace', '-c', 'user.email=ada@example.com', 'commit', '-q', '-m', 'feat(cart): show line totals in cents');
+  git('checkout', '-q', '-b', 'feature/checkout');
+  await files(shop, { 'src/pages/Cart.tsx': 'export function Cart() {\n  // TODO: show the shipping estimate before checkout\n  return <section />;\n}\n', 'src/pages/Checkout.tsx': 'export function Checkout() {\n  return null;\n}\n' });
   const platform = join(base, 'platform');
   await files(platform, {
     'package.json': JSON.stringify({ name: 'platform', private: true, scripts: { dev: 'turbo dev', build: 'turbo build' } }, null, 2),
@@ -84,6 +98,31 @@ const DEV_LOG = [
   ['stdout', '{"level":"info","msg":"GET /api/products 200","ms":38}'],
   ['stdout', '{"level":"warn","msg":"slow query","model":"Order","ms":812}'],
 ];
+
+const COMPOSE_LOG = [
+  '▸ docker compose up -d',
+  ' Network shop_default  Created',
+  ' Container shop-db-1  Started',
+  ' Container shop-redis-1  Started',
+  ' Container shop-mailpit-1  Started',
+  ' Container shop-worker-1  Started',
+  '■ done',
+];
+
+/** A tiny JSON API for the inspector screenshot. */
+async function demoApi() {
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const status = req.url?.startsWith('/api/orders') && req.method === 'POST' ? 201 : req.url?.includes('missing') ? 404 : 200;
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Set-Cookie': 'sid=demo; HttpOnly' });
+      res.end(JSON.stringify(status === 404 ? { error: 'Not found' } : { ok: true, path: req.url, received: body ? JSON.parse(body) : null }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return server;
+}
 
 async function main() {
   const projects = await demoProjects();
@@ -146,14 +185,37 @@ async function main() {
           const lines = fake.devLog.map(([stream, text], i) => ({ seq: i + 1, ts: now - (fake.devLog.length - i) * 4_000, stream, text }));
           return ok({ lines, firstSeq: 1, lastSeq: lines.length });
         }
+        // No Docker daemon is assumed: the Compose tab shows a typical stack.
+        if (payload?.toolId === 'compose' && payload.method === 'status') {
+          const svc = (name, state, health, exitCode, ports) => ({ name, state, health, exitCode, ports });
+          return ok({
+            state: 'ok',
+            file: 'docker-compose.yml',
+            action: null,
+            following: null,
+            services: [
+              svc('db', 'running', 'healthy', 0, [{ published: 5432, target: 5432, protocol: 'tcp' }]),
+              svc('redis', 'running', null, 0, [{ published: 6379, target: 6379, protocol: 'tcp' }]),
+              svc('mailpit', 'running', null, 0, [{ published: 8025, target: 8025, protocol: 'tcp' }]),
+              svc('worker', 'exited', null, 1, []),
+            ],
+          });
+        }
+        if (payload?.toolId === 'compose' && payload.method === 'getLogs' && payload.input?.source === 'actions') {
+          const lines = fake.composeLog.map((text, i) => ({ seq: i + 1, ts: now - (fake.composeLog.length - i) * 1_500, stream: i === 0 ? 'system' : 'stderr', text }));
+          return ok({ lines, firstSeq: 1, lastSeq: lines.length });
+        }
         const result = await pass();
+        if (payload?.toolId === 'database' && payload.method === 'status' && result.ok) {
+          result.data.reach = { result: 'reachable', reason: null };
+        }
         if (payload?.toolId === 'claude' && payload.method === 'status' && result.ok) {
           result.data.cli = { found: true, version: '2.1.0 (Claude Code)' };
           result.data.gitignore = result.data.gitignore.map((g) => ({ ...g, ignored: true }));
         }
         return result;
       });
-    }, { shopId, apiId, devLog: DEV_LOG });
+    }, { shopId, apiId, devLog: DEV_LOG, composeLog: COMPOSE_LOG });
     // Everything fetched before the stubs is refetched through them.
     await page.reload();
     await sidebar.getByRole('button', { name: 'shop', exact: true }).waitFor();
@@ -194,6 +256,61 @@ async function main() {
     await shot('ports');
 
     await sidebar.getByRole('button', { name: 'shop', exact: true }).click();
+    await page.getByRole('heading', { name: 'shop', exact: true }).waitFor();
+    const invoke = (toolId, method, input) =>
+      page.evaluate((call) => globalThis.nestbox.invoke('tools:invoke', call), { toolId, projectId: shopId, method, input });
+
+    await page.getByRole('tab', { name: 'Git' }).click();
+    await page.getByRole('region', { name: 'Summary' }).waitFor();
+    await page.getByText('src/pages/Checkout.tsx').waitFor();
+    await shot('git');
+
+    await page.getByRole('tab', { name: 'TODOs' }).click();
+    await page.getByRole('list', { name: 'Files with TODOs' }).waitFor();
+    await shot('todos');
+
+    await page.getByRole('tab', { name: 'Database' }).click();
+    await page.getByRole('region', { name: 'Connection' }).waitFor();
+    await shot('database');
+
+    await page.getByRole('tab', { name: 'Compose' }).click();
+    await page.getByRole('list', { name: 'Services' }).waitFor();
+    await page.getByText('Container shop-db-1').waitFor();
+    await shot('compose');
+
+    const route = (id, method, path, status, body, extra = {}) => ({ id, enabled: true, method, path, status, contentType: 'json', headers: [], body, delayMs: 0, fail: { on: false, status: 500 }, ...extra });
+    await invoke('mock', 'saveRoute', { route: route('r1', 'GET', '/api/products', 200, '[{"id":1,"name":"Mug","price":1200}]') });
+    await invoke('mock', 'saveRoute', { route: route('r2', 'GET', '/api/products/:id', 200, '{"id":"{{params.id}}","name":"Mug"}', { delayMs: 300 }) });
+    await invoke('mock', 'saveRoute', { route: route('r3', 'POST', '/api/orders', 201, '{"orderId":"{{query.ref}}"}', { fail: { on: true, status: 503 } }) });
+    await invoke('mock', 'saveRoute', { route: route('r4', 'ANY', '/api/health', 200, '{"ok":true}') });
+    await page.getByRole('tab', { name: 'Mock API' }).click();
+    const mock = page.getByRole('region', { name: 'Mock API' });
+    await mock.getByRole('button', { name: 'Start' }).click();
+    const mockUrl = (await mock.getByText(/^http:\/\/localhost:\d+$/).textContent()).replace('localhost', '127.0.0.1');
+    for (const [method, path] of [['GET', '/api/products'], ['GET', '/api/products/7'], ['POST', '/api/orders?ref=A1'], ['GET', '/api/users']]) {
+      await fetch(`${mockUrl}${path}`, { method }).catch(() => undefined);
+    }
+    await mock.getByText('GET /api/users → 404').waitFor();
+    await shot('mock');
+    await mock.getByRole('button', { name: 'Stop' }).click();
+
+    const api = await demoApi();
+    await invoke('inspector', 'setOptions', { target: `http://localhost:${api.address().port}` });
+    await page.getByRole('tab', { name: 'Inspector' }).click();
+    const inspector = page.getByRole('region', { name: 'Inspector' });
+    await inspector.getByRole('button', { name: 'Start' }).click();
+    const inspectorUrl = (await inspector.getByText(/^http:\/\/localhost:\d+$/).textContent()).replace('localhost', '127.0.0.1');
+    const auth = { Authorization: 'Bearer demo-token', 'Content-Type': 'application/json' };
+    await fetch(`${inspectorUrl}/api/products?page=1`, { headers: auth });
+    await fetch(`${inspectorUrl}/api/orders`, { method: 'POST', headers: auth, body: JSON.stringify({ items: [{ sku: 'MUG-1', qty: 2 }], currency: 'EUR' }) });
+    await fetch(`${inspectorUrl}/api/missing`, { headers: auth });
+    const requests = inspector.getByRole('list', { name: 'Requests' });
+    await requests.getByRole('button', { name: /\/api\/orders/ }).click();
+    await inspector.getByRole('region', { name: 'Request detail' }).getByRole('button', { name: 'Request', exact: true }).click();
+    await shot('inspector');
+    await inspector.getByRole('button', { name: 'Stop' }).click();
+    api.close();
+
     // Lower-case: 'Control+K' would add Shift, which the shortcut deliberately ignores.
     await page.keyboard.press('Control+k');
     await page.getByRole('dialog').waitFor();
