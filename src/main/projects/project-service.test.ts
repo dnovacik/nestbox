@@ -322,7 +322,7 @@ describe('ProjectService lookups and edits', () => {
 });
 
 describe('ProjectService run groups and tool settings', () => {
-  const group = { name: 'dev', entries: [{ relPath: '', script: 'api' }, { relPath: 'packages/api', script: 'dev' }] };
+  const group = { name: 'dev', entries: [{ relPath: '', script: 'api' }, { relPath: 'packages/api', script: 'dev' }], compose: [] };
 
   it('stores run groups on a root project and notifies', async () => {
     const { service, onChanged, store } = setup();
@@ -340,7 +340,7 @@ describe('ProjectService run groups and tool settings', () => {
     expect(() => service.setRunGroups('id-1::packages/api', [group])).toThrow(
       expect.objectContaining({ code: 'VALIDATION' }),
     );
-    expect(() => service.setRunGroups('id-1', [{ name: '', entries: [] }])).toThrow();
+    expect(() => service.setRunGroups('id-1', [{ name: '', entries: [], compose: [] }])).toThrow();
     expect(store.getProjects()[0]?.runGroups).toEqual([]);
   });
 

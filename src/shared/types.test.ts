@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { AppSettingsSchema, CURRENT_SCHEMA_VERSION, defaultStoreData, ProjectNameSchema, ProjectSchema, StoreDataSchema } from './types';
+import {
+  AppSettingsSchema,
+  CURRENT_SCHEMA_VERSION,
+  defaultStoreData,
+  ProjectNameSchema,
+  ProjectSchema,
+  RunGroupSchema,
+  StoreDataSchema,
+} from './types';
 
 describe('persisted types', () => {
   it('fills project defaults from id, name and path only', () => {
@@ -14,6 +22,24 @@ describe('persisted types', () => {
       envProfiles: [],
       toolSettings: {},
     });
+  });
+
+  it('gives stored run groups an empty compose list', () => {
+    expect(RunGroupSchema.parse({ name: 'dev', entries: [{ relPath: '', script: 'dev' }] })).toEqual({
+      name: 'dev',
+      entries: [{ relPath: '', script: 'dev' }],
+      compose: [],
+    });
+  });
+
+  it('accepts compose entries with valid service names only', () => {
+    const group = (services: string[]) => ({ name: 'g', entries: [], compose: [{ relPath: '', services }] });
+    expect(RunGroupSchema.safeParse(group([])).success).toBe(true);
+    expect(RunGroupSchema.safeParse(group(['db', 'redis_1'])).success).toBe(true);
+    expect(RunGroupSchema.safeParse(group(['--volumes'])).success).toBe(false);
+    expect(RunGroupSchema.safeParse(group(['a b'])).success).toBe(false);
+    const many = { name: 'g', entries: [], compose: Array.from({ length: 21 }, (_, i) => ({ relPath: `p${i}`, services: [] })) };
+    expect(RunGroupSchema.safeParse(many).success).toBe(false);
   });
 
   it('keeps path casing exactly as given', () => {

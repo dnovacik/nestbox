@@ -50,7 +50,7 @@ describe('buildTrayModel', () => {
         proc({ projectId: 'p1', script: 'build', state: 'exited' }),
         proc({ projectId: 'p2', script: 'x', state: 'stopped' }),
       ],
-      (id) => (id === 'p1' ? [{ name: 'dev', entries: [] }] : []),
+      (id) => (id === 'p1' ? [{ name: 'dev', entries: [], compose: [] }] : []),
     );
     expect(model.projects).toEqual([
       {
@@ -66,7 +66,7 @@ describe('buildTrayModel', () => {
 });
 
 describe('buildTrayMenu', () => {
-  const model = buildTrayModel([shop, blog], [proc({ script: 'web' })], (id) => (id === 'p1' ? [{ name: 'dev', entries: [] }] : []));
+  const model = buildTrayModel([shop, blog], [proc({ script: 'web' })], (id) => (id === 'p1' ? [{ name: 'dev', entries: [], compose: [] }] : []));
 
   it('lists processes with stop, restart and show logs', () => {
     const a = actions();

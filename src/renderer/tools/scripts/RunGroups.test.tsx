@@ -10,7 +10,7 @@ const packages = [
   { relPath: '', name: 'shop', scripts: ['dev', 'build'] },
   { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'] },
 ];
-const group = { name: 'dev', entries: [{ relPath: 'packages/api', script: 'dev' }] };
+const group = { name: 'dev', entries: [{ relPath: 'packages/api', script: 'dev' }], compose: [] };
 
 describe('RunGroups', () => {
   it('is absent on a workspace package', async () => {
@@ -68,6 +68,7 @@ describe('RunGroups', () => {
               { relPath: 'packages/api', script: 'dev' },
               { relPath: '', script: 'build' },
             ],
+            compose: [],
           },
         },
       ]),

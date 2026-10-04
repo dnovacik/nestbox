@@ -9,9 +9,22 @@ export const RunGroupEntrySchema = z.object({
 });
 export type RunGroupEntry = z.infer<typeof RunGroupEntrySchema>;
 
+/** A Compose service name as NestBox accepts it on a command line. */
+export const SERVICE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/;
+
+export const RunGroupComposeSchema = z.object({
+  /** '' = the root package; otherwise the workspace package's posix relPath. */
+  relPath: z.string(),
+  /** Empty = the whole stack. */
+  services: z.array(z.string().regex(SERVICE_NAME)).max(50),
+});
+export type RunGroupCompose = z.infer<typeof RunGroupComposeSchema>;
+
 export const RunGroupSchema = z.object({
   name: z.string().trim().min(1).max(60),
   entries: z.array(RunGroupEntrySchema).max(50),
+  /** Compose services brought up (and waited for) before the scripts start. */
+  compose: z.array(RunGroupComposeSchema).max(20).default([]),
 });
 export type RunGroup = z.infer<typeof RunGroupSchema>;
 

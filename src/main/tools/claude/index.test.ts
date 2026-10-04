@@ -141,7 +141,7 @@ describe('claude tool', () => {
         envFiles: ['.env', '.env.example'],
         prismaSchema: 'prisma/schema.prisma',
       },
-      { groups: [{ name: 'all', entries: [{ relPath: '', script: 'dev' }, { relPath: 'packages/api', script: 'start' }] }] },
+      { groups: [{ name: 'all', entries: [{ relPath: '', script: 'dev' }, { relPath: 'packages/api', script: 'start' }], compose: [] }] },
     );
     const preview = await call<{ before: string; after: string; version: string }>('contextPreview');
     expect(preview.before).toBe('# Shop\n\nHand-written.\n');

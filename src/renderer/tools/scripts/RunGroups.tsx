@@ -56,7 +56,7 @@ function RunGroupEditor({ open, onOpenChange, packages, initial, onSave }: Edito
           onSubmit={(e) => {
             e.preventDefault();
             if (!canSave) return;
-            onSave({ ...(initial ? { previousName: initial.name } : {}), group: { name: name.trim(), entries } });
+            onSave({ ...(initial ? { previousName: initial.name } : {}), group: { name: name.trim(), entries, compose: initial?.compose ?? [] } });
           }}
         >
           <label className="block space-y-1 text-xs text-fg-muted">

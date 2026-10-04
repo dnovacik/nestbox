@@ -87,13 +87,13 @@ afterEach(() => {
 describe('scripts tool: list and lifecycle', () => {
   it('lists scripts, run groups and packages on a root', async () => {
     const { call, setGroups } = setup();
-    setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }] }]);
+    setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }]);
     expect(await call('r1', 'list')).toEqual({
       scripts: [
         { name: 'dev', command: 'vite', autoRestart: false },
         { name: 'build', command: 'vite build', autoRestart: false },
       ],
-      runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }] }],
+      runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }],
       packages: [
         { relPath: '', name: 'shop', scripts: ['dev', 'build'] },
         { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'] },
@@ -249,6 +249,7 @@ describe('scripts tool: run groups', () => {
   const group = (name: string, entries: [string, string][]): RunGroup => ({
     name,
     entries: entries.map(([relPath, script]) => ({ relPath, script })),
+    compose: [],
   });
 
   it('saves, renames and deletes groups on the root only', async () => {
