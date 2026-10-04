@@ -1,7 +1,8 @@
-import { Box, Database, GitBranch, HeartPulse, Info, KeyRound, LayoutGrid, ListTodo, type LucideIcon, Server, Sparkles, SquareTerminal } from 'lucide-react';
+import { Box, Container, Database, GitBranch, HeartPulse, Info, KeyRound, LayoutGrid, ListTodo, type LucideIcon, Server, Sparkles, SquareTerminal } from 'lucide-react';
 
 /** lucide icon names used by ToolDefinition.icon. Adding a tool with a new icon adds a line here. */
 const ICONS: Record<string, LucideIcon> = {
+  container: Container,
   database: Database,
   'git-branch': GitBranch,
   'heart-pulse': HeartPulse,

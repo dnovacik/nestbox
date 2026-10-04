@@ -223,6 +223,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         logger,
       },
+      compose: { logger },
     });
     const toolHost = createToolHost({
       tools,
