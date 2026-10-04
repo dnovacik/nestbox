@@ -45,7 +45,11 @@
   - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-compose-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-compose.md`.
   - Owner's answers: per-service and stack actions; Stop keeps containers, Down after a confirmation; one service's logs in the log viewer; not part of run groups yet.
   - Not verifiable in CI: a real `docker compose` (the e2e specs use `e2e/fixtures/fake-docker`).
-- Next v2 tools, smallest first: mock API, request inspector.
+- v1.6.0 (Docker Compose) is merged and its release draft built (PR #14); the owner publishes it.
+- Mock API (the sixth v2 tool): branch `v2-mock-api`, draft PR #15, version 1.7.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-mock-api-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-mock-api.md`.
+  - Owner's answers: saved in NestBox settings; static JSON with `:params` and placeholders; per-route and global delay/fail; 404 plus a request log.
+- Next v2 tool: the request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**

@@ -25,6 +25,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 | **TODOs** | `TODO`, `FIXME`, `HACK`, `XXX` and `BUG` comments (the tags are editable per project), grouped by file, with counts on the overview. Files come from git (so `.gitignore` applies), or a folder walk outside git. A click opens the file at that line in the editor. |
 | **Health** | HTTP checks that run while a package's scripts run: a URL, or the host of a `.env` key such as `API_URL` plus a path (the value never leaves the app). Green when it answers 2xx/3xx (or the status you expect) within 5 s, with the latency on the overview, and a desktop notification when a check that was green starts failing. `localhost:<PORT>` and URL-like keys are one-click suggestions. |
 | **Compose** | For a package with a compose file: each service's state, health and published ports. Start, stop and restart one service, Up all or Stop all, and Down after a confirmation (volumes are never removed). One service's logs stream into the log viewer, and the output of the actions has its own log. Docker runs the containers, so quitting NestBox leaves them as they are. |
+| **Mock API** | JSON (or text) routes you define in the UI, served on a local port: `:params` and `*` in paths, `{{params.x}}`/`{{query.x}}` in the body, headers, a delay and a fail switch per route, plus an extra delay and "fail every request" for the whole server. CORS is always on, and a request log shows method, path, status and time (never headers, bodies or query strings). Routes are saved per project in NestBox. |
 | **Command palette** | `Ctrl+K`: jump to a project or tool, run or stop any script, start run groups, open Claude in a terminal. |
 
 <table>
@@ -141,7 +142,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
 
-v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0), the TODO scanner (v1.4.0), health checks (v1.5.0) and Docker Compose (v1.6.0), and adds one tool per release next: mock API and request inspector. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0), the TODO scanner (v1.4.0), health checks (v1.5.0), Docker Compose (v1.6.0) and the mock API (v1.7.0). The request inspector is next. See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
 
 ## License
 

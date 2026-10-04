@@ -32,7 +32,7 @@ import { createClaudeDocs } from './tools/claude/docs';
 import { createEnvFileAccess } from './tools/env/env-files';
 import { watchDir } from './fs/watch-dir';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
-import { firstFreePort, lanAddresses } from './tools/static/net';
+import { firstFreePort, lanAddresses } from './tools/net';
 import { checkReachable } from './tools/database/reach';
 import { checkUrl } from './tools/health/check';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
@@ -224,6 +224,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       compose: { logger },
+      mock: { logger },
     });
     const toolHost = createToolHost({
       tools,
