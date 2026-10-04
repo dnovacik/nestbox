@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useRef } from 'react';
+import { type KeyboardEvent, useEffect, useRef } from 'react';
 import type { ToolSummary } from '@shared/tool';
 import { cn } from '@/lib/utils';
 import { toolIcon } from '@/tools/icons';
@@ -19,6 +19,12 @@ interface ToolTabsProps {
 export function ToolTabs({ projectId, tools, active, onSelect }: ToolTabsProps) {
   const tabs: ToolSummary[] = [{ id: OVERVIEW_TAB, name: 'Overview', icon: 'layout-grid' }, ...tools];
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const activeIndex = tabs.findIndex((t) => t.id === active);
+
+  // The bar scrolls when there are more tabs than fit: keep the selected one in view.
+  useEffect(() => {
+    refs.current[activeIndex]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeIndex]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const last = tabs.length - 1;
@@ -41,7 +47,15 @@ export function ToolTabs({ projectId, tools, active, onSelect }: ToolTabsProps) 
   };
 
   return (
-    <div role="tablist" aria-label="Project tools" className="flex gap-1 border-b border-line px-5">
+    <div
+      role="tablist"
+      aria-label="Project tools"
+      // More tabs than fit: the bar scrolls sideways (wheel, trackpad, or selecting a tab), with no scrollbar.
+      onWheel={(e) => {
+        if (e.deltaX === 0 && e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY;
+      }}
+      className="flex shrink-0 gap-1 overflow-x-auto overflow-y-hidden border-b border-line px-5 [scrollbar-width:none]"
+    >
       {tabs.map((tab, index) => {
         const Icon = toolIcon(tab.icon);
         const selected = tab.id === active;
@@ -60,7 +74,7 @@ export function ToolTabs({ projectId, tools, active, onSelect }: ToolTabsProps) 
             onClick={() => onSelect(tab.id)}
             onKeyDown={(e) => onKeyDown(e, index)}
             className={cn(
-              '-mb-px flex items-center gap-2 border-b-2 px-3.5 py-2 text-xs font-medium transition-colors',
+              '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors',
               selected ? 'border-brand text-brand' : 'border-transparent text-fg-muted hover:border-line hover:text-fg',
             )}
           >
