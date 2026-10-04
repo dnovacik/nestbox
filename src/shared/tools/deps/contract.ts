@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PACKAGE_MANAGERS } from '../../detected';
+import { DEPS_SCHEDULES } from '../../types';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
 
 export const depsDefinition: ToolDefinition<Record<string, never>> = {
@@ -45,14 +46,18 @@ export const DepRowSchema = z.object({
 export type DepRow = z.infer<typeof DepRowSchema>;
 
 export const STEPS = ['outdated', 'audit'] as const;
-export const StepErrorSchema = z.object({ step: z.enum(STEPS), code: z.enum(['failed', 'timeout']) });
+export const StepErrorSchema = z.object({
+  step: z.enum(STEPS),
+  code: z.enum(['failed', 'timeout']),
+});
 export type StepError = z.infer<typeof StepErrorSchema>;
 
 export const PackageResultSchema = z.object({
   projectId: z.string(),
   relPath: z.string(),
   name: z.string(),
-  manager: z.enum(PACKAGE_MANAGERS),
+  /** The package manager that ran; Yarn 2+ is 'yarn-berry' (its commands differ from Yarn 1's). */
+  manager: z.enum([...PACKAGE_MANAGERS, 'yarn-berry']),
   checkedAt: z.number(),
   rows: z.array(DepRowSchema),
   errors: z.array(StepErrorSchema),
@@ -84,7 +89,8 @@ export const depsEvents = defineEvents({
 /** Counts for a card or the overview. */
 export function summarize(packages: readonly PackageResult[]) {
   const rows = packages.flatMap((p) => p.rows);
-  const severity = (s: Severity) => rows.filter((r) => r.advisories.some((a) => a.severity === s)).length;
+  const severity = (s: Severity) =>
+    rows.filter((r) => r.advisories.some((a) => a.severity === s)).length;
   return {
     outdated: rows.filter((r) => r.outdated).length,
     major: rows.filter((r) => r.outdated && r.major).length,
@@ -102,3 +108,19 @@ export function worstSeverity(advisories: readonly Advisory[]): Severity | null 
   for (const a of advisories) worst = Math.max(worst, SEVERITIES.indexOf(a.severity));
   return worst < 0 ? null : (SEVERITIES[worst] ?? null);
 }
+
+/** The Dependencies page: every root project's last results (its workspace packages included). */
+export const DepsOverviewSchema = z.object({
+  projects: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      packages: z.array(PackageResultSchema),
+      checking: z.boolean(),
+    }),
+  ),
+  /** "Check all now" or the schedule is going through the projects. */
+  runningAll: z.boolean(),
+  schedule: z.enum(DEPS_SCHEDULES),
+});
+export type DepsOverview = z.infer<typeof DepsOverviewSchema>;

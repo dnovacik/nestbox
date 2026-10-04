@@ -27,9 +27,7 @@
       ],
       "effects": [],
       "range": "<=4.17.23",
-      "nodes": [
-        "node_modules/lodash"
-      ],
+      "nodes": ["node_modules/lodash"],
       "fixAvailable": {
         "name": "lodash",
         "version": "4.18.1",

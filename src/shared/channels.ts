@@ -5,6 +5,7 @@ import { PortKillInputSchema, PortKillResultSchema, PortListSchema, PortWaitInpu
 import { ProcessSummarySchema } from './processes';
 import { SettingsPatchSchema, SettingsViewSchema } from './settings';
 import { ToolSummarySchema } from './tool';
+import { DepsOverviewSchema } from './tools/deps/contract';
 import { AppInfoSchema, ProjectNameSchema } from './types';
 
 const NoInput = z.void();
@@ -50,6 +51,10 @@ export const channels = {
   'ports:kill': { input: PortKillInputSchema, output: PortKillResultSchema },
   /** Resolves true once nothing listens on the port, false after timeoutMs. */
   'ports:waitFree': { input: PortWaitInputSchema, output: z.boolean() },
+  /** The Dependencies page: every project's last dependency results (from the cache, no network). */
+  'deps:overview': { input: NoInput, output: DepsOverviewSchema },
+  /** Starts checking every project in the background (network); returns at once. */
+  'deps:checkAll': { input: NoInput, output: z.void() },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;
 
 type Spec<C extends InvokeChannel> = (typeof channels)[C];

@@ -40,6 +40,10 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       kill: (input: PortKillInput) => call('ports:kill', input),
       waitFree: (port: number, timeoutMs: number) => call('ports:waitFree', { port, timeoutMs }),
     },
+    deps: {
+      overview: () => call('deps:overview'),
+      checkAll: () => call('deps:checkAll'),
+    },
     settings: {
       get: () => call('settings:get'),
       update: (patch: SettingsPatch) => call('settings:update', patch),

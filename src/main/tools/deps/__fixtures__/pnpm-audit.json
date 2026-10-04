@@ -5,9 +5,7 @@
       "findings": [
         {
           "version": "4.17.15",
-          "paths": [
-            ".>lodash"
-          ]
+          "paths": [".>lodash"]
         }
       ],
       "id": 1106913,
@@ -22,9 +20,7 @@
       "findings": [
         {
           "version": "4.17.15",
-          "paths": [
-            ".>lodash"
-          ]
+          "paths": [".>lodash"]
         }
       ],
       "id": 1106920,

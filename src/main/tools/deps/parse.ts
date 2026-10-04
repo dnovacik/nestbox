@@ -44,9 +44,16 @@ function severity(value: unknown): Severity {
   return (SEVERITIES as readonly string[]).includes(s) ? (s as Severity) : 'info';
 }
 
-function advisory(fields: { id: unknown; ghsa?: unknown; title: unknown; severity: unknown; url: unknown; range: unknown }): Advisory {
+function advisory(fields: {
+  id: unknown;
+  ghsa?: unknown;
+  title: unknown;
+  severity: unknown;
+  url: unknown;
+  range: unknown;
+}): Advisory {
   const url = str(fields.url);
-  const ghsa = str(fields.ghsa) ?? (url ? /GHSA-[\w-]+/.exec(url)?.[0] ?? null : null);
+  const ghsa = str(fields.ghsa) ?? (url ? (/GHSA-[\w-]+/.exec(url)?.[0] ?? null) : null);
   return {
     id: ghsa ?? String(fields.id ?? '?'),
     title: str(fields.title) ?? 'Advisory',
@@ -70,7 +77,12 @@ function outdatedMap(value: unknown): Outdated[] | null {
   for (const [name, raw] of Object.entries(value)) {
     const entry = Array.isArray(raw) ? raw[0] : raw;
     if (!isObj(entry)) continue;
-    out.push({ name, current: str(entry['current']), wanted: str(entry['wanted']), latest: str(entry['latest']) });
+    out.push({
+      name,
+      current: str(entry['current']),
+      wanted: str(entry['wanted']),
+      latest: str(entry['latest']),
+    });
   }
   return out;
 }
@@ -109,21 +121,39 @@ export function parseNpmAudit(text: string): Vulns | null {
     if (!isObj(entry) || !Array.isArray(entry['via'])) continue;
     for (const via of entry['via']) {
       if (!isObj(via)) continue;
-      add(vulns, name, advisory({ id: via['source'], title: via['title'], severity: via['severity'], url: via['url'], range: via['range'] }));
+      add(
+        vulns,
+        name,
+        advisory({
+          id: via['source'],
+          title: via['title'],
+          severity: via['severity'],
+          url: via['url'],
+          range: via['range'],
+        }),
+      );
     }
   }
   return vulns;
 }
 
 const fromAdvisoryObject = (a: Obj) =>
-  advisory({ id: a['id'], ghsa: a['github_advisory_id'], title: a['title'], severity: a['severity'], url: a['url'], range: a['vulnerable_versions'] });
+  advisory({
+    id: a['id'],
+    ghsa: a['github_advisory_id'],
+    title: a['title'],
+    severity: a['severity'],
+    url: a['url'],
+    range: a['vulnerable_versions'],
+  });
 
 /** `pnpm audit --json`: { advisories: { id: { module_name, severity, title, url, vulnerable_versions } } }. */
 export function parsePnpmAudit(text: string): Vulns | null {
   const value = json(text);
   if (!isObj(value) || !isObj(value['advisories'])) return null;
   const vulns: Vulns = new Map();
-  for (const a of Object.values(value['advisories'])) if (isObj(a)) add(vulns, a['module_name'], fromAdvisoryObject(a));
+  for (const a of Object.values(value['advisories']))
+    if (isObj(a)) add(vulns, a['module_name'], fromAdvisoryObject(a));
   return vulns;
 }
 
@@ -153,7 +183,17 @@ export function parseBerryAudit(text: string): Vulns | null {
   for (const line of lines) {
     if (!isObj(line) || !isObj(line['children'])) continue;
     const c = line['children'];
-    add(vulns, line['value'], advisory({ id: c['ID'], title: c['Issue'], severity: c['Severity'], url: c['URL'], range: c['Vulnerable Versions'] }));
+    add(
+      vulns,
+      line['value'],
+      advisory({
+        id: c['ID'],
+        title: c['Issue'],
+        severity: c['Severity'],
+        url: c['URL'],
+        range: c['Vulnerable Versions'],
+      }),
+    );
   }
   return vulns;
 }

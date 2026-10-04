@@ -2,7 +2,15 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { checkPackage, fallbackOutdated, mergeRows, readDirect, type Run, type RunResult, updateCommand } from './check';
+import {
+  checkPackage,
+  fallbackOutdated,
+  mergeRows,
+  readDirect,
+  type Run,
+  type RunResult,
+  updateCommand,
+} from './check';
 
 const fixture = (name: string) => readFile(join(__dirname, '__fixtures__', name), 'utf8');
 const ok = (stdout: string, code = 0): RunResult => ({ code, stdout, timedOut: false });
@@ -12,16 +20,25 @@ async function pkg(json: Record<string, unknown>, installed: Record<string, stri
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'demo', ...json }));
   for (const [name, version] of Object.entries(installed)) {
     await mkdir(join(dir, 'node_modules', ...name.split('/')), { recursive: true });
-    await writeFile(join(dir, 'node_modules', ...name.split('/'), 'package.json'), JSON.stringify({ name, version }));
+    await writeFile(
+      join(dir, 'node_modules', ...name.split('/'), 'package.json'),
+      JSON.stringify({ name, version }),
+    );
   }
   return dir;
 }
 
 function fakeRun(answers: Record<string, RunResult>) {
-  return vi.fn<Run>(async (command, args) => answers[`${command} ${args.join(' ')}`] ?? { code: null, stdout: '', timedOut: false });
+  return vi.fn<Run>(
+    async (command, args) =>
+      answers[`${command} ${args.join(' ')}`] ?? { code: null, stdout: '', timedOut: false },
+  );
 }
 
-const DEMO = { dependencies: { lodash: '4.17.15', ms: '^2.0.0' }, devDependencies: { semver: '~6.3.0' } };
+const DEMO = {
+  dependencies: { lodash: '4.17.15', ms: '^2.0.0' },
+  devDependencies: { semver: '~6.3.0' },
+};
 const INSTALLED = { lodash: '4.17.15', ms: '2.1.3', semver: '6.3.1' };
 
 describe('readDirect', () => {
@@ -48,7 +65,17 @@ describe('checkPackage', () => {
     });
     const { rows, errors } = await checkPackage(dir, 'npm', run);
     expect(errors).toEqual([]);
-    expect(rows.map((r) => [r.name, r.type, r.current, r.latest, r.outdated, r.major, r.advisories.length])).toEqual([
+    expect(
+      rows.map((r) => [
+        r.name,
+        r.type,
+        r.current,
+        r.latest,
+        r.outdated,
+        r.major,
+        r.advisories.length,
+      ]),
+    ).toEqual([
       ['lodash', 'prod', '4.17.15', '4.18.1', true, false, 2],
       ['ms', 'prod', '2.1.3', null, false, false, 0],
       ['semver', 'dev', '6.3.1', '7.8.5', true, true, 0],
@@ -74,19 +101,32 @@ describe('checkPackage', () => {
 
   it('uses the registry through Yarn 2+ for outdated, and its npm audit', async () => {
     const dir = await pkg(DEMO, INSTALLED);
-    const info = (versions: string[], latest: string) => ok(JSON.stringify({ name: 'x', versions, 'dist-tags': { latest } }));
+    const info = (versions: string[], latest: string) =>
+      ok(JSON.stringify({ name: 'x', versions, 'dist-tags': { latest } }));
     const run = fakeRun({
       'yarn --version': ok('4.18.1'),
-      'yarn npm info lodash --fields versions,dist-tags --json': info(['4.17.15', '4.17.21', '4.18.1'], '4.18.1'),
+      'yarn npm info lodash --fields versions,dist-tags --json': info(
+        ['4.17.15', '4.17.21', '4.18.1'],
+        '4.18.1',
+      ),
       'yarn npm info ms --fields versions,dist-tags --json': info(['2.1.2', '2.1.3'], '2.1.3'),
       'yarn npm info semver --fields versions,dist-tags --json': info(['6.3.1', '7.8.5'], '7.8.5'),
       'yarn npm audit --json': ok(await fixture('berry-audit.jsonl'), 1),
     });
     const { rows, errors } = await checkPackage(dir, 'yarn', run);
     expect(errors).toEqual([]);
-    expect(rows.find((r) => r.name === 'lodash')).toMatchObject({ wanted: '4.17.15', latest: '4.18.1', outdated: true, major: false });
+    expect(rows.find((r) => r.name === 'lodash')).toMatchObject({
+      wanted: '4.17.15',
+      latest: '4.18.1',
+      outdated: true,
+      major: false,
+    });
     expect(rows.find((r) => r.name === 'ms')).toMatchObject({ outdated: false });
-    expect(rows.find((r) => r.name === 'semver')).toMatchObject({ wanted: '6.3.1', latest: '7.8.5', major: true });
+    expect(rows.find((r) => r.name === 'semver')).toMatchObject({
+      wanted: '6.3.1',
+      latest: '7.8.5',
+      major: true,
+    });
   });
 
   it('reports a failed or timed-out step and keeps the rest', async () => {
@@ -125,10 +165,25 @@ describe('fallbackOutdated', () => {
 
 describe('mergeRows', () => {
   it('adds vulnerable transitive packages as their own rows', () => {
-    const vulns = new Map([['qs', [{ id: 'GHSA-1', title: 'qs', severity: 'high' as const, url: null, range: '<6' }]]]);
-    expect(mergeRows([{ name: 'express', type: 'prod', range: '^4' }], new Map([['express', '4.21.0']]), [], vulns)).toEqual([
+    const vulns = new Map([
+      ['qs', [{ id: 'GHSA-1', title: 'qs', severity: 'high' as const, url: null, range: '<6' }]],
+    ]);
+    expect(
+      mergeRows(
+        [{ name: 'express', type: 'prod', range: '^4' }],
+        new Map([['express', '4.21.0']]),
+        [],
+        vulns,
+      ),
+    ).toEqual([
       expect.objectContaining({ name: 'express', outdated: false, advisories: [] }),
-      expect.objectContaining({ name: 'qs', type: null, range: null, current: null, advisories: vulns.get('qs') }),
+      expect.objectContaining({
+        name: 'qs',
+        type: null,
+        range: null,
+        current: null,
+        advisories: vulns.get('qs'),
+      }),
     ]);
   });
 });

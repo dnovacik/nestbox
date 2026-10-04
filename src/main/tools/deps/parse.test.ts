@@ -43,8 +43,12 @@ describe('outdated parsers (real output)', () => {
   });
 
   it('takes the first entry when npm lists a package in several workspaces', () => {
-    const text = JSON.stringify({ react: [{ current: '18.2.0', wanted: '18.3.1', latest: '19.2.0' }, { current: '18.0.0' }] });
-    expect(parseNpmOutdated(text)).toEqual([{ name: 'react', current: '18.2.0', wanted: '18.3.1', latest: '19.2.0' }]);
+    const text = JSON.stringify({
+      react: [{ current: '18.2.0', wanted: '18.3.1', latest: '19.2.0' }, { current: '18.0.0' }],
+    });
+    expect(parseNpmOutdated(text)).toEqual([
+      { name: 'react', current: '18.2.0', wanted: '18.3.1', latest: '19.2.0' },
+    ]);
   });
 });
 
@@ -57,7 +61,13 @@ describe('audit parsers (real output)', () => {
       auditReportVersion: 2,
       vulnerabilities: {
         express: { name: 'express', severity: 'high', via: ['qs'] },
-        qs: { name: 'qs', severity: 'high', via: [{ source: 1, title: 'qs DoS', url: 'https://x/1', severity: 'high', range: '<6.10.3' }] },
+        qs: {
+          name: 'qs',
+          severity: 'high',
+          via: [
+            { source: 1, title: 'qs DoS', url: 'https://x/1', severity: 'high', range: '<6.10.3' },
+          ],
+        },
       },
     });
     expect([...(parseNpmAudit(transitive)?.keys() ?? [])]).toEqual(['qs']);
@@ -78,8 +88,20 @@ describe('audit parsers (real output)', () => {
   it('keeps https links only, maps unknown severities and dedupes advisories', () => {
     const text = JSON.stringify({
       x: [
-        { id: 1, url: 'javascript:alert(1)', title: 'A', severity: 'medium', vulnerable_versions: '<2' },
-        { id: 1, url: 'javascript:alert(1)', title: 'A', severity: 'medium', vulnerable_versions: '<2' },
+        {
+          id: 1,
+          url: 'javascript:alert(1)',
+          title: 'A',
+          severity: 'medium',
+          vulnerable_versions: '<2',
+        },
+        {
+          id: 1,
+          url: 'javascript:alert(1)',
+          title: 'A',
+          severity: 'medium',
+          vulnerable_versions: '<2',
+        },
         { id: 2, url: 'https://ok', title: 'B', severity: 'weird', vulnerable_versions: null },
       ],
     });
@@ -90,7 +112,9 @@ describe('audit parsers (real output)', () => {
   });
 
   it('treats no findings as an empty result and junk as a failure', () => {
-    expect(parseNpmAudit(JSON.stringify({ auditReportVersion: 2, vulnerabilities: {} }))?.size).toBe(0);
+    expect(
+      parseNpmAudit(JSON.stringify({ auditReportVersion: 2, vulnerabilities: {} }))?.size,
+    ).toBe(0);
     expect(parseBerryAudit('')?.size).toBe(0);
     expect(parseBunAudit('{}')?.size).toBe(0);
     expect(parseNpmAudit('')).toBeNull();

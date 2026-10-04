@@ -38,6 +38,8 @@ import { checkReachable } from './tools/database/reach';
 import { checkUrl } from './tools/health/check';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
+import { createDepsCache } from './tools/deps/cache';
+import { createDepsScheduler } from './tools/deps/scheduler';
 import { createToolHost, type ToolHost } from './tools/tool-host';
 import { handleOrphans } from './lifecycle/orphan-prompt';
 import { createQuitController, SHUTDOWN_TIMEOUT_MS } from './lifecycle/quit-controller';
@@ -132,6 +134,8 @@ if (!app.requestSingleInstanceLock()) {
       if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
       return (await toolHostRef.invoke('compose', projectId, method, input)) as { ok: boolean };
     };
+    const depsCache = createDepsCache(join(app.getPath('userData'), 'deps-cache.json'), logger);
+    const depsRunning = new Set<string>();
     const tools = createMainTools({
       scripts: {
         processes,
@@ -249,6 +253,7 @@ if (!app.requestSingleInstanceLock()) {
       mock: { logger },
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       node: { logger, getDetected: (id) => projects.getDetected(id) },
+      deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
     });
     const toolHost = createToolHost({
       tools,
@@ -263,6 +268,17 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     toolHostRef = toolHost;
+    const depsScheduler = createDepsScheduler({
+      rootIds: async () => (await projects.list()).map((p) => p.id),
+      schedule: () => store.getSettings().depsSchedule,
+      lastChecked: (rootId) => depsCache.get(rootId)?.checkedAt ?? null,
+      check: async (rootId) => {
+        await toolHost.invoke('deps', rootId, 'check', {});
+      },
+      onChange: () => undefined,
+      logger,
+    });
+    depsScheduler.start();
 
     /** "shop" for a root, "shop · api" for a workspace package. Names only, never paths. */
     const projectLabel = (projectId: string): string | null => {
@@ -294,6 +310,7 @@ if (!app.requestSingleInstanceLock()) {
         return result.response === 0;
       },
       shutdown: async () => {
+        depsScheduler.stop();
         const [, disposed] = await Promise.allSettled([processes.stopAll(), toolHost.disposeAll(SHUTDOWN_TIMEOUT_MS - 500)]);
         if (disposed.status === 'fulfilled' && disposed.value.failed.length + disposed.value.timedOut.length > 0) {
           logger.warn('tools did not dispose cleanly', {
@@ -365,6 +382,21 @@ if (!app.requestSingleInstanceLock()) {
         settings: store,
         processes,
         ports,
+        deps: {
+          overview: async () => ({
+            projects: (await projects.list()).map((p) => ({
+              id: p.id,
+              name: p.name,
+              packages: [p.id, ...p.detected.workspaces.map((w) => w.id)]
+                .map((id) => depsCache.get(id))
+                .filter((r) => r !== undefined),
+              checking: depsRunning.has(p.id),
+            })),
+            runningAll: depsScheduler.running(),
+            schedule: store.getSettings().depsSchedule,
+          }),
+          checkAll: () => void depsScheduler.runAll(),
+        },
         onSettingsChanged: () => tray?.refresh(),
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         openExternal: (url) => shell.openExternal(url),

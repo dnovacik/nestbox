@@ -19,6 +19,8 @@ export const INVOKE_CHANNELS = [
   'ports:list',
   'ports:kill',
   'ports:waitFree',
+  'deps:overview',
+  'deps:checkAll',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 

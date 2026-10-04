@@ -9,6 +9,7 @@ import type { ProjectService } from '../projects/project-service';
 import type { StoreService } from '../store/store-service';
 import type { ToolHost } from '../tools/tool-host';
 import type { CoreHandlers } from './router';
+import type { DepsOverview } from '@shared/tools/deps/contract';
 
 export interface CoreHandlerDeps {
   projects: Pick<ProjectService, 'list' | 'add' | 'remove' | 'rename' | 'setPinned' | 'refresh' | 'getDetected'>;
@@ -22,6 +23,7 @@ export interface CoreHandlerDeps {
   processes: Pick<ProcessManager, 'list' | 'stopAll' | 'forget'>;
   settings: Pick<StoreService, 'getSettings' | 'updateSettings' | 'isReadOnly'>;
   ports: Pick<PortService, 'list' | 'kill' | 'waitUntilFree'>;
+  deps: { overview(): Promise<DepsOverview>; checkAll(): void };
   /** Called after a successful settings:update (tray theme and friends react here). */
   onSettingsChanged(settings: AppSettings): void;
 }
@@ -84,6 +86,10 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'ports:list': () => deps.ports.list(),
     'ports:kill': (input) => deps.ports.kill(input),
     'ports:waitFree': ({ port, timeoutMs }) => deps.ports.waitUntilFree(port, timeoutMs),
+    'deps:overview': () => deps.deps.overview(),
+    'deps:checkAll': async () => {
+      deps.deps.checkAll();
+    },
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {
       const editor = patch.editorCommand;
