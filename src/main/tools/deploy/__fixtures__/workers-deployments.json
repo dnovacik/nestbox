@@ -1,0 +1,23 @@
+[
+  {
+    "id": "a1b2c3d4-0000-4000-8000-000000000001",
+    "source": "wrangler",
+    "strategy": "percentage",
+    "author_email": "dana@example.com",
+    "created_on": "2025-10-03T10:00:00.000000Z",
+    "annotations": { "workers/triggered_by": "deployment" },
+    "versions": [{ "version_id": "7f3e9a21-1111-4111-8111-111111111111", "percentage": 100 }]
+  },
+  {
+    "id": "a1b2c3d4-0000-4000-8000-000000000002",
+    "source": "dashboard",
+    "strategy": "percentage",
+    "author_email": "dana@example.com",
+    "created_on": "2025-10-04T09:30:00.000000Z",
+    "annotations": { "workers/triggered_by": "rollback", "workers/message": "secret plans" },
+    "versions": [
+      { "version_id": "9c8d7e6f-2222-4222-8222-222222222222", "percentage": 90 },
+      { "version_id": "7f3e9a21-1111-4111-8111-111111111111", "percentage": 10 }
+    ]
+  }
+]
