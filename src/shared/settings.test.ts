@@ -11,13 +11,18 @@ describe('settings schemas', () => {
   });
 
   it('rejects unknown keys and out-of-range buffers', () => {
-    expect(SettingsPatchSchema.safeParse({ theme: 'light' }).success).toBe(false);
+    expect(SettingsPatchSchema.safeParse({ schemaVersion: 3 }).success).toBe(false);
+    expect(SettingsPatchSchema.safeParse({ theme: 'sepia' }).success).toBe(false);
     expect(SettingsPatchSchema.safeParse({ logBufferLines: 999 }).success).toBe(false);
     expect(SettingsPatchSchema.safeParse({ logBufferLines: 1_000_001 }).success).toBe(false);
     expect(SettingsPatchSchema.parse({ closeToTray: false, trayIconTheme: 'auto' })).toEqual({
       closeToTray: false,
       trayIconTheme: 'auto',
     });
+  });
+
+  it('accepts the theme', () => {
+    expect(SettingsPatchSchema.parse({ theme: 'light' })).toEqual({ theme: 'light' });
   });
 
   it('accepts up to 20 unique ports between 1 and 65535', () => {

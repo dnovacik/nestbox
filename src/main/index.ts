@@ -3,7 +3,7 @@ import { watch } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, Tray } from 'electron';
+import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, systemPreferences, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import type { EventChannel } from '@shared/ipc-names';
@@ -48,6 +48,7 @@ import { crashNotice } from './tray/crash-notifier';
 import { createTrayController, type TrayController } from './tray/tray-controller';
 import { buildTrayModel, type TrayActions } from './tray/tray-menu';
 import { createMainWindow } from './window';
+import { applyWindowTheme } from './window-theme';
 
 const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL'];
 
@@ -399,7 +400,10 @@ if (!app.requestSingleInstanceLock()) {
           }),
           checkAll: () => void depsScheduler.runAll(),
         },
-        onSettingsChanged: () => tray?.refresh(),
+        onSettingsChanged: (settings) => {
+          nativeTheme.themeSource = settings.theme;
+          tray?.refresh();
+        },
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         openExternal: (url) => shell.openExternal(url),
         pickFolder: async () => {
@@ -418,11 +422,18 @@ if (!app.requestSingleInstanceLock()) {
     hardenAllWebContents(app, isTrusted);
     applySessionSecurity(session.defaultSession, devServerUrl ? { devCsp: buildCsp({ dev: true }) } : {});
 
+    // The renderer's light and dark tokens follow prefers-color-scheme, which follows themeSource.
+    nativeTheme.themeSource = store.getSettings().theme;
     mainWindow = createMainWindow({
       platform,
+      dark: nativeTheme.shouldUseDarkColors,
       devServerUrl,
       icon: brandAsset(assetEnv, 'png/nestbox.ico'),
       onQuitShortcut: () => void quitController.requestQuit(),
+    });
+    const hasOverlay = 'titleBarOverlay' in platform.windowChrome({ color: '', symbolColor: '', height: 0 });
+    nativeTheme.on('updated', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) applyWindowTheme(mainWindow, { hasOverlay }, nativeTheme.shouldUseDarkColors);
     });
     mainWindow.webContents.on('did-finish-load', () => {
       rendererReady = true;
@@ -457,6 +468,12 @@ if (!app.requestSingleInstanceLock()) {
         getProcesses: () => processes.list(),
         // The macOS menu bar follows the system appearance, so the icon does too.
         getTheme: () => (platform.id === 'darwin' ? 'auto' : store.getSettings().trayIconTheme),
+        // The system's appearance, not the app's theme setting (themeSource changes shouldUseDarkColors). On macOS
+        // Electron's system-UI flag equals shouldUseDarkColors, so read the user default the menu bar follows.
+        systemDark: () =>
+          platform.id === 'darwin'
+            ? systemPreferences.getUserDefault('AppleInterfaceStyle', 'string') === 'Dark'
+            : nativeTheme.shouldUseDarkColorsForSystemIntegratedUI,
         clickShowsWindow: platform.id !== 'darwin',
         actions: trayActions,
         logger,

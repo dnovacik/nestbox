@@ -26,6 +26,8 @@ export interface TrayControllerDeps {
   getModel(): Promise<TrayModel>;
   getProcesses(): readonly ProcessSummary[];
   getTheme(): TrayIconTheme;
+  /** Whether the system (taskbar, menu bar) is dark; the app's own theme setting must not change this. */
+  systemDark(): boolean;
   actions: TrayActions;
   logger: Logger;
   /** Windows: a click shows the window (the menu is on right-click). macOS: a click opens the menu, nothing else. */
@@ -43,7 +45,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
   const { electron } = deps;
 
   function icon(): NativeImage {
-    const theme = resolveTrayTheme(deps.getTheme(), electron.nativeTheme.shouldUseDarkColors);
+    const theme = resolveTrayTheme(deps.getTheme(), deps.systemDark());
     const paths = trayIconPaths(theme, trayState(deps.getProcesses()));
     const image = electron.imageFromPath(deps.assetPath(paths.x1));
     image.addRepresentation({ scaleFactor: 2, buffer: electron.imageFromPath(deps.assetPath(paths.x2)).toPNG() });
