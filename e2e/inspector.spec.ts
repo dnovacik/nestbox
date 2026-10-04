@@ -75,3 +75,33 @@ test('records a proxied request with its token masked, and replays it', async ()
   await expect(list.getByRole('button')).toHaveCount(2);
   await expect(list.getByRole('button').first()).toContainText('replay');
 });
+
+test('shares the inspector at a public address and stops sharing', async () => {
+  await app.close();
+  // A fake cloudflared (e2e/fixtures/fake-cloudflared) prints a quick-tunnel banner.
+  const project = await copyFixture('echo-api');
+  await writeFile(join(project, '.env'), `PORT=${apiPort}\n`);
+  ({ app, page } = await launch(project, {
+    pathPrepend: join(__dirname, 'fixtures', 'fake-cloudflared'),
+  }));
+  const inspectorPort = await freePort();
+  await page
+    .getByRole('complementary', { name: 'Projects' })
+    .getByRole('button', { name: 'Add project' })
+    .click();
+  await page.getByRole('tab', { name: 'Inspector' }).click();
+  const panel = page.getByRole('region', { name: 'Inspector' });
+  const port = panel.getByRole('textbox', { name: 'Port' });
+  await port.fill(String(inspectorPort));
+  await port.press('Enter');
+  await panel.getByRole('button', { name: 'Start' }).click();
+
+  const shared = panel.getByRole('region', { name: 'Public address' });
+  await shared.getByRole('button', { name: 'Share publicly' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Share' }).click();
+  await expect(shared.getByText('https://fake-quick-tunnel-1234.trycloudflare.com')).toBeVisible({
+    timeout: 15_000,
+  });
+  await shared.getByRole('button', { name: 'Stop sharing' }).click();
+  await expect(shared.getByRole('button', { name: 'Share publicly' })).toBeVisible();
+});
