@@ -24,8 +24,8 @@
   - Owner's answers: never fetch; refresh on `.git` changes and on window focus.
   - Release after merging: run the release workflow on `main`, then the owner publishes the draft.
   - Follow-ups:
-    - **Windows current-folder lookup.** `spawnCommand` (`claude -p`, and since v1.3.0 the database tool's Prisma commands) still lets cmd.exe find a program in the project folder. `execCommand` now sets `NoDefaultCurrentDirectoryInExePath`, but `spawnCommand` passes its env on to Claude's own commands, so it needs a resolved absolute path instead (`where` from NestBox's own folder, cached).
-    - **Project header branch.** The header's branch comes from detection and only updates on a project refresh. The git tool's `changed` event could also refresh detection.
+    - **Windows current-folder lookup.** Fixed in the follow-ups PR (#17): `spawnCommand` resolves the program from PATH.
+    - **Project header branch.** Fixed in the follow-ups PR (#17): the header uses the git tool's live status.
 - v1.2.0 (git glance) and v1.2.1 (panel scrolling, one tab inset) are released.
 - Database panel (the second v2 tool): branch `v2-database`, draft PR #11, version 1.3.0 in `package.json`.
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-database-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-database.md`.
@@ -54,7 +54,8 @@
   - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-inspector-design.md` (owner's answers; continued without a separate approval stop). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-inspector.md`.
   - Owner's answers: a proxy in front of the API; full request/response in memory with secret headers masked; Replay plus Edit & send; target from PORT, editable to local addresses.
   - Also fixes the tool tab bar, which overflowed the window once there were twelve tools.
-- Next: the planned v2 tools are done. Follow-ups: the `cloudflared` tunnel for the inspector, the Windows current-folder lookup in `spawnCommand`, and the header branch refresh.
+- Follow-up fixes: branch `v2-followups` (stacked on `v2-inspector`), draft PR #17, released with 1.8.0. `spawnCommand` on Windows resolves the program from PATH (never the project folder), and the header's branch follows the git tool's live status.
+- Next: the planned v2 tools are done. Open follow-up: the `cloudflared` tunnel for the inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
