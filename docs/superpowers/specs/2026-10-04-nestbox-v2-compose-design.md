@@ -1,7 +1,7 @@
 # NestBox v2 (Docker Compose): Design Notes
 
 Date: 2026-10-04
-Status: Draft, for the owner's approval
+Status: Approved 2026-10-04
 Source of truth: `docs/nestbox-spec.md`, "v2 tools", which describes the tool as: *Services from `docker-compose.yml` with status, start, stop, logs into the log viewer.* These notes build on the earlier design notes and don't restate them.
 
 ## Scope
