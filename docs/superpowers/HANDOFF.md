@@ -55,7 +55,9 @@
   - Owner's answers: a proxy in front of the API; full request/response in memory with secret headers masked; Replay plus Edit & send; target from PORT, editable to local addresses.
   - Also fixes the tool tab bar, which overflowed the window once there were twelve tools.
 - Follow-up fixes: branch `v2-followups` (stacked on `v2-inspector`), draft PR #17, released with 1.8.0. `spawnCommand` on Windows resolves the program from PATH (never the project folder), and the header's branch follows the git tool's live status.
-- Next: the planned v2 tools are done. Open follow-up: the `cloudflared` tunnel for the inspector.
+- Inspector tunnel: branch `v2-tunnel` (stacked on `v2-followups`), draft PR #18, version 1.9.0. Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-tunnel-design.md` (defaults chosen while the owner was away; review with the PR). Not verifiable in CI: a real cloudflared quick tunnel and a real webhook (the e2e uses a fake cloudflared).
+- Release order: 1.6.0 and 1.7.0 drafts (published by the owner), then #16 + #17 as 1.8.0, then #18 as 1.9.0.
+- Next: the planned v2 tools and follow-ups are done; still open from v1: the README GIF on Windows.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
