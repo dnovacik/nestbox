@@ -6,6 +6,7 @@ import { createGitTool, type GitToolDeps } from './git';
 import { createHealthTool, type HealthToolDeps } from './health';
 import { createInspectorTool, type InspectorToolDeps } from './inspector';
 import { createMockTool, type MockToolDeps } from './mock';
+import { createNodeTool, type NodeToolDeps } from './node';
 import { projectInfoTool } from './project-info';
 import { createStaticTool, type StaticToolDeps } from './static';
 import { createTodosTool, type TodosToolDeps } from './todos';
@@ -24,6 +25,7 @@ export interface MainToolDeps {
   compose: ComposeToolDeps;
   mock: MockToolDeps;
   inspector: InspectorToolDeps;
+  node: NodeToolDeps;
 }
 
 /** Tool registry, main half. Tools that need core services are built by factories. */
@@ -41,5 +43,6 @@ export function createMainTools(deps: MainToolDeps): readonly AnyMainTool[] {
     createComposeTool(deps.compose),
     createMockTool(deps.mock),
     createInspectorTool(deps.inspector),
+    createNodeTool(deps.node),
   ];
 }

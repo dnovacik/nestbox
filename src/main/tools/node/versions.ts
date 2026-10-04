@@ -2,9 +2,8 @@
 // packageManager field. Pure, so the tool and its tests share it.
 import semver from 'semver';
 import { PACKAGE_MANAGERS, type PackageManager } from '@shared/detected';
+import type { SourceKind } from '@shared/tools/node/contract';
 
-export const SOURCE_KINDS = ['nvmrc', 'node-version', 'engines', 'volta'] as const;
-export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 export interface Requirement {
   /** A normalised semver range, or null for an alias that can't be resolved offline (`lts/*`, `node`). */
@@ -47,7 +46,9 @@ export function parseRequirement(kind: SourceKind, text: string): Requirement | 
     const lowest = semver.minVersion(range);
     return { range, fnmVersion: lowest ? String(lowest.major) : null };
   }
-  return { range, fnmVersion: value.replace(/^v/i, '') };
+  // fnm gets the text as written, so only a plain version: `20`, `20.11.1`, never a range like `20 || 22`.
+  const plain = value.replace(/^v/i, '');
+  return { range, fnmVersion: /^\d+(\.\d+){0,2}$/.test(plain) ? plain : null };
 }
 
 /** The sources that disagree with the requirement (the first source with a range). */

@@ -238,6 +238,7 @@ if (!app.requestSingleInstanceLock()) {
       compose: { logger },
       mock: { logger },
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
+      node: { logger, getDetected: (id) => projects.getDetected(id) },
     });
     const toolHost = createToolHost({
       tools,

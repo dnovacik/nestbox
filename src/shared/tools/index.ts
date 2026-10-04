@@ -8,6 +8,7 @@ import { gitContract, gitDefinition, gitEvents } from './git/contract';
 import { healthContract, healthDefinition, healthEvents } from './health/contract';
 import { inspectorContract, inspectorDefinition, inspectorEvents } from './inspector/contract';
 import { mockContract, mockDefinition, mockEvents } from './mock/contract';
+import { nodeContract, nodeDefinition } from './node/contract';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
 import { scriptsContract, scriptsDefinition, scriptsEvents } from './scripts/contract';
 import { staticContract, staticDefinition, staticEvents } from './static/contract';
@@ -27,6 +28,7 @@ export const toolContracts = {
   compose: composeContract,
   mock: mockContract,
   inspector: inspectorContract,
+  node: nodeContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -42,6 +44,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   composeDefinition as ToolDefinition<unknown>,
   mockDefinition as ToolDefinition<unknown>,
   inspectorDefinition as ToolDefinition<unknown>,
+  nodeDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -67,6 +70,7 @@ export const toolEvents = {
   compose: composeEvents,
   mock: mockEvents,
   inspector: inspectorEvents,
+  node: {},
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;

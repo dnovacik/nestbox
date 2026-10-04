@@ -21,6 +21,11 @@ describe('parseRequirement', () => {
     expect(parseRequirement('volta', '20.11.1')).toEqual({ range: '20.11.1', fnmVersion: '20.11.1' });
   });
 
+  it('gives fnm only plain version tokens (they go on a command line)', () => {
+    expect(parseRequirement('volta', '20 || 22')).toEqual({ range: '>=20.0.0 <21.0.0-0||>=22.0.0 <23.0.0-0', fnmVersion: null });
+    expect(parseRequirement('nvmrc', '>=20')).toMatchObject({ fnmVersion: null });
+  });
+
   it('refuses junk and empty values', () => {
     expect(parseRequirement('nvmrc', '')).toBe('invalid');
     expect(parseRequirement('engines', 'banana')).toBe('invalid');
