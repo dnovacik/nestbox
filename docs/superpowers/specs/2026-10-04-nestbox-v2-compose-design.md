@@ -41,6 +41,9 @@ The fifth v2 tool. It ships alone as **v1.6.0**, from the branch `v2-compose`, i
 
 ## Contract (sketch)
 
+Implementation note: states are Docker's own (`created`, `restarting`, `running`, `removing`, `paused`, `exited`, `dead`) plus `not-created`, with health shown separately. A log is picked by `source: 'actions' | 'service'`, where `service` is the followed one, so a service called `actions` can't collide. `config` and `ps` run through `spawnCommand` because `execCommand` returns no stderr.
+
+
 ```ts
 const ServiceView = z.object({
   name: z.string(),

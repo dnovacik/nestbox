@@ -40,7 +40,12 @@
   - Design: `docs/superpowers/specs/2026-10-03-nestbox-v2-health-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-03-nestbox-v2-health.md`.
   - Owner's answers: user-defined checks plus suggestions; run while a script runs; healthy = 2xx/3xx within 5 s; desktop notification on ok→fail.
   - Not verifiable in CI: the desktop notification itself and its click (unit tests check when `notify` is called).
-- Next v2 tools, smallest first: Docker Compose, mock API, request inspector.
+- v1.5.0 (health checks) is merged and its release draft built (PR #13); the owner publishes it.
+- Docker Compose (the fifth v2 tool): branch `v2-compose`, draft PR #14, version 1.6.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-compose-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-compose.md`.
+  - Owner's answers: per-service and stack actions; Stop keeps containers, Down after a confirmation; one service's logs in the log viewer; not part of run groups yet.
+  - Not verifiable in CI: a real `docker compose` (the e2e specs use `e2e/fixtures/fake-docker`).
+- Next v2 tools, smallest first: mock API, request inspector.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**

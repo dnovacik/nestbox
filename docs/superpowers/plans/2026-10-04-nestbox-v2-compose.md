@@ -60,7 +60,7 @@
 ## Part C: Ship
 
 ### Task 9: End-to-end
-**Files:** `e2e/compose.spec.ts`, the fixture `e2e/fixtures/compose-app` (a `compose.yaml` with `db` and `web`), and `e2e/fake-docker/` (`docker.js` plus `docker.cmd`), put first on `PATH` through `launch(project, { env })`.
+**Files:** `e2e/compose.spec.ts`, the fixture `e2e/fixtures/compose-app` (a `compose.yaml` with `db` and `web`), and `e2e/fixtures/fake-docker/` (`docker.js` plus `docker.cmd`), put first on `PATH` through `launch(project, { env })`.
 - The card shows "0 of 2 running".
 - Up all turns both running.
 - Stopping `web` from the panel leaves "1 of 2".
