@@ -24,7 +24,13 @@ export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
 export const ScriptInfoSchema = z.object({ name: z.string(), command: z.string(), autoRestart: z.boolean() });
 export type ScriptInfo = z.infer<typeof ScriptInfoSchema>;
 
-export const PackageScriptsSchema = z.object({ relPath: z.string(), name: z.string(), scripts: z.array(z.string()) });
+export const PackageScriptsSchema = z.object({
+  relPath: z.string(),
+  name: z.string(),
+  scripts: z.array(z.string()),
+  /** Has a compose file, so the run group editor offers its services. */
+  compose: z.boolean(),
+});
 export type PackageScripts = z.infer<typeof PackageScriptsSchema>;
 
 export const SkippedEntrySchema = RunGroupEntrySchema.extend({ reason: z.enum(['missing', 'running']) });

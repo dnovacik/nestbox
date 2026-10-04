@@ -175,6 +175,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           relPath: p.relPath,
           name: p.name,
           scripts: Object.keys(p.packageJson?.scripts ?? {}),
+          compose: p.dockerCompose !== null,
         }));
         return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages };
       },

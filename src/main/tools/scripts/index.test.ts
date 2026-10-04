@@ -99,8 +99,8 @@ describe('scripts tool: list and lifecycle', () => {
       ],
       runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }],
       packages: [
-        { relPath: '', name: 'shop', scripts: ['dev', 'build'] },
-        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'] },
+        { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: false },
+        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false },
       ],
     });
   });
