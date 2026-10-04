@@ -13,6 +13,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { TOGGLEABLE_TOOLS } from '@shared/tools';
+import { api } from '@/lib/api';
+import { ToolPicker } from './ToolPicker';
 import { useAppInfo, useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
@@ -57,6 +70,8 @@ const THEME_LABELS: Record<Theme, string> = { system: 'System', light: 'Light', 
 
 const SCHEDULE_LABELS: Record<DepsSchedule, string> = { off: 'Off (Check by hand)', daily: 'Daily', weekly: 'Weekly' };
 
+const toolName = (id: string) => TOGGLEABLE_TOOLS.find((t) => t.id === id)?.name ?? id;
+
 function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; platform: PlatformId; onDone(): void }) {
   const update = useUpdateSettings();
   const terminals: readonly TerminalApp[] = TERMINALS_BY_PLATFORM[platform];
@@ -70,6 +85,9 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   const [watchedPorts, setWatchedPorts] = useState(initial.watchedPorts.join(', '));
   const [depsSchedule, setDepsSchedule] = useState<DepsSchedule>(initial.depsSchedule);
   const [theme, setTheme] = useState<Theme>(initial.theme);
+  const [disabledTools, setDisabledTools] = useState<string[]>(initial.disabledTools);
+  /** Busy tools the user is turning off: confirmed before saving, since their running work stops. */
+  const [stopping, setStopping] = useState<string[] | null>(null);
   const readOnly = initial.readOnly;
 
   const buffer = Number(logBufferLines);
@@ -89,14 +107,23 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   if (terminalApp !== initialTerminal) patch.terminalApp = terminalApp;
   if (depsSchedule !== initial.depsSchedule) patch.depsSchedule = depsSchedule;
   if (theme !== initial.theme) patch.theme = theme;
+  const toolsChanged =
+    disabledTools.length !== initial.disabledTools.length || disabledTools.some((id) => !initial.disabledTools.includes(id));
+  if (toolsChanged) patch.disabledTools = disabledTools;
+  const save = () => update.mutate(patch, { onSuccess: onDone });
   const canSave = !readOnly && !bufferError && !editorError && !portsError && Object.keys(patch).length > 0 && !update.isPending;
 
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (canSave) update.mutate(patch, { onSuccess: onDone });
+        if (!canSave) return;
+        const turnedOff = disabledTools.filter((id) => !initial.disabledTools.includes(id));
+        const busy = turnedOff.length > 0 ? await api.tools.busy().catch(() => [] as string[]) : [];
+        const busyOff = turnedOff.filter((id) => busy.includes(id));
+        if (busyOff.length > 0) setStopping(busyOff);
+        else save();
       }}
     >
       {readOnly && (
@@ -203,7 +230,37 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
             </SelectContent>
           </Select>
         </Row>
+        <div className="space-y-2 border-t border-line pt-4">
+          <p className="text-sm font-medium text-fg">Tools</p>
+          <p className="text-xs text-fg-muted">
+            Turned-off tools leave every project's tabs and overview, and stop running. Projects, scripts and ports are
+            always on.
+          </p>
+          <ToolPicker disabled={disabledTools} onChange={setDisabledTools} readOnly={readOnly} />
+        </div>
       </fieldset>
+      <AlertDialog open={stopping !== null} onOpenChange={(o) => !o && setStopping(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Turn off {stopping?.map(toolName).join(', ')}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {stopping && stopping.length === 1 ? 'It has' : 'They have'} something running (a server, a deploy or a
+              command). Turning off stops it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep on</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setStopping(null);
+                save();
+              }}
+            >
+              Turn off and stop
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
@@ -223,7 +280,7 @@ export function SettingsDialog() {
   const { data: info, isError: infoError } = useAppInfo();
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>NestBox keeps these on this computer only.</DialogDescription>

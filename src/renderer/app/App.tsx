@@ -1,8 +1,11 @@
 import { useNavigateSubscription } from '@/lib/navigate';
-import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription } from '@/lib/queries';
+import { useEffect } from 'react';
+import { isToolEnabled } from '@shared/tools';
+import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscription, useSettings } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { CommandPalette } from './CommandPalette';
 import { EmptyState } from './EmptyState';
+import { FirstRunDialog } from './FirstRunDialog';
 import { findProjectNode } from './find-project';
 import { PortsPage } from '@/ports/PortsPage';
 import { ProjectView } from './ProjectView';
@@ -20,6 +23,12 @@ export function App() {
   const { data: projects = [], isPending } = useProjects();
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const view = useUiStore((s) => s.view);
+  const { data: settings } = useSettings();
+  const depsOn = isToolEnabled(settings?.disabledTools ?? [], 'deps');
+  // Dependencies turned off while its page is open: back to the projects.
+  useEffect(() => {
+    if (view === 'deps' && !depsOn) useUiStore.setState({ view: 'project' });
+  }, [view, depsOn]);
   useAppliedTheme();
   const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);
 
@@ -42,6 +51,7 @@ export function App() {
       </div>
       <StatusBar projectCount={projects.length} />
       <SettingsDialog />
+      <FirstRunDialog />
       <CommandPalette />
     </div>
   );

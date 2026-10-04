@@ -162,3 +162,52 @@ describe('SettingsDialog', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
   });
 });
+
+describe('SettingsDialog: tools', () => {
+  function setupTools(busy: string[]) {
+    let view = { ...AppSettingsSchema.parse({}), readOnly: false };
+    const patches: SettingsPatch[] = [];
+    installMockBridge({
+      'app:getInfo': () => ({ version: '1.0.0', platform: 'win32' }),
+      'settings:get': () => view,
+      'settings:update': (patch) => {
+        patches.push(patch);
+        view = { ...view, ...patch };
+        return view;
+      },
+      'tools:busy': () => busy,
+    });
+    renderWithProviders(
+      <>
+        <TitleBar node={null} />
+        <SettingsDialog />
+      </>,
+    );
+    return patches;
+  }
+
+  it('turns tools off and on with a switch each; the core is not offered', async () => {
+    const patches = setupTools([]);
+    const dialog = await open();
+    const tools = within(dialog).getByRole('list', { name: 'Tools' });
+    expect(within(tools).queryByRole('switch', { name: 'Scripts' })).toBeNull();
+    await userEvent.click(within(tools).getByRole('switch', { name: 'Git' }));
+    await userEvent.click(within(tools).getByRole('switch', { name: 'TODOs' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(patches).toEqual([{ disabledTools: ['git', 'todos'] }]));
+  });
+
+  it('asks before turning off a tool that has something running', async () => {
+    const patches = setupTools(['static']);
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole('switch', { name: 'Static' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(confirm).toHaveTextContent('Turn off Static?');
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Keep on' }));
+    expect(patches).toEqual([]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Turn off and stop' }));
+    await waitFor(() => expect(patches).toEqual([{ disabledTools: ['static'] }]));
+  });
+});

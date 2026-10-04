@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/components/ui/command';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { queryKeys, useProcesses, useProjects, useTools } from '@/lib/queries';
+import { queryKeys, useProcesses, useProjects, useSettings, useTools } from '@/lib/queries';
+import { isToolEnabled } from '@shared/tools';
 import { useUiStore } from '@/state/ui-store';
 import { composeStepMessage } from '@/tools/scripts/compose-steps';
 import { scriptListKey } from '@/tools/scripts/use-scripts';
@@ -52,6 +53,8 @@ export function CommandPalette() {
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const selected = view === 'project' ? (findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null)) : null;
   const { data: tools = [] } = useTools(open && selected ? selected.detected.id : null);
+  const { data: settings } = useSettings();
+  const claudeOn = isToolEnabled(settings?.disabledTools ?? [], 'claude');
   const rootId = selected?.summary.id ?? '';
   const { data: list } = useQuery({
     queryKey: scriptListKey(rootId),
@@ -60,8 +63,11 @@ export function CommandPalette() {
   });
 
   const entries = useMemo(
-    () => (open ? paletteEntries({ projects, selected, processes, runGroups: list?.runGroups ?? [], tools }) : []),
-    [open, projects, selected, processes, list, tools],
+    () =>
+      open
+        ? paletteEntries({ projects, selected, processes, runGroups: list?.runGroups ?? [], tools, claudeOn })
+        : [],
+    [open, projects, selected, processes, list, tools, claudeOn],
   );
 
   const run = async (action: PaletteAction) => {

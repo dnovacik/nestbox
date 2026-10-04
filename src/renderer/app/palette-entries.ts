@@ -38,6 +38,8 @@ export interface PaletteInput {
   runGroups: readonly RunGroup[];
   /** The selected project's tools. */
   tools: readonly ToolSummary[];
+  /** Whether the Claude Code tool is on (its entries need it). */
+  claudeOn?: boolean;
 }
 
 const LIVE = new Set<ProcessSummary['state']>(['starting', 'running']);
@@ -50,7 +52,7 @@ function packages(projects: readonly ProjectSummary[]): { detected: DetectedProj
   ]);
 }
 
-export function paletteEntries({ projects, selected, processes, runGroups, tools }: PaletteInput): PaletteEntry[] {
+export function paletteEntries({ projects, selected, processes, runGroups, tools, claudeOn = true }: PaletteInput): PaletteEntry[] {
   const out: PaletteEntry[] = [];
   const all = packages(projects);
   const stateOf = (projectId: string, script: string) => processes.find((p) => p.projectId === projectId && p.script === script)?.state;
@@ -114,7 +116,7 @@ export function paletteEntries({ projects, selected, processes, runGroups, tools
     }
   }
 
-  for (const { detected, title } of all) {
+  for (const { detected, title } of claudeOn ? all : []) {
     out.push(
       {
         id: `claude:open:${detected.id}`,
