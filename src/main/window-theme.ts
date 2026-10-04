@@ -23,13 +23,17 @@ export function windowColors(dark: boolean): WindowColors {
  * the native title-bar overlay behind the minimise, maximise and close buttons.
  */
 export function applyWindowTheme(
-  win: { setBackgroundColor(color: string): void; setTitleBarOverlay?(o: { color: string; symbolColor: string }): void },
+  win: {
+    setBackgroundColor(color: string): void;
+    setTitleBarOverlay?(o: { color: string; symbolColor: string }): void;
+  },
   chrome: { hasOverlay: boolean },
   dark: boolean,
 ): void {
   const colors = windowColors(dark);
   win.setBackgroundColor(colors.background);
-  if (chrome.hasOverlay) win.setTitleBarOverlay?.({ color: colors.titleBar, symbolColor: colors.titleBarSymbols });
+  if (chrome.hasOverlay)
+    win.setTitleBarOverlay?.({ color: colors.titleBar, symbolColor: colors.titleBarSymbols });
 }
 
 export const TITLE_BAR_HEIGHT = 40;

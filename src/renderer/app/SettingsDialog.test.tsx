@@ -98,6 +98,18 @@ describe('SettingsDialog', () => {
     expect(bridge.callsTo('settings:update')).toEqual([{ closeToTray: false, trayIconTheme: 'auto' }]);
   });
 
+  it('saves the theme and the dependency schedule', async () => {
+    const bridge = setup();
+    const dialog = await open();
+    await userEvent.click(await within(dialog).findByRole('combobox', { name: 'Theme' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Light' }));
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Dependency checks' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Weekly' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(bridge.callsTo('settings:update')).toEqual([{ depsSchedule: 'weekly', theme: 'light' }]);
+  });
+
   it('validates the buffer size and the editor command', async () => {
     setup();
     const dialog = await open();
