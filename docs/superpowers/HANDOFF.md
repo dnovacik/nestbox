@@ -57,8 +57,8 @@
 - Follow-up fixes: branch `v2-followups` (stacked on `v2-inspector`), draft PR #17, released with 1.8.0. `spawnCommand` on Windows resolves the program from PATH (never the project folder), and the header's branch follows the git tool's live status.
 - Inspector tunnel: branch `v2-tunnel` (stacked on `v2-followups`), draft PR #18, version 1.9.0. Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-tunnel-design.md` (defaults chosen while the owner was away; review with the PR). Not verifiable in CI: a real cloudflared quick tunnel and a real webhook (the e2e uses a fake cloudflared).
 - Release order: 1.6.0 and 1.7.0 drafts (published by the owner), then #16 + #17 as 1.8.0, then #18 as 1.9.0.
-- Next: the planned v2 tools and follow-ups are done; still open from v1: the README GIF on Windows.
-- Still open from v1: record the README GIF on Windows.
+- Portfolio items from the spec: branch `v2-portfolio` (stacked on `v2-tunnel`), docs only, no version bump. It adds screenshots of the v2 tools (made by `scripts/screenshots.mjs`), `CONTRIBUTING.md` and a write-up of a hard problem (`docs/writeups/process-trees.md`). It can merge with or after #18.
+- Next: the planned v2 tools, follow-ups and portfolio docs are done. Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
 

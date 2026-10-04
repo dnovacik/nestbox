@@ -42,6 +42,18 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
     <td><img src="docs/screenshots/claude.png" alt="Claude Code"></td>
     <td><img src="docs/screenshots/palette.png" alt="Command palette"></td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/git.png" alt="Git"></td>
+    <td><img src="docs/screenshots/todos.png" alt="TODOs"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/database.png" alt="Database"></td>
+    <td><img src="docs/screenshots/compose.png" alt="Docker Compose"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/mock.png" alt="Mock API"></td>
+    <td><img src="docs/screenshots/inspector.png" alt="Request inspector"></td>
+  </tr>
 </table>
 
 ## Install
@@ -72,7 +84,7 @@ pnpm e2e          # Playwright against the built app (Windows)
 
 `node scripts/screenshots.mjs` (after `pnpm build`) recreates the screenshots above with demo projects. Run it under `xvfb-run` on Linux.
 
-[CLAUDE.md](CLAUDE.md) has the folder layout, conventions and gotchas. [docs/nestbox-spec.md](docs/nestbox-spec.md) is the source of truth for scope.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the checks and rules for a pull request. [CLAUDE.md](CLAUDE.md) has the folder layout, conventions and gotchas. [docs/nestbox-spec.md](docs/nestbox-spec.md) is the source of truth for scope.
 
 ### Releasing
 
@@ -87,14 +99,14 @@ pnpm e2e          # Playwright against the built app (Windows)
 │ ProjectService · StoreService (electron-store + Zod) │       │ React + TanStack Query + Zustand     │
 │ ProcessManager · PortService · quit controller · tray│       │ shell: sidebar, tabs, palette        │
 │ Tool host ── tools: scripts, env, static, claude, …  │◀─────▶│ tool panels (lazy) + overview cards  │
-│ PlatformAdapter (win32 | darwin stub)                │  IPC  │ window.nestbox (preload bridge)      │
+│ PlatformAdapter (win32 | darwin)                     │  IPC  │ window.nestbox (preload bridge)      │
 └──────────────────────────────────────────────────────┘       └──────────────────────────────────────┘
 ```
 
 - **Typed IPC.** Every channel has a Zod input and output schema in `src/shared/channels.ts`. The router checks the sender's origin and validates each payload, then answers with an envelope (`{ ok, data }` or `{ ok: false, error: { code, message } }`). The renderer's typed client turns errors back into exceptions with a code.
 - **Tools are modules.** A tool is a contract (methods with Zod schemas, plus events), a main half (handlers that get a `ToolContext`) and a renderer half (a panel and an optional overview card). The core routes `tools:invoke` to them generically: adding a tool never touches the channel list, the router or the shell.
 - **Shared context.** Tools publish facts that other tools read. Scripts publishes running PIDs, which Ports uses to name the owner of a port; Env publishes `PORT`, which the overview shows.
-- **One platform adapter.** Every OS-specific call lives behind `PlatformAdapter`: on Windows `cmd.exe`, `taskkill /T`, `netstat` and PowerShell; on macOS process groups, `lsof`, `ps`, the login-shell `PATH` and `open -a` for terminals. Lint rejects `process.platform` anywhere else.
+- **One platform adapter.** Every OS-specific call lives behind `PlatformAdapter`: on Windows `cmd.exe`, `taskkill /T`, `netstat` and PowerShell; on macOS process groups, `lsof`, `ps`, the login-shell `PATH` and `open -a` for terminals. Lint rejects `process.platform` anywhere else. [Stopping a dev server for real](docs/writeups/process-trees.md) explains how process trees are stopped and cleaned up on both systems.
 - **Logs flow one way.** Main keeps a ring buffer per process and sends batches every 50 ms. The renderer virtualises the list. Exports send sequence numbers back, never text.
 
 ### How to write a tool
