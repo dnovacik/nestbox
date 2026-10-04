@@ -29,6 +29,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 | **Inspector** | A proxy in front of your local API (`localhost:<PORT>` from `.env`, or an address you set). Point a client or webhook at the inspector port and every request and response is recorded: headers, bodies (gzip/br decoded) and timing. Secret headers (`Authorization`, cookies, API keys, tokens) stay masked until you reveal them. Replay a request, edit it and send, or copy it as curl. Recordings live in memory only (the last 200). **Share publicly** (with `cloudflared` installed) gives the inspector a temporary `trycloudflare.com` address for webhooks, after a confirmation. |
 | **Node** | Which Node version a package needs (`.nvmrc`, `.node-version`, `engines.node` or `volta.node`, with the root as a fallback for workspace packages), whether those sources agree, and whether the Node and package manager that run its scripts match, including the `packageManager` field. A script started on the wrong version gets a warning in its log and a badge. With fnm, a per-project switch runs the scripts on the required version. NestBox only warns with nvm and nvm-windows, and never downloads anything (Corepack stays offline). |
 | **Dependencies** | Outdated and vulnerable dependencies through the package manager's own `outdated` and `audit` commands (npm, pnpm, Yarn 1, Yarn 2+ and Bun; where a manager has no JSON outdated, NestBox reads the installed versions and asks the registry through it). Rows show installed, wanted and latest versions, major updates and advisories with their links. "Copy update command" is the only action: NestBox never changes `package.json` or the lockfile. Workspace packages are checked one by one and added up on the root. A **Dependencies** page in the sidebar shows which projects have high or critical advisories and which projects use a given package. Checks run only on Check or on a daily/weekly schedule you turn on in Settings; the last results are kept in the app's data folder. |
+| **Themes** | Dark and light, following the system by default (Settings → Theme). |
 | **Command palette** | `Ctrl+K`: jump to a project or tool, run or stop any script, start run groups, open Claude in a terminal. |
 
 <table>
@@ -157,7 +158,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
 
-v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0), the TODO scanner (v1.4.0), health checks (v1.5.0), Docker Compose (v1.6.0), the mock API (v1.7.0), the request inspector (v1.8.0), its public tunnel (v1.9.0) Compose services in run groups (v1.10.0) the Node version check (v1.11.0) and dependency health (v1.12.0). See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0), the TODO scanner (v1.4.0), health checks (v1.5.0), Docker Compose (v1.6.0), the mock API (v1.7.0), the request inspector (v1.8.0), its public tunnel (v1.9.0) Compose services in run groups (v1.10.0) the Node version check (v1.11.0), dependency health (v1.12.0) and a light theme (v1.13.0). See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
 
 ## License
 
