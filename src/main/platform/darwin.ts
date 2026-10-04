@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, chmod, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { NestboxError } from '@shared/errors';
 import type { Logger } from '../logger';
 import type { PlatformAdapter, PlatformDeps } from './adapter';
@@ -60,9 +60,16 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
   const exists = extras.exists ?? pathExists;
   const writeScript = extras.writeScript ?? writeExecutable;
   const now = extras.now ?? Date.now;
-  const shellEnv =
+  const loginEnv =
     extras.shellEnv ??
     createShellEnv({ runner: deps.runner, shell: loginShell(process.env['SHELL']), fallback: process.env, logger, now });
+  // A login shell rebuilds PATH with the system folders first, which would hide the end-to-end fakes.
+  const shellEnv = {
+    get: async () => {
+      const env = await loginEnv.get();
+      return deps.pathPrepend ? { ...env, PATH: `${deps.pathPrepend}${delimiter}${env['PATH'] ?? ''}` } : env;
+    },
+  };
   // ps output is parsed: keep it in the C locale whatever the user's language is.
   const cLocale = () => ({ ...process.env, LC_ALL: 'C' });
 

@@ -7,7 +7,9 @@ import type { ShellEnv } from './posix-shell';
 
 type Exec = (file: string, args: readonly string[]) => ExecResult | Error;
 
-function setup(opts: { exec?: Exec; terminal?: string; editor?: string; installed?: string[]; extras?: DarwinExtras } = {}) {
+function setup(
+  opts: { exec?: Exec; terminal?: string; editor?: string; installed?: string[]; extras?: DarwinExtras; pathPrepend?: string } = {},
+) {
   const exec = vi.fn(async (file: string, args: readonly string[], _o?: { env?: NodeJS.ProcessEnv }) => {
     const result = opts.exec?.(file, args) ?? { code: 0, stdout: '' };
     if (result instanceof Error) throw result;
@@ -21,7 +23,12 @@ function setup(opts: { exec?: Exec; terminal?: string; editor?: string; installe
   const shellEnv: ShellEnv = { get: async () => ({ PATH: '/opt/homebrew/bin:/usr/bin', SHELL_ONLY: '1' }), clear: () => undefined };
   const written: { path: string; text: string }[] = [];
   const adapter = createDarwinAdapter(
-    { runner, getEditorCommand: () => opts.editor ?? 'code', getTerminalApp: () => opts.terminal ?? 'auto' },
+    {
+      runner,
+      getEditorCommand: () => opts.editor ?? 'code',
+      getTerminalApp: () => opts.terminal ?? 'auto',
+      ...(opts.pathPrepend ? { pathPrepend: opts.pathPrepend } : {}),
+    },
     {
       shellEnv,
       exists: async (path) => (opts.installed ?? []).some((app) => path.endsWith(`${app}.app`)),
@@ -111,6 +118,11 @@ describe('darwin adapter: running things', () => {
     expect(typeof file).toBe('string');
     expect(args).toEqual(['check-ignore', '-q', 'x']);
     expect(opts).toMatchObject({ cwd: '/a', timeoutMs: 5_000, env: { SHELL_ONLY: '1' } });
+  });
+
+  it('puts a development PATH prefix (end-to-end fakes) ahead of the login shell\'s PATH', async () => {
+    const { adapter } = setup({ pathPrepend: '/e2e/fake-npm' });
+    expect((await adapter.resolveShellEnv())['PATH']).toBe('/e2e/fake-npm:/opt/homebrew/bin:/usr/bin');
   });
 
   it('adds extra env variables on top of the login-shell env', async () => {

@@ -78,6 +78,8 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(() => {
     const store = new StoreService(createElectronStoreBackend(app.getPath('userData')), logger);
     const platform = createPlatformAdapter({
+      // Development only, like NESTBOX_USER_DATA_DIR: the end-to-end tests' fake commands.
+      ...(app.isPackaged || !process.env['NESTBOX_PATH_PREPEND'] ? {} : { pathPrepend: process.env['NESTBOX_PATH_PREPEND'] }),
       runner: spawnRunner,
       getEditorCommand: () => store.getSettings().editorCommand,
       getTerminalApp: () => store.getSettings().terminalApp,
