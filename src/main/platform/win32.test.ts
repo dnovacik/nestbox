@@ -308,12 +308,13 @@ describe('win32 execCommand', () => {
 });
 
 describe('win32 spawnCommand', () => {
-  it('runs the command through cmd.exe and hands stdin to the runner', () => {
+  it('runs the command found on PATH through cmd.exe and hands stdin to the runner', () => {
     const runner = fakeRunner();
     const child = {} as ChildProcess;
     vi.mocked(runner.spawn).mockReturnValue(child);
-    const env = { PATH: 'x' };
-    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code' }).spawnCommand({
+    const env = { PATH: 'C:\\npm' };
+    const resolveCommand = vi.fn(() => 'C:\\npm\\claude.cmd');
+    const result = createWin32Adapter({ runner, getEditorCommand: () => 'code', resolveCommand }).spawnCommand({
       cwd: 'C:\\a',
       command: 'claude',
       args: ['-p'],
@@ -321,11 +322,28 @@ describe('win32 spawnCommand', () => {
       stdin: 'what does "this" do?',
     });
     expect(result).toBe(child);
-    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', cmdInvocation('claude', ['-p']).args, {
+    expect(resolveCommand).toHaveBeenCalledWith('claude', env);
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', cmdInvocation('C:\\npm\\claude.cmd', ['-p']).args, {
       cwd: 'C:\\a',
       env,
       verbatim: true,
       stdin: 'what does "this" do?',
+    });
+  });
+
+  it("keeps cmd.exe out of the project folder when the command isn't on PATH", () => {
+    const runner = fakeRunner();
+    vi.mocked(runner.spawn).mockReturnValue({} as ChildProcess);
+    createWin32Adapter({ runner, getEditorCommand: () => 'code', resolveCommand: () => null }).spawnCommand({
+      cwd: 'C:\\a',
+      command: 'docker',
+      args: ['compose'],
+      env: { PATH: 'x' },
+    });
+    expect(runner.spawn).toHaveBeenCalledWith('cmd.exe', cmdInvocation('docker', ['compose']).args, {
+      cwd: 'C:\\a',
+      env: { PATH: 'x', NoDefaultCurrentDirectoryInExePath: '1' },
+      verbatim: true,
     });
   });
 

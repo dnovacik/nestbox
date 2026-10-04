@@ -3,6 +3,7 @@ import { type CommandRunner, type ExecResult, type PlatformAdapter, type Platfor
 import { normalizeWin32Path } from './paths';
 import { groupSockets, parseNetstat, parseTasklist } from './win32-ports';
 import { assertCmdSafe, cmdInvocation, escapeWtArg } from './win32-escape';
+import { resolveOnPath } from './win32-resolve';
 
 function isEnoent(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
@@ -93,10 +94,14 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
     },
 
     spawnCommand(opts) {
-      const inv = cmdInvocation(opts.command, opts.args);
+      // cwd is the user's project: run the program found on PATH, never one sitting in the project folder.
+      // The env (and so the children's lookup) stays as it is, because their own scripts may rely on it.
+      const resolved = (deps.resolveCommand ?? resolveOnPath)(opts.command, opts.env);
+      const inv = cmdInvocation(resolved ?? opts.command, opts.args);
       return deps.runner.spawn(inv.file, inv.args, {
         cwd: opts.cwd,
-        env: opts.env,
+        // Not on PATH: cmd.exe would try the current folder first. It fails with "not recognized" instead.
+        env: resolved === null ? { ...opts.env, NoDefaultCurrentDirectoryInExePath: '1' } : opts.env,
         verbatim: true,
         ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }),
       });

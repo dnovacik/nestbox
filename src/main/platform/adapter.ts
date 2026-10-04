@@ -85,6 +85,8 @@ export interface PlatformDeps {
   getTerminalApp?(): string;
   /** For failures without values (the macOS shell env). Silent when absent. */
   logger?: Logger;
+  /** Windows: finds a command on PATH, never in the current folder (tests inject one). */
+  resolveCommand?(command: string, env: NodeJS.ProcessEnv): string | null;
 }
 
 export interface PlatformAdapter {

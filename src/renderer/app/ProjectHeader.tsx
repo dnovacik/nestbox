@@ -30,6 +30,7 @@ import {
   useRenameProject,
   useSetPinned,
 } from '@/lib/queries';
+import { useGitStatus } from '@/tools/git/use-git';
 import type { ProjectNode } from './find-project';
 import { RenameInput } from './RenameInput';
 
@@ -49,7 +50,10 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
   const live = (projectId: string) => processes.filter((p) => isLive(p.state) && belongsTo(p.projectId, projectId)).length;
   const liveHere = live(detected.id);
   const liveInRoot = live(summary.id);
-  const ref = detected.git?.branch ?? detected.git?.head ?? null;
+  // The git tool's live status (shared with its card), so a checkout shows here without a project refresh.
+  const { data: git } = useGitStatus(detected.id, detected.git !== null);
+  const liveRef = git?.state === 'ok' ? (git.branch ?? git.detachedAt) : null;
+  const ref = liveRef ?? detected.git?.branch ?? detected.git?.head ?? null;
 
   return (
     <div className="border-b border-line bg-card/40 px-5 pt-5 pb-4">
