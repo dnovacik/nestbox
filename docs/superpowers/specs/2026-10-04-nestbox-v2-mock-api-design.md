@@ -1,7 +1,7 @@
 # NestBox v2 (Mock API): Design Notes
 
 Date: 2026-10-04
-Status: Draft, for the owner's approval
+Status: Approved 2026-10-04
 Source of truth: `docs/nestbox-spec.md`, "v2 tools", which describes the tool as: *UI-defined routes returning JSON with latency and error toggles; saved per project.* These notes build on the earlier design notes and don't restate them.
 
 ## Scope
