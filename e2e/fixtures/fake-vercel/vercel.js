@@ -15,7 +15,9 @@ if (command === 'list' && args.includes('json')) {
   process.stdout.write('Inspect: https://vercel.com/acme/shop/9fake [1s]\n');
   setTimeout(() => {
     process.stdout.write(
-      prod ? 'Production: https://shop-acme.vercel.app [3s]\n' : 'Preview: https://shop-git-e2e-acme.vercel.app [3s]\n',
+      prod
+        ? 'Production: https://shop-acme.vercel.app [3s]\n'
+        : 'Preview: https://shop-git-e2e-acme.vercel.app [3s]\n',
     );
   }, 300);
 } else {
