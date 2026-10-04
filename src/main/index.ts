@@ -225,6 +225,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       compose: { logger },
       mock: { logger },
+      inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
     });
     const toolHost = createToolHost({
       tools,
