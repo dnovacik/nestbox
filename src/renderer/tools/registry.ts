@@ -6,6 +6,7 @@ import { gitRendererTool } from './git';
 import { healthRendererTool } from './health';
 import { inspectorRendererTool } from './inspector';
 import { mockRendererTool } from './mock';
+import { nodeRendererTool } from './node';
 import { projectInfoRendererTool } from './project-info';
 import { scriptsRendererTool } from './scripts';
 import { staticRendererTool } from './static';
@@ -26,6 +27,7 @@ export const rendererTools: readonly RendererTool[] = [
   composeRendererTool,
   mockRendererTool,
   inspectorRendererTool,
+  nodeRendererTool,
 ];
 
 export function getRendererTool(id: string): RendererTool | undefined {

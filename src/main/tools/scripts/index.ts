@@ -32,6 +32,10 @@ export interface ScriptsToolDeps {
   isFile(path: string): Promise<boolean>;
   emit(projectId: string, event: 'logs', payload: { script: string; lines: LogLine[] }): void;
   logger: Logger;
+  /** The Node tool's advice for a start (version warning, fnm's PATH); asked before every start. */
+  node: {
+    advice(projectId: string): Promise<{ warning: string | null; pathPrepend: string | null; note: string | null }>;
+  };
   /** The Compose tool's actions for a package (services empty = the whole stack). */
   compose: {
     up(projectId: string, services: string[], opts: { wait: boolean }): Promise<{ ok: boolean }>;
@@ -41,6 +45,8 @@ export interface ScriptsToolDeps {
 
 /** The shared-context fact the scripts tool publishes per project (read by the M2 port manager). */
 export const PROCESSES_FACT = 'scripts.processes';
+
+const ADVICE_TIMEOUT_MS = 3_000;
 
 type Ctx = ToolContext<ScriptsSettings>;
 
@@ -82,12 +88,29 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
   const isAuto = (settings: ScriptsSettings, project: DetectedProject, script: string): boolean =>
     settings.autoRestart.some((e) => e.relPath === project.relPath && e.script === script);
 
-  const requestFor = (project: DetectedProject, script: string, autoRestart: boolean): StartRequest => ({
+  /** The Node tool's advice, or none when it fails or is slow: a start never waits on it for long. */
+  async function adviceFor(projectId: string) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), ADVICE_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([deps.node.advice(projectId), timeout]);
+    } catch {
+      deps.logger.warn('node advice failed', { projectId });
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const requestFor = async (project: DetectedProject, script: string, autoRestart: boolean): Promise<StartRequest> => ({
     projectId: project.id,
     script,
     cwd: project.path,
     packageManager: project.packageManager,
     autoRestart,
+    ...(await adviceFor(project.id)),
   });
 
   function requireRoot(project: DetectedProject): void {
@@ -182,14 +205,14 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
 
       start: async (ctx: Ctx, { script }) => {
         requireScript(ctx.project, script);
-        return deps.processes.start(requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
+        return deps.processes.start(await requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
       },
 
       stop: async (ctx: Ctx, { script }) => deps.processes.stop(ctx.project.id, script),
 
       restart: async (ctx: Ctx, { script }) => {
         requireScript(ctx.project, script);
-        return deps.processes.restart(requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
+        return deps.processes.restart(await requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
       },
 
       setAutoRestart: async (ctx: Ctx, { script, enabled }) => {
@@ -271,7 +294,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             }
             try {
               started.push(
-                await deps.processes.start(requestFor(project, entry.script, isAuto(settings, project, entry.script))),
+                await deps.processes.start(await requestFor(project, entry.script, isAuto(settings, project, entry.script))),
               );
             } catch (error) {
               if (error instanceof NestboxError && error.code === 'CONFLICT') {

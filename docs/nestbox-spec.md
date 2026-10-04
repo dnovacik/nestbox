@@ -283,6 +283,31 @@ v2 starts with the macOS build, then adds one tool per release, smallest first. 
 | Mock API | UI-defined routes returning JSON with latency and error toggles; saved per project | Free port | M |
 | Request inspector | Records incoming requests and replays them to the API; later a `cloudflared` tunnel | API port | M |
 
+### Next in v2: Node version check and dependency health
+
+Both tools work with npm, pnpm, yarn and bun, using the package manager that project detection already found.
+
+**Node version check (S).**
+- Reads the required version from `.nvmrc`, `.node-version`, `engines.node` and `volta.node`. The first one found wins, and conflicts between them are flagged.
+- Checks the `packageManager` field (for example `pnpm@10.30.2`) against the package manager version actually installed.
+- Compares both with the Node and package manager that will really run the scripts, resolved through the platform adapter's shell environment, using semver ranges.
+- Warns before a script starts on the wrong version.
+- Fix actions depend on the version manager:
+  - with fnm, scripts run on the required version;
+  - Volta switches per project on its own;
+  - nvm-windows switches for the whole machine, so NestBox only warns and never changes it silently.
+
+**Dependency health (M).**
+- One adapter per package manager runs that manager's own outdated and audit commands with JSON output, so private registries and `.npmrc` authentication keep working.
+- Results are normalised into one shape: package, current, wanted, latest, a major-bump flag, vulnerability severity and an advisory link.
+- Where a package manager has no JSON output for a command (for example Yarn Berry's outdated), the adapter falls back to reading installed versions and asking the configured registry.
+- `npm outdated` exits non-zero when it finds outdated packages; that is a result, not a failure.
+- Workspaces: results per package, rolled up to the root.
+- A cross-project view shows which projects use a given package and at which versions, and which projects have high or critical advisories.
+- Runs only when the user clicks Check, or on a schedule the user turns on. Results are cached with a timestamp.
+- **This is the one exception to NestBox's no-network rule:** it reaches the network through the package manager, and only then.
+- Exact command flags are verified against each package manager's current version when the tool is built.
+
 ## Data model and persistence
 
 All state lives on the user's machine in one JSON store; project files stay the source of truth. Nestbox stores only what it cannot re-read from the project folder.

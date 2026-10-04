@@ -5,7 +5,7 @@ import { crashNotice } from './crash-notifier';
 const crashed = (over: Partial<ProcessSummary>): ProcessSummary => ({
   projectId: 'p1', script: 'api', state: 'crashed', pid: null, startedAt: 1,
   exit: { code: 1, signal: null, lastLine: 'DATABASE_URL=postgres://secret' },
-  crashCount: 1, autoRestart: false, nextRestartAt: null, gaveUp: false, ...over,
+  crashCount: 1, autoRestart: false, nextRestartAt: null, gaveUp: false, warning: null, ...over,
 });
 
 describe('crashNotice', () => {

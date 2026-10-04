@@ -47,6 +47,15 @@ function ScriptRow({ projectId, info, process }: { projectId: string; info: Scri
             {process.state === 'exited' ? `exited ${process.exit?.code ?? ''}`.trim() : process.state}
           </span>
         )}
+        {process?.warning && (
+          <span
+            title={process.warning}
+            aria-label={`Version warning: ${process.warning}`}
+            className="rounded border border-warn/40 px-1.5 py-px text-[10px] font-medium text-warn"
+          >
+            Node
+          </span>
+        )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {live ? (
             <>

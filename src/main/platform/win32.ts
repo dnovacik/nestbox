@@ -89,7 +89,7 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       const inv = cmdInvocation(command, args);
       // cmd.exe looks in the current folder before PATH: without this, a git.bat in a cloned repository
       // would run just because NestBox read its status. Only for short-lived commands: scripts may rely on it.
-      const env = { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' };
+      const env = { ...process.env, ...opts.env, NoDefaultCurrentDirectoryInExePath: '1' };
       return deps.runner.exec(inv.file, inv.args, { ...opts, env, verbatim: true });
     },
 

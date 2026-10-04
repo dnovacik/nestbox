@@ -58,6 +58,15 @@ function setup() {
     isFile: vi.fn(async (_path: string) => true),
     emit: vi.fn(),
     logger: createMemoryLogger(),
+    node: {
+      advice: vi.fn(
+        async (_projectId: string): Promise<{ warning: string | null; pathPrepend: string | null; note: string | null }> => ({
+          warning: null,
+          pathPrepend: null,
+          note: null,
+        }),
+      ),
+    },
     compose: {
       up: vi.fn(async (_projectId: string, _services: string[], _opts: { wait: boolean }) => ({ ok: true })),
       stop: vi.fn(async (_projectId: string, _services: string[]) => ({ ok: true })),
@@ -246,6 +255,35 @@ describe('scripts tool: openFileAt', () => {
       message: 'File not found',
     });
     expect(openInEditor).not.toHaveBeenCalled();
+  });
+});
+
+describe('scripts tool: Node advice', () => {
+  it('starts with the Node tool\'s warning, note and PATH', async () => {
+    const { call, deps, processes, platform } = setup();
+    deps.node.advice.mockResolvedValue({
+      warning: "Node v20.11.1 doesn't match 18 (.nvmrc)",
+      pathPrepend: '/fnm/18/bin',
+      note: '▸ fnm: Node 18 from /fnm/18/bin',
+    });
+    expect(await call(api.id, 'start', { script: 'dev' })).toMatchObject({ warning: "Node v20.11.1 doesn't match 18 (.nvmrc)" });
+    expect(deps.node.advice).toHaveBeenCalledWith(api.id);
+    expect(processes.logs(api.id, 'dev').lines.map((l) => l.text).slice(0, 2)).toEqual([
+      '▸ fnm: Node 18 from /fnm/18/bin',
+      "▲ Node v20.11.1 doesn't match 18 (.nvmrc)",
+    ]);
+    const env = (platform.spawnScript.mock.calls as unknown as [{ env: NodeJS.ProcessEnv }][])[0]?.[0].env;
+    expect(env?.['PATH']).toMatch(/^\/fnm\/18\/bin/);
+  });
+
+  it('starts without advice when the Node tool fails or takes over 3 s', async () => {
+    const { call, deps } = setup();
+    deps.node.advice.mockRejectedValueOnce(new NestboxError('INTERNAL', 'boom'));
+    expect(await call('r1', 'start', { script: 'dev' })).toMatchObject({ state: 'starting', warning: null });
+    deps.node.advice.mockReturnValueOnce(new Promise(() => undefined));
+    const slow = call('r1', 'start', { script: 'build' });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(await slow).toMatchObject({ state: 'starting', warning: null });
   });
 });
 

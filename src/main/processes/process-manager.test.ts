@@ -1,3 +1,4 @@
+import { delimiter } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
@@ -43,6 +44,27 @@ describe('ProcessManager start', () => {
       args: ['run', 'dev'],
       env: expect.objectContaining({ FORCE_COLOR: '1', PATH: 'x' }),
     });
+  });
+
+  it('logs the version advice first, puts fnm\'s Node first on PATH and keeps the warning', async () => {
+    const { pm, platform, texts } = setup();
+    const summary = await pm.start(
+      req({ warning: "Node v20.11.1 doesn't match 18 (.nvmrc)", note: '▸ fnm: Node 18 from /fnm/18/bin', pathPrepend: '/fnm/18/bin' }),
+    );
+    expect(texts()).toEqual(['▸ fnm: Node 18 from /fnm/18/bin', "▲ Node v20.11.1 doesn't match 18 (.nvmrc)", '▸ pnpm run dev']);
+    expect(platform.spawnScript).toHaveBeenCalledWith(
+      expect.objectContaining({ env: expect.objectContaining({ PATH: `/fnm/18/bin${delimiter}x` }) }),
+    );
+    expect(summary.warning).toBe("Node v20.11.1 doesn't match 18 (.nvmrc)");
+  });
+
+  it('prepends to PATH under the casing the environment uses (Path on Windows)', async () => {
+    const { pm, platform } = setup();
+    platform.resolveShellEnv.mockResolvedValue({ Path: 'C:\\Windows' });
+    await pm.start(req({ pathPrepend: 'C:\\fnm\\18' }));
+    const env = (platform.spawnScript.mock.calls as unknown as [{ env: NodeJS.ProcessEnv }][])[0]?.[0].env;
+    expect(env?.['Path']).toBe(`C:\\fnm\\18${delimiter}C:\\Windows`);
+    expect(env).not.toHaveProperty('PATH');
   });
 
   it('falls back to npm when no package manager was detected', async () => {

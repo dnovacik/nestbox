@@ -160,7 +160,7 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
     },
 
     async execCommand(command, args, opts) {
-      const env = await shellEnv.get();
+      const env = { ...(await shellEnv.get()), ...opts.env };
       // Resolved here: a bare name would otherwise be looked up on the app's own minimal PATH.
       const file = (await commandPath(command)) ?? command;
       return deps.runner.exec(file, args, { ...opts, env });

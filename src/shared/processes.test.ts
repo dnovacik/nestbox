@@ -28,7 +28,7 @@ describe('process helpers', () => {
     const summary = {
       projectId: 'r1', script: 'dev', state: 'crashed', pid: null, startedAt: 1,
       exit: { code: 1, signal: null, lastLine: 'Error' }, crashCount: 2, autoRestart: true,
-      nextRestartAt: 5, gaveUp: false,
+      nextRestartAt: 5, gaveUp: false, warning: null,
     };
     expect(ProcessSummarySchema.parse(summary)).toEqual(summary);
   });

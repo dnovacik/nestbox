@@ -15,7 +15,7 @@ import {
 
 const proc = (over: Partial<ProcessSummary>): ProcessSummary => ({
   projectId: 'p1', script: 'dev', state: 'running', pid: 1, startedAt: 1, exit: null,
-  crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false, ...over,
+  crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false, warning: null, ...over,
 });
 
 const ws = makeDetectedForTest({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packages/api', name: 'api' });

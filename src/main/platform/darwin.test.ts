@@ -113,6 +113,12 @@ describe('darwin adapter: running things', () => {
     expect(opts).toMatchObject({ cwd: '/a', timeoutMs: 5_000, env: { SHELL_ONLY: '1' } });
   });
 
+  it('adds extra env variables on top of the login-shell env', async () => {
+    const { adapter, runner } = setup();
+    await adapter.execCommand('pnpm', ['--version'], { cwd: '/a', timeoutMs: 5_000, env: { COREPACK_ENABLE_NETWORK: '0' } });
+    expect(runner.exec.mock.calls[0]?.[2]).toMatchObject({ env: { SHELL_ONLY: '1', COREPACK_ENABLE_NETWORK: '0' } });
+  });
+
   it('passes an output cap to the runner', async () => {
     const { adapter, runner } = setup();
     await adapter.execCommand('git', ['status'], { cwd: '/a', timeoutMs: 5_000, maxBytes: 2_000_000 });
