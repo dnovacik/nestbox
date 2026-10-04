@@ -12,6 +12,7 @@ import type {
   InspectorStatus,
 } from '@shared/tools/inspector/contract';
 import { createMemoryLogger } from '../../logger';
+import { fakePlatform } from '../../processes/fake-child';
 import { createEnvFileAccess } from '../env/env-files';
 import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
@@ -54,17 +55,21 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-function setup(initial: InspectorSettings = { packages: {} }) {
+function setup(
+  initial: InspectorSettings = { packages: {} },
+  opts: { cloudflared?: boolean } = {},
+) {
   let settings = initial;
   const logger = createMemoryLogger();
   const clipboard = { writeText: vi.fn() };
+  const platform = fakePlatform();
   tool = createInspectorTool({ logger, envFiles: createEnvFileAccess(), clipboard });
   const emit = vi.fn();
   const ctx = {
     project: makeDetectedForTest({ path: root }),
     shared: createSharedContext().forProject('p1'),
     emit,
-    platform: {},
+    platform: { ...platform, commandExists: vi.fn(async () => opts.cloudflared ?? true) },
     settings: {
       get: () => settings,
       update: (fn: (s: InspectorSettings) => InspectorSettings) => (settings = fn(settings)),
@@ -72,7 +77,7 @@ function setup(initial: InspectorSettings = { packages: {} }) {
   } as unknown as ToolContext;
   const call = <T>(method: string, input: unknown = {}) =>
     tool?.handlers[method]?.(ctx, input) as Promise<T>;
-  return { call, emit, logger, clipboard };
+  return { call, emit, logger, clipboard, platform };
 }
 
 describe('inspector tool: target and lifecycle', () => {
@@ -217,5 +222,62 @@ describe('inspector tool: recording and replay', () => {
     await tool?.dispose?.();
     tool = null;
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
+  });
+});
+
+describe('inspector tool: tunnel', () => {
+  const BANNER = 'INF |  https://quiet-forest-path-1234.trycloudflare.com  |\n';
+
+  async function runningWith(opts: { cloudflared?: boolean } = {}) {
+    const backend = await api();
+    const port = await freePort();
+    const t = setup({ packages: {} }, opts);
+    await t.call('setOptions', { port, target: `http://localhost:${backend.port}` });
+    await t.call('start');
+    return { ...t, port };
+  }
+
+  it('refuses while the inspector is stopped or cloudflared is missing', async () => {
+    const stopped = setup();
+    await expect(stopped.call('tunnelStart')).rejects.toMatchObject({ code: 'VALIDATION' });
+    await tool?.dispose?.();
+    const missing = await runningWith({ cloudflared: false });
+    expect((await missing.call<InspectorStatus>('status')).cloudflared).toBe(false);
+    await expect(missing.call('tunnelStart')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('shares the inspector port, reports the address, copies it, and stops with the inspector', async () => {
+    const { call, platform, port, clipboard, logger } = await runningWith();
+    expect(await call('tunnelStart')).toEqual({ state: 'starting', url: null, error: null });
+    await vi.waitFor(() => expect(platform.children).toHaveLength(1));
+    const args = (
+      vi.mocked(platform.spawnCommand).mock.calls as unknown as [{ args: string[] }][]
+    )[0]?.[0].args;
+    expect(args).toContain(`http://localhost:${port}`);
+    platform.last().stderr.write(BANNER);
+    await vi.waitFor(async () =>
+      expect((await call<InspectorStatus>('status')).tunnel).toEqual({
+        state: 'on',
+        url: 'https://quiet-forest-path-1234.trycloudflare.com',
+        error: null,
+      }),
+    );
+    await call('copyTunnelUrl');
+    expect(clipboard.writeText).toHaveBeenCalledWith(
+      'https://quiet-forest-path-1234.trycloudflare.com',
+    );
+    await call('stop');
+    expect(platform.killTree).toHaveBeenCalled();
+    expect((await call<InspectorStatus>('status')).tunnel.state).toBe('off');
+    expect(JSON.stringify(logger.entries)).not.toContain('trycloudflare');
+  });
+
+  it('stops sharing on demand', async () => {
+    const { call, platform } = await runningWith();
+    await call('tunnelStart');
+    await vi.waitFor(() => expect(platform.children).toHaveLength(1));
+    expect(await call('tunnelStop')).toEqual({ state: 'off', url: null, error: null });
+    expect((await call<InspectorStatus>('status')).running).toBe(true);
+    await expect(call('copyTunnelUrl')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

@@ -36,6 +36,19 @@ describe('InspectorCard', () => {
     expect(of('stop')).toHaveLength(1);
   });
 
+  it('says when the inspector is shared publicly, without the address', async () => {
+    const { card } = await renderCard(
+      inspectorStatus({
+        running: true,
+        port: 4020,
+        url: 'http://localhost:4020',
+        tunnel: { state: 'on', url: 'https://secret-name-here.trycloudflare.com', error: null },
+      }),
+    );
+    expect(await within(card).findByText(/shared publicly/)).toHaveClass('text-warn');
+    expect(card).not.toHaveTextContent('trycloudflare');
+  });
+
   it('says stopped, starts, and opens the tab', async () => {
     const { card, of } = await renderCard(inspectorStatus());
     expect(await within(card).findByText('Stopped')).toBeInTheDocument();

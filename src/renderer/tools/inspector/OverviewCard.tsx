@@ -30,6 +30,7 @@ export function InspectorCard({ projectId }: ToolPanelProps) {
           </p>
           <p className="text-fg-faint">
             {status.count} {status.count === 1 ? 'request' : 'requests'}
+            {status.tunnel.state === 'on' && <span className="text-warn"> · shared publicly</span>}
             {last && (
               <>
                 {' · last '}

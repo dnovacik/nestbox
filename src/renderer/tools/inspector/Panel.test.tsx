@@ -15,7 +15,7 @@ type Call = { method: string; input: unknown };
 
 const LIST = [
   summary('b', { method: 'POST', path: '/orders', status: 201, replayOf: 'a' }),
-  summary('a'),
+  summary('a', { tunnel: true }),
 ];
 
 function setup(
@@ -68,7 +68,7 @@ describe('InspectorPanel', () => {
         .map((b) => b.textContent),
     ).toEqual([
       expect.stringContaining('POST/ordersreplay201'),
-      expect.stringContaining('GET/users/1200'),
+      expect.stringContaining('GET/users/1tunnel200'),
     ]);
     await userEvent.type(screen.getByRole('textbox', { name: 'Filter requests' }), 'orders');
     expect(within(list).getAllByRole('button')).toHaveLength(1);

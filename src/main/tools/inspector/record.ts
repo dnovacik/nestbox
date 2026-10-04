@@ -65,6 +65,7 @@ const SECRET_NAMES = new Set([
   'cookie',
   'set-cookie',
   'x-api-key',
+  'cf-connecting-ip',
 ]);
 const SECRET_PATTERN = /token|secret|password|api[-_]?key|session/i;
 export const MASK = '••••••';
@@ -138,6 +139,7 @@ export function summarize(e: Entry): EntrySummary {
     reqBytes: e.request.bytes,
     resBytes: e.response?.bytes ?? 0,
     replayOf: e.replayOf,
+    tunnel: headerOf(e.request.headers, 'cf-ray') !== null,
     error: e.error,
   };
 }

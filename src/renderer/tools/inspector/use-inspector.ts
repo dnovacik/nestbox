@@ -107,6 +107,21 @@ export function useInspectorActions(projectId: string) {
       onSuccess: () => toast.success('Copied as curl'),
       onError,
     }),
+    tunnelStart: useMutation({
+      mutationFn: () => api.tools.invoke('inspector', projectId, 'tunnelStart', {}),
+      onSettled: refresh,
+      onError,
+    }),
+    tunnelStop: useMutation({
+      mutationFn: () => api.tools.invoke('inspector', projectId, 'tunnelStop', {}),
+      onSettled: refresh,
+      onError,
+    }),
+    copyTunnelUrl: useMutation({
+      mutationFn: () => api.tools.invoke('inspector', projectId, 'copyTunnelUrl', {}),
+      onSuccess: () => toast.success('Public address copied'),
+      onError,
+    }),
     clear: useMutation({
       mutationFn: () => api.tools.invoke('inspector', projectId, 'clear', {}),
       onSettled: refresh,

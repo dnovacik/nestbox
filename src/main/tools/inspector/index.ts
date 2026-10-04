@@ -11,6 +11,7 @@ import {
   inspectorContract,
   inspectorDefinition,
   type PackageInspector,
+  type TunnelView,
   PackageInspectorSchema,
 } from '@shared/tools/inspector/contract';
 import type { Logger } from '../../logger';
@@ -20,6 +21,7 @@ import { firstFreePort, isPortFree } from '../net';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { buildCurl } from './curl';
 import { createProxyHandler, sendRequest } from './proxy';
+import { createTunnel, type Tunnel } from './tunnel';
 import { type Entry, EntryRing, type HeaderPairs, headerOf, sideView, summarize } from './record';
 
 export interface InspectorToolDeps {
@@ -47,7 +49,13 @@ interface State {
   ring: EntryRing;
   entriesTimer: ReturnType<typeof setTimeout> | null;
   emitEntries: () => void;
+  emitChanged: () => void;
+  /** The public Cloudflare quick tunnel to the inspector port, while shared. */
+  tunnel: Tunnel | null;
 }
+
+const TUNNEL_OFF: TunnelView = { state: 'off', url: null, error: null };
+const CLOUDFLARED_CACHE_MS = 30_000;
 
 export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
   const states = new Map<string, State>();
@@ -58,9 +66,11 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
 
   function stateOf(ctx: Ctx): State {
     const emitEntries = () => ctx.emit('entries', undefined);
+    const emitChanged = () => ctx.emit('changed', undefined);
     const existing = states.get(ctx.project.id);
     if (existing) {
       existing.emitEntries = emitEntries;
+      existing.emitChanged = emitChanged;
       return existing;
     }
     const created: State = {
@@ -69,6 +79,8 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
       ring: new EntryRing(),
       entriesTimer: null,
       emitEntries,
+      emitChanged,
+      tunnel: null,
     };
     states.set(ctx.project.id, created);
     return created;
@@ -119,11 +131,30 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
         ((config.port !== null && config.port !== running.port) ||
           (resolved !== null && resolved.target !== running.target)),
       count: state?.ring.size ?? 0,
+      tunnel: state?.tunnel?.view() ?? TUNNEL_OFF,
+      cloudflared: await cloudflaredInstalled(ctx),
     };
+  }
+
+  /** Whether cloudflared is on PATH, asked at most every 30 s (status is fetched often). */
+  let cloudflared: { at: number; value: boolean | null } | null = null;
+  async function cloudflaredInstalled(ctx: Ctx): Promise<boolean | null> {
+    if (cloudflared && Date.now() - cloudflared.at < CLOUDFLARED_CACHE_MS) return cloudflared.value;
+    const value = await ctx.platform.commandExists('cloudflared').catch(() => null);
+    cloudflared = { at: Date.now(), value };
+    return value;
+  }
+
+  async function stopTunnel(state: State): Promise<void> {
+    const tunnel = state.tunnel;
+    state.tunnel = null;
+    await tunnel?.stop();
   }
 
   async function stopState(state: State): Promise<void> {
     await state.starting?.catch(() => undefined);
+    // The public address points at the inspector port: it goes with the inspector.
+    await stopTunnel(state);
     const running = state.running;
     if (!running) return;
     state.running = null;
@@ -304,6 +335,41 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
       },
       copyCurl: async (ctx: Ctx, { id }) => {
         deps.clipboard.writeText(buildCurl(entryOf(ctx, id), await targetUrl(ctx)));
+      },
+      tunnelStart: async (ctx: Ctx) => {
+        const state = stateOf(ctx);
+        const running = state.running;
+        if (!running) throw new NestboxError('VALIDATION', 'Start the inspector first');
+        if (
+          state.tunnel &&
+          state.tunnel.view().state !== 'error' &&
+          state.tunnel.view().state !== 'off'
+        )
+          return state.tunnel.view();
+        if ((await cloudflaredInstalled(ctx)) === false)
+          throw new NestboxError('NOT_FOUND', "cloudflared isn't installed");
+        await stopTunnel(state);
+        const tunnel = createTunnel({
+          platform: ctx.platform,
+          logger: deps.logger,
+          cwd: ctx.project.path,
+          port: running.port,
+          onChange: () => state.emitChanged(),
+        });
+        state.tunnel = tunnel;
+        tunnel.start();
+        return tunnel.view();
+      },
+      tunnelStop: async (ctx: Ctx) => {
+        const state = states.get(ctx.project.id);
+        if (state) await stopTunnel(state);
+        ctx.emit('changed', undefined);
+        return TUNNEL_OFF;
+      },
+      copyTunnelUrl: async (ctx: Ctx) => {
+        const url = states.get(ctx.project.id)?.tunnel?.view().url;
+        if (!url) throw new NestboxError('NOT_FOUND', 'No public address right now');
+        deps.clipboard.writeText(url);
       },
       clear: async (ctx: Ctx) => {
         const state = states.get(ctx.project.id);

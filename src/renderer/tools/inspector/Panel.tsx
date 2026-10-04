@@ -12,6 +12,7 @@ import type { ToolPanelProps } from '../types';
 import { EntryDetail } from './EntryDetail';
 import { clockTime, statusTone } from './labels';
 import { SendDialog } from './SendDialog';
+import { TunnelBar } from './TunnelBar';
 import { useInspector, useInspectorActions } from './use-inspector';
 
 /** The API address: empty means PORT from .env. Saved on blur or Enter; invalid input is shown, not saved. */
@@ -185,6 +186,7 @@ export default function InspectorPanel({ projectId }: ToolPanelProps) {
           )}
         </p>
       )}
+      <TunnelBar projectId={projectId} status={status} />
       <p className="text-xs text-fg-faint">
         Point your client at the inspector instead of the API. Requests are kept in memory only (the
         last 200).
@@ -229,6 +231,11 @@ export default function InspectorPanel({ projectId }: ToolPanelProps) {
                     <span className="w-14 shrink-0 text-fg-faint">{clockTime(e.at)}</span>
                     <span className="w-12 shrink-0 text-brand">{e.method}</span>
                     <span className="min-w-0 flex-1 truncate text-fg">{e.path}</span>
+                    {e.tunnel && (
+                      <span className="shrink-0 rounded border border-brand/40 px-1 text-[10px] text-brand">
+                        tunnel
+                      </span>
+                    )}
                     {e.replayOf && (
                       <span className="shrink-0 rounded border border-line px-1 text-[10px] text-fg-muted">
                         replay

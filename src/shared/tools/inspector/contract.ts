@@ -55,6 +55,14 @@ export const inspectorDefinition: ToolDefinition<InspectorSettings> = {
   settingsSchema,
 };
 
+export const TunnelSchema = z.object({
+  state: z.enum(['off', 'starting', 'on', 'error']),
+  /** The public https address while on. Shown in the panel only: whoever has it reaches the API. */
+  url: z.string().nullable(),
+  error: z.string().nullable(),
+});
+export type TunnelView = z.infer<typeof TunnelSchema>;
+
 export const InspectorStatusSchema = z.object({
   running: z.boolean(),
   port: z.number().int().nullable(),
@@ -66,6 +74,9 @@ export const InspectorStatusSchema = z.object({
   /** Running with another port or target than configured: restart to apply. */
   configChanged: z.boolean(),
   count: z.number().int(),
+  tunnel: TunnelSchema,
+  /** Whether cloudflared is installed; null when that can't be told. */
+  cloudflared: z.boolean().nullable(),
 });
 export type InspectorStatus = z.infer<typeof InspectorStatusSchema>;
 
@@ -80,6 +91,8 @@ export const EntrySummarySchema = z.object({
   reqBytes: z.number().int(),
   resBytes: z.number().int(),
   replayOf: z.string().nullable(),
+  /** Came through the public tunnel (it carries cf-ray). A hint, not a security boundary. */
+  tunnel: z.boolean(),
   /** A code: ECONNREFUSED, timeout, too-large, upgrade. */
   error: z.string().nullable(),
 });
@@ -179,6 +192,11 @@ export const inspectorContract = defineContract({
   /** Writes a curl command to the clipboard from main. */
   copyCurl: { input: IdSchema, output: z.void() },
   clear: { input: z.strictObject({}), output: z.void() },
+  /** Starts a Cloudflare quick tunnel to the inspector port (the inspector must run). */
+  tunnelStart: { input: z.strictObject({}), output: TunnelSchema },
+  tunnelStop: { input: z.strictObject({}), output: TunnelSchema },
+  /** Writes the public address to the clipboard from main. */
+  copyTunnelUrl: { input: z.strictObject({}), output: z.void() },
 });
 
 export const inspectorEvents = defineEvents({
