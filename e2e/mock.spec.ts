@@ -46,7 +46,7 @@ test('serves a route, fails it on demand, and logs the requests', async () => {
   await expect(panel.getByRole('list', { name: 'Routes' }).getByRole('listitem')).toHaveCount(1);
 
   await panel.getByRole('button', { name: 'Start' }).click();
-  await expect(panel.getByText(`http://localhost:${port}`)).toBeVisible();
+  await expect(panel.getByText(`http://localhost:${port}`, { exact: true })).toBeVisible();
 
   const ok = await fetch(`http://127.0.0.1:${port}/users/42?token=abc`);
   expect(ok.status).toBe(200);
