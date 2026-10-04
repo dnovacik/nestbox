@@ -20,7 +20,7 @@ const background = () =>
 async function pickTheme(name: 'Light' | 'Dark' | 'System') {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
-  await dialog.getByRole('combobox', { name: 'Theme' }).click();
+  await dialog.getByRole('combobox', { name: 'Theme', exact: true }).click();
   await page.getByRole('option', { name }).click();
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toBeHidden();
