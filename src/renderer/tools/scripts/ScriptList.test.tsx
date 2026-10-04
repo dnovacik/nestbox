@@ -94,4 +94,15 @@ describe('ScriptList', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Start dev' }));
     expect(await screen.findByText('The script is already running')).toBeInTheDocument();
   });
+
+  it('shows an amber Node badge with the version warning', async () => {
+    installScriptsBridge({
+      scripts,
+      processes: [makeProcess({ script: 'dev', warning: "Node v20.11.1 doesn't match 18 (.nvmrc)" })],
+    });
+    renderWithProviders(<ScriptList projectId="p1" />);
+    const badge = await screen.findByLabelText("Version warning: Node v20.11.1 doesn't match 18 (.nvmrc)");
+    expect(badge).toHaveTextContent('Node');
+    expect(badge).toHaveAttribute('title', "Node v20.11.1 doesn't match 18 (.nvmrc)");
+  });
 });

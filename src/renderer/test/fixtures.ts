@@ -46,7 +46,7 @@ export function makeProcess(over: Partial<ProcessSummary> = {}): ProcessSummary 
     crashCount: 0,
     autoRestart: false,
     nextRestartAt: null,
-    gaveUp: false,
+    gaveUp: false, warning: null,
     ...over,
   };
 }
