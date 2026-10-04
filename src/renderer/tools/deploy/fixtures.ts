@@ -25,6 +25,8 @@ export const deployStatus = (
   last: null,
   envFiles: ['.env', '.env.production'],
   defaultEnvFile: '.env.production',
+  scripts: ['build', 'dev', 'test'],
+  ready: null,
   ...patch,
 });
 

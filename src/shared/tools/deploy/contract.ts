@@ -61,6 +61,32 @@ export const LastDeploySchema = z.object({
 });
 export type LastDeploy = z.infer<typeof LastDeploySchema>;
 
+export const READY_KINDS = ['node', 'deps', 'env', 'git', 'script'] as const;
+export const READY_TONES = ['pending', 'running', 'ok', 'warn', 'fail', 'skip'] as const;
+export type ReadyTone = (typeof READY_TONES)[number];
+
+export const ReadyCheckSchema = z.object({
+  kind: z.enum(READY_KINDS),
+  /** "Node", "Dependencies", "Env", "Git" or the script name. */
+  label: z.string(),
+  tone: z.enum(READY_TONES),
+  detail: z.string().nullable(),
+});
+export type ReadyCheck = z.infer<typeof ReadyCheckSchema>;
+
+export const ReadinessSchema = z.object({
+  at: z.number(),
+  /** null while checks are still running. */
+  overall: z.enum(['green', 'amber', 'red']).nullable(),
+  checks: z.array(ReadyCheckSchema),
+});
+export type Readiness = z.infer<typeof ReadinessSchema>;
+
+/** Script names "Run checks" may start (they also have to be in package.json). */
+export const SCRIPT_NAME = /^[A-Za-z0-9_][A-Za-z0-9_:.-]{0,99}$/;
+/** Preselected when the package has them. */
+export const DEFAULT_CHECK_SCRIPTS = ['build', 'test', 'lint', 'typecheck'];
+
 export const DeployStatusSchema = z.object({
   platforms: z.array(PlatformStatusSchema),
   /** The deploy running now, if any (one per package). */
@@ -70,6 +96,10 @@ export const DeployStatusSchema = z.object({
   /** Env files in the package folder (names only), and the one "Env" compares by default. */
   envFiles: z.array(z.string()),
   defaultEnvFile: z.string().nullable(),
+  /** The package's scripts, for "Run checks". */
+  scripts: z.array(z.string()),
+  /** The last (or running) "Run checks" of this package this session. */
+  ready: ReadinessSchema.nullable(),
 });
 export type DeployStatus = z.infer<typeof DeployStatusSchema>;
 
@@ -155,6 +185,11 @@ export const deployContract = defineContract({
     output: DeployResultSchema,
   },
   cancel: { input: z.strictObject({}), output: z.void() },
+  /** Instant checks, then the picked scripts one at a time; progress through `changed`. */
+  checkReady: {
+    input: z.strictObject({ scripts: z.array(z.string().regex(SCRIPT_NAME)).max(10) }),
+    output: ReadinessSchema,
+  },
   /** Network: the platform's keys for one environment against one local env file's keys. */
   envCompare: {
     input: z.strictObject({
