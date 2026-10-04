@@ -14,7 +14,7 @@ export function makeDetected(over: Partial<DetectedProject> = {}): DetectedProje
     envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
-    dockerCompose: null,
+    dockerCompose: null, deploy: [],
     git: { branch: 'main', head: null },
     buildOutput: null,
     claude: { claudeMd: true, claudeLocalMd: false, claudeDir: true, mcpJson: false },

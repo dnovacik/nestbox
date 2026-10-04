@@ -257,6 +257,7 @@ if (!app.requestSingleInstanceLock()) {
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       node: { logger, getDetected: (id) => projects.getDetected(id) },
       deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
+      deploy: { logger },
     });
     const toolHost = createToolHost({
       tools,

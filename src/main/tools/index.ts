@@ -1,6 +1,7 @@
 import { createClaudeTool, type ClaudeToolDeps } from './claude';
 import { createComposeTool, type ComposeToolDeps } from './compose';
 import { createDatabaseTool, type DatabaseToolDeps } from './database';
+import { createDeployTool, type DeployToolDeps } from './deploy';
 import { createDepsTool, type DepsToolDeps } from './deps';
 import { createEnvTool, type EnvToolDeps } from './env';
 import { createGitTool, type GitToolDeps } from './git';
@@ -28,6 +29,7 @@ export interface MainToolDeps {
   inspector: InspectorToolDeps;
   node: NodeToolDeps;
   deps: DepsToolDeps;
+  deploy: DeployToolDeps;
 }
 
 /** Tool registry, main half. Tools that need core services are built by factories. */
@@ -47,5 +49,6 @@ export function createMainTools(deps: MainToolDeps): readonly AnyMainTool[] {
     createInspectorTool(deps.inspector),
     createNodeTool(deps.node),
     createDepsTool(deps.deps),
+    createDeployTool(deps.deploy),
   ];
 }

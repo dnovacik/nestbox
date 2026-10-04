@@ -1,0 +1,29 @@
+[
+  {
+    "Id": "5e1f2a3b-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "Environment": "Preview",
+    "Branch": "nestbox-preview",
+    "Source": "1a2b3c4",
+    "Deployment": "https://5e1f2a3b.site.pages.dev",
+    "Status": "Active",
+    "Build": "https://dash.cloudflare.com/acc123/pages/view/site/5e1f2a3b-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  },
+  {
+    "Id": "6f2a3b4c-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "Environment": "Production",
+    "Branch": "main",
+    "Source": "9f8e7d6",
+    "Deployment": "https://6f2a3b4c.site.pages.dev",
+    "Status": "2 hours ago",
+    "Build": "https://dash.cloudflare.com/acc123/pages/view/site/6f2a3b4c-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  },
+  {
+    "Id": "7a3b4c5d-cccc-4ccc-8ccc-cccccccccccc",
+    "Environment": "Preview",
+    "Branch": "feature/x",
+    "Source": "0a1b2c3",
+    "Deployment": "https://7a3b4c5d.site.pages.dev",
+    "Status": "Failure",
+    "Build": "javascript:alert(1)"
+  }
+]

@@ -5,7 +5,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { copyFixture, launch } from './helpers';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
-const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database', 'TODOs', 'Health', 'Compose', 'Mock API', 'Inspector'];
+const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database', 'TODOs', 'Health', 'Compose', 'Mock API', 'Inspector', 'Deploy'];
 
 let app: ElectronApplication;
 let page: Page;
@@ -18,6 +18,8 @@ test.beforeEach(async () => {
   await writeFile(join(project, '.env'), 'DATABASE_URL=postgresql://u@127.0.0.1:1/shop\n');
   // A compose file, so the Compose tab is there too (answered by the fake docker).
   await writeFile(join(project, 'compose.yaml'), 'services:\n  db:\n    image: postgres:17\n');
+  // A fly.toml, so the Deploy tab is there too (without flyctl it shows the install link, which is fine here).
+  await writeFile(join(project, 'fly.toml'), "app = 'npm-app'\n");
   ({ app, page } = await launch(project, { pathPrepend: join(__dirname, 'fixtures', 'fake-docker') }));
   // Short enough that the longer panels don't fit.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1000, 480));

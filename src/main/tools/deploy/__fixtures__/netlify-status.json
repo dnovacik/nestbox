@@ -1,0 +1,13 @@
+{
+  "account": { "Name": "Dana", "Email": "dana@example.com", "Teams": ["Acme"] },
+  "siteData": {
+    "site-name": "shop-acme",
+    "config-path": "/work/shop/netlify.toml",
+    "admin-url": "https://app.netlify.com/projects/shop-acme",
+    "site-url": "https://shop-acme.netlify.app",
+    "site-id": "abc-123"
+  },
+  "loggedIn": true,
+  "linked": true,
+  "error": null
+}

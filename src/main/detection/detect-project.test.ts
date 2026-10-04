@@ -112,6 +112,22 @@ describe('detectProject', () => {
     expect(d.buildOutput).toBe('build');
   });
 
+  it('detects deployment platforms from their config files', async () => {
+    dir = await makeTree({
+      'vercel.json': '{}',
+      '.netlify/state.json': '{}',
+      'wrangler.jsonc': '{}',
+      'fly.toml': '',
+    });
+    expect((await detectProject({ id: 'p', path: dir })).deploy).toEqual(['vercel', 'netlify', 'cloudflare', 'fly']);
+    await removeTree(dir);
+    dir = await makeTree({ '.vercel/project.json': '{}', 'wrangler.toml': '', 'netlify.toml.bak': '' });
+    expect((await detectProject({ id: 'p', path: dir })).deploy).toEqual(['vercel', 'cloudflare']);
+    await removeTree(dir);
+    dir = await makeTree({ 'package.json': '{}' });
+    expect((await detectProject({ id: 'p', path: dir })).deploy).toEqual([]);
+  });
+
   it('includes git info', async () => {
     dir = await makeTree({ '.git/HEAD': 'ref: refs/heads/main\n' });
     expect((await detectProject({ id: 'p', path: dir })).git).toEqual({ branch: 'main', head: null });

@@ -1,0 +1,44 @@
+[
+  {
+    "ID": "rel_3",
+    "Version": 14,
+    "Stable": false,
+    "InProgress": true,
+    "Reason": "",
+    "Description": "Release",
+    "Status": "running",
+    "DeploymentStrategy": "rolling",
+    "User": { "ID": "u1", "Email": "dana@example.com", "Name": "Dana" },
+    "EvaluationID": "",
+    "CreatedAt": "2025-10-04T11:00:00Z",
+    "ImageRef": "registry.fly.io/shop-api:deployment-01"
+  },
+  {
+    "ID": "rel_2",
+    "Version": 13,
+    "Stable": true,
+    "InProgress": false,
+    "Reason": "",
+    "Description": "Release",
+    "Status": "complete",
+    "DeploymentStrategy": "rolling",
+    "User": { "ID": "u1", "Email": "dana@example.com", "Name": "Dana" },
+    "EvaluationID": "",
+    "CreatedAt": "2025-10-03T11:00:00Z",
+    "ImageRef": "registry.fly.io/shop-api:deployment-00"
+  },
+  {
+    "ID": "rel_1",
+    "Version": 12,
+    "Stable": false,
+    "InProgress": false,
+    "Reason": "",
+    "Description": "Release",
+    "Status": "failed",
+    "DeploymentStrategy": "rolling",
+    "User": { "ID": "u1", "Email": "dana@example.com", "Name": "Dana" },
+    "EvaluationID": "",
+    "CreatedAt": "2025-10-02T11:00:00Z",
+    "ImageRef": "registry.fly.io/shop-api:deployment-ff"
+  }
+]

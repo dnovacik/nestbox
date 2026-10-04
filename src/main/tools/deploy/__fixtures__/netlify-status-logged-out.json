@@ -1,0 +1,7 @@
+{
+  "loggedIn": false,
+  "linked": false,
+  "account": null,
+  "siteData": null,
+  "error": { "code": "NOT_LOGGED_IN", "fix": "netlify login or NETLIFY_AUTH_TOKEN" }
+}

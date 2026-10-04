@@ -1,0 +1,43 @@
+{
+  "contextName": "acme",
+  "deployments": [
+    {
+      "id": "dpl_8xKq2mNw",
+      "url": "shop-git-feature-acme.vercel.app",
+      "name": "shop",
+      "state": "BUILDING",
+      "target": null,
+      "createdAt": 1759600800000,
+      "buildingAt": 1759600801000,
+      "creator": { "uid": "u1", "username": "dana" },
+      "meta": {
+        "githubCommitRef": "feature/cart",
+        "githubCommitMessage": "Add the cart",
+        "githubCommitAuthorName": "Dana"
+      }
+    },
+    {
+      "id": "dpl_3fGh7jKl",
+      "url": "shop-abc123-acme.vercel.app",
+      "name": "shop",
+      "state": "READY",
+      "target": "production",
+      "createdAt": 1759514400000,
+      "buildingAt": 1759514401000,
+      "ready": 1759514460000,
+      "creator": { "uid": "u1", "username": "dana" },
+      "meta": { "gitlabCommitRef": "main" }
+    },
+    {
+      "id": "dpl_9zXc5vBn",
+      "url": "shop-def456-acme.vercel.app",
+      "name": "shop",
+      "state": "ERROR",
+      "target": null,
+      "createdAt": 1759428000000,
+      "creator": { "uid": "u1", "username": "dana" },
+      "meta": {}
+    }
+  ],
+  "pagination": { "count": 3, "next": null, "prev": null }
+}

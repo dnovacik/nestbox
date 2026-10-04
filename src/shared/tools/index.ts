@@ -3,6 +3,7 @@ import type { ToolDefinition, ToolEvents } from '../tool';
 import { claudeContract, claudeDefinition, claudeEvents } from './claude/contract';
 import { composeContract, composeDefinition, composeEvents } from './compose/contract';
 import { databaseContract, databaseDefinition, databaseEvents } from './database/contract';
+import { deployContract, deployDefinition, deployEvents } from './deploy/contract';
 import { depsContract, depsDefinition, depsEvents } from './deps/contract';
 import { envContract, envDefinition, envEvents } from './env/contract';
 import { gitContract, gitDefinition, gitEvents } from './git/contract';
@@ -31,6 +32,7 @@ export const toolContracts = {
   inspector: inspectorContract,
   node: nodeContract,
   deps: depsContract,
+  deploy: deployContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -48,6 +50,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   inspectorDefinition as ToolDefinition<unknown>,
   nodeDefinition as ToolDefinition<unknown>,
   depsDefinition as ToolDefinition<unknown>,
+  deployDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -75,6 +78,7 @@ export const toolEvents = {
   inspector: inspectorEvents,
   node: {},
   deps: depsEvents,
+  deploy: deployEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
