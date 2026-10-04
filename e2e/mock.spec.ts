@@ -62,5 +62,5 @@ test('serves a route, fails it on demand, and logs the requests', async () => {
   await expect(log).not.toContainText('token');
 
   await panel.getByRole('button', { name: 'Stop' }).click();
-  await expect(panel.getByText('Stopped')).toBeVisible();
+  await expect(panel.getByText('Stopped', { exact: true })).toBeVisible();
 });
