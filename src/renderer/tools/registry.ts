@@ -1,4 +1,5 @@
 import { claudeRendererTool } from './claude';
+import { composeRendererTool } from './compose';
 import { databaseRendererTool } from './database';
 import { envRendererTool } from './env';
 import { gitRendererTool } from './git';
@@ -20,6 +21,7 @@ export const rendererTools: readonly RendererTool[] = [
   databaseRendererTool,
   todosRendererTool,
   healthRendererTool,
+  composeRendererTool,
 ];
 
 export function getRendererTool(id: string): RendererTool | undefined {
