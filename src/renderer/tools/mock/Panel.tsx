@@ -9,7 +9,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NestboxError } from '@shared/errors';
 import {
   MAX_DELAY_MS,
@@ -18,8 +18,8 @@ import {
   type PackageMock,
 } from '@shared/tools/mock/contract';
 import { LogView } from '@/components/log/LogView';
+import { NumberField } from '@/components/NumberField';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -27,49 +27,6 @@ import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { RouteEditor } from './RouteEditor';
 import { mockLogSource, useMock, useMockActions } from './use-mock';
-
-/** A number field saved on blur or Enter; an invalid entry snaps back. */
-function NumberField({
-  label,
-  value,
-  min,
-  max,
-  nullable,
-  placeholder,
-  onSave,
-}: {
-  label: string;
-  value: number | null;
-  min: number;
-  max: number;
-  nullable?: boolean;
-  placeholder?: string;
-  onSave(v: number | null): void;
-}) {
-  const [text, setText] = useState(value === null ? '' : String(value));
-  useEffect(() => setText(value === null ? '' : String(value)), [value]);
-  const commit = () => {
-    const trimmed = text.trim();
-    const next = trimmed === '' ? (nullable ? null : min) : Number(trimmed);
-    if (next !== null && !(Number.isInteger(next) && next >= min && next <= max)) {
-      setText(value === null ? '' : String(value));
-      return;
-    }
-    if (next !== value) onSave(next);
-  };
-  return (
-    <Input
-      aria-label={label}
-      inputMode="numeric"
-      placeholder={placeholder}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      className="h-7 w-20 font-mono text-xs"
-    />
-  );
-}
 
 const routeLabel = (r: MockRoute) => `${r.method} ${r.path}`;
 
