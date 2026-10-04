@@ -1,6 +1,6 @@
 import { cp, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 
 export const REPO_ROOT = resolve(__dirname, '..');
@@ -32,20 +32,29 @@ export async function readPid(project: string): Promise<number> {
  */
 export async function launch(
   project: string,
-  opts: { userData?: string } = {},
+  opts: {
+    userData?: string;
+    /** Put first on PATH, e.g. a fake command. */ pathPrepend?: string;
+  } = {},
 ): Promise<{ app: ElectronApplication; page: Page; userData: string }> {
   const userData = opts.userData ?? (await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-')));
+  const pathKey = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const path = opts.pathPrepend
+    ? `${opts.pathPrepend}${delimiter}${process.env[pathKey] ?? ''}`
+    : process.env[pathKey];
   // A dev-server URL in the environment would point the built app at a server that isn't running.
   const env = Object.fromEntries(
-    Object.entries({ ...process.env, NESTBOX_USER_DATA_DIR: userData }).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== 'ELECTRON_RENDERER_URL',
+    Object.entries({ ...process.env, [pathKey]: path, NESTBOX_USER_DATA_DIR: userData }).filter(
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined && entry[0] !== 'ELECTRON_RENDERER_URL',
     ),
   );
   const app = await electron.launch({ args: [REPO_ROOT], cwd: REPO_ROOT, env });
   // The app's own log lines ('[nestbox] …') go to the test output, to diagnose failures in CI.
   for (const stream of [app.process().stdout, app.process().stderr]) {
     stream?.on('data', (chunk: Buffer) => {
-      for (const line of chunk.toString().split(/\r?\n/)) if (line.includes('[nestbox]')) console.log(line);
+      for (const line of chunk.toString().split(/\r?\n/))
+        if (line.includes('[nestbox]')) console.log(line);
     });
   }
   await app.evaluate(({ dialog }, dir) => {
@@ -53,7 +62,9 @@ export async function launch(
     const seen: string[] = [];
     (globalThis as unknown as { __messageBoxes: string[] }).__messageBoxes = seen;
     const answer = async (...args: unknown[]) => {
-      const options = args.find((a): a is { message: string } => typeof a === 'object' && a !== null && 'message' in a);
+      const options = args.find(
+        (a): a is { message: string } => typeof a === 'object' && a !== null && 'message' in a,
+      );
       seen.push(options?.message ?? '');
       return { response: 0, checkboxChecked: false };
     };
@@ -63,20 +74,26 @@ export async function launch(
   // Closing the window must quit (not hide to the tray) so app.close() can finish.
   // The node tsconfig has no DOM types: reach window.nestbox through globalThis.
   await page.evaluate(() =>
-    (globalThis as unknown as { nestbox: { invoke(channel: string, input: unknown): Promise<unknown> } }).nestbox.invoke(
-      'settings:update',
-      { closeToTray: false },
-    ),
+    (
+      globalThis as unknown as {
+        nestbox: { invoke(channel: string, input: unknown): Promise<unknown> };
+      }
+    ).nestbox.invoke('settings:update', { closeToTray: false }),
   );
   return { app, page, userData };
 }
 
 /** Messages of the native message boxes the app has shown so far. */
 export async function messageBoxes(app: ElectronApplication): Promise<string[]> {
-  return app.evaluate(() => [...((globalThis as unknown as { __messageBoxes?: string[] }).__messageBoxes ?? [])]);
+  return app.evaluate(() => [
+    ...((globalThis as unknown as { __messageBoxes?: string[] }).__messageBoxes ?? []),
+  ]);
 }
 
 export async function addProjectAndOpenScripts(page: Page): Promise<void> {
-  await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Add project' }).click();
+  await page
+    .getByRole('complementary', { name: 'Projects' })
+    .getByRole('button', { name: 'Add project' })
+    .click();
   await page.getByRole('tab', { name: 'Scripts' }).click();
 }

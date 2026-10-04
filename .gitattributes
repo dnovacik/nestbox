@@ -2,3 +2,5 @@
 *.png binary
 *.ico binary
 src/main/platform/__fixtures__/* -text
+e2e/fixtures/fake-docker/docker.cmd text eol=crlf
+e2e/fixtures/fake-docker/docker text eol=lf
