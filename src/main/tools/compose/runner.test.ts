@@ -82,7 +82,7 @@ describe('collect', () => {
 describe('ComposePackage actions', () => {
   it('runs up -d for the stack and stop for one service, with output in the Actions log', async () => {
     const { pkg, platform, spawned, texts, changed, logger } = setup();
-    const up = pkg.runAction('up', null);
+    const up = pkg.runAction('up', []);
     await until(() => platform.children.length === 1);
     expect(spawned(0)?.args).toEqual(['compose', '-f', 'compose.yaml', 'up', '-d']);
     expect(pkg.action).toEqual({ name: 'up', service: null });
@@ -97,7 +97,7 @@ describe('ComposePackage actions', () => {
     expect(pkg.action).toBeNull();
     expect(changed).toHaveBeenCalledTimes(2);
 
-    const stop = pkg.runAction('stop', 'web');
+    const stop = pkg.runAction('stop', ['web']);
     await until(() => platform.children.length === 2);
     expect(spawned(1)?.args).toEqual(['compose', '-f', 'compose.yaml', 'stop', 'web']);
     platform.last().exit(1);
@@ -106,10 +106,36 @@ describe('ComposePackage actions', () => {
     expect(JSON.stringify(logger.entries)).not.toMatch(/Container|shop-db/);
   });
 
+  it('passes several services, and --wait for up when asked', async () => {
+    const { pkg, platform, spawned } = setup();
+    const up = pkg.runAction('up', ['db', 'redis'], { wait: true });
+    await until(() => platform.children.length === 1);
+    expect(spawned(0)?.args).toEqual([
+      'compose',
+      '-f',
+      'compose.yaml',
+      'up',
+      '-d',
+      '--wait',
+      '--wait-timeout',
+      '120',
+      'db',
+      'redis',
+    ]);
+    expect(pkg.action).toEqual({ name: 'up', service: null });
+    platform.last().exit(0);
+    await up;
+    const stop = pkg.runAction('stop', ['db', 'redis']);
+    await until(() => platform.children.length === 2);
+    expect(spawned(1)?.args).toEqual(['compose', '-f', 'compose.yaml', 'stop', 'db', 'redis']);
+    platform.last().exit(0);
+    await stop;
+  });
+
   it('refuses a second action while one runs', async () => {
     const { pkg, platform } = setup();
-    const first = pkg.runAction('up', null);
-    await expect(pkg.runAction('down', null)).rejects.toMatchObject({ code: 'CONFLICT' });
+    const first = pkg.runAction('up', []);
+    await expect(pkg.runAction('down', [])).rejects.toMatchObject({ code: 'CONFLICT' });
     await until(() => platform.children.length === 1);
     platform.last().exit(0);
     await first;
@@ -117,7 +143,7 @@ describe('ComposePackage actions', () => {
 
   it('kills an action that runs past the timeout', async () => {
     const { pkg, platform, texts } = setup({ actionTimeoutMs: 50 });
-    const result = await pkg.runAction('up', null);
+    const result = await pkg.runAction('up', []);
     expect(platform.killTree).toHaveBeenCalled();
     expect(result).toEqual({ ok: false, code: null });
     expect(texts('actions').at(-1)).toBe('■ timed out');
@@ -180,7 +206,7 @@ describe('ComposePackage logs', () => {
   it('dispose kills the action and the follower', async () => {
     const { pkg, platform } = setup();
     await pkg.follow('db');
-    void pkg.runAction('up', null);
+    void pkg.runAction('up', []);
     await until(() => platform.children.length === 2);
     await pkg.dispose();
     expect(platform.killTree).toHaveBeenCalledTimes(2);

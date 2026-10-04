@@ -132,9 +132,30 @@ export function createComposeTool(deps: ComposeToolDeps): AnyMainTool {
     return service;
   }
 
-  async function act(ctx: Ctx, name: ComposeAction, service: string | undefined) {
-    const known = await knownService(ctx, service);
-    return packageOf(ctx).runAction(name, known);
+  /** Names from a run group may have left the file since: those are dropped, and none left is NOT_FOUND. */
+  async function knownServices(ctx: Ctx, services: readonly string[]): Promise<string[]> {
+    const status = await query(ctx);
+    const known =
+      status.state === 'ok'
+        ? services.filter((n) => status.services.some((s) => s.name === n))
+        : [];
+    if (known.length === 0)
+      throw new NestboxError('NOT_FOUND', 'None of these services are in the compose file');
+    return known;
+  }
+
+  interface ActInput {
+    service?: string;
+    services?: string[];
+    wait?: boolean;
+  }
+
+  async function act(ctx: Ctx, name: ComposeAction, { service, services, wait }: ActInput = {}) {
+    const known =
+      services !== undefined && services.length > 0
+        ? await knownServices(ctx, services)
+        : [await knownService(ctx, service)].filter((s): s is string => s !== null);
+    return packageOf(ctx).runAction(name, known, { wait: wait ?? false });
   }
 
   async function forget(predicate: (id: string) => boolean): Promise<void> {
@@ -154,10 +175,10 @@ export function createComposeTool(deps: ComposeToolDeps): AnyMainTool {
         const pkg = packages.get(ctx.project.id);
         return { ...status, action: pkg?.action ?? null, following: pkg?.following ?? null };
       },
-      up: (ctx: Ctx, { service }) => act(ctx, 'up', service),
-      stop: (ctx: Ctx, { service }) => act(ctx, 'stop', service),
-      restart: (ctx: Ctx, { service }) => act(ctx, 'restart', service),
-      down: (ctx: Ctx) => act(ctx, 'down', undefined),
+      up: (ctx: Ctx, input) => act(ctx, 'up', input),
+      stop: (ctx: Ctx, input) => act(ctx, 'stop', input),
+      restart: (ctx: Ctx, { service }) => act(ctx, 'restart', { service }),
+      down: (ctx: Ctx) => act(ctx, 'down'),
       async follow(ctx: Ctx, { service }) {
         await packageOf(ctx).follow((await knownService(ctx, service)) as string);
       },

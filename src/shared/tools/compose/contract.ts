@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { LogLineSchema, LogSnapshotSchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
+import { SERVICE_NAME } from '../../types';
 
-/** A Compose service name as NestBox accepts it on a command line. */
-export const SERVICE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/;
+export { SERVICE_NAME };
+
 const ServiceNameSchema = z.string().regex(SERVICE_NAME);
 
 export const composeDefinition: ToolDefinition<Record<string, never>> = {
@@ -66,14 +67,24 @@ export type LogSource = z.infer<typeof SourceSchema>;
 const ActionResultSchema = z.object({ ok: z.boolean(), code: z.number().int().nullable() });
 export type ActionResult = z.infer<typeof ActionResultSchema>;
 
+/** One service, several (a run group's; names that left the file are dropped), or neither for the stack. */
+const TargetSchema = {
+  service: ServiceNameSchema.optional(),
+  services: z.array(ServiceNameSchema).max(50).optional(),
+};
+const oneTarget = (i: { service?: string; services?: string[] }) =>
+  i.service === undefined || i.services === undefined;
+
 export const composeContract = defineContract({
   status: { input: z.strictObject({}), output: ComposeStatusSchema },
   up: {
-    input: z.strictObject({ service: ServiceNameSchema.optional() }),
+    input: z
+      .strictObject({ ...TargetSchema, wait: z.boolean().optional() })
+      .refine(oneTarget, 'Pass service or services, not both'),
     output: ActionResultSchema,
   },
   stop: {
-    input: z.strictObject({ service: ServiceNameSchema.optional() }),
+    input: z.strictObject(TargetSchema).refine(oneTarget, 'Pass service or services, not both'),
     output: ActionResultSchema,
   },
   restart: { input: z.strictObject({ service: ServiceNameSchema }), output: ActionResultSchema },
