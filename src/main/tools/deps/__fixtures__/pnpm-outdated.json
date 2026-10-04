@@ -1,0 +1,16 @@
+{
+  "lodash": {
+    "current": "4.17.15",
+    "latest": "4.18.1",
+    "wanted": "4.17.15",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  },
+  "semver": {
+    "current": "6.3.1",
+    "latest": "7.8.5",
+    "wanted": "6.3.1",
+    "isDeprecated": false,
+    "dependencyType": "devDependencies"
+  }
+}

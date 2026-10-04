@@ -1,0 +1,18 @@
+{
+  "lodash": [
+    {
+      "id": 1106913,
+      "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
+      "title": "Command Injection in lodash",
+      "severity": "high",
+      "vulnerable_versions": "<4.17.21"
+    },
+    {
+      "id": 1106920,
+      "url": "https://github.com/advisories/GHSA-p6mc-m468-83gw",
+      "title": "Prototype Pollution in lodash",
+      "severity": "high",
+      "vulnerable_versions": ">=3.7.0 <4.17.19"
+    }
+  ]
+}
