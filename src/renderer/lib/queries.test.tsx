@@ -101,11 +101,11 @@ function ChangedSubscriber() {
 }
 
 describe('useProjectsChangedSubscription', () => {
-  it('invalidates projects, tool lists and tool data', () => {
+  it('invalidates projects, groups, tool lists and tool data', () => {
     const bridge = installMockBridge({});
     const { client } = renderWithProviders(<ChangedSubscriber />);
     const spy = vi.spyOn(client, 'invalidateQueries');
     act(() => bridge.emit('projects:changed'));
-    expect(spy.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['projects'], ['tools'], ['tool']]);
+    expect(spy.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['projects'], ['groups'], ['tools'], ['tool']]);
   });
 });

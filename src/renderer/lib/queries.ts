@@ -9,6 +9,7 @@ import { errorMessage } from './errors';
 
 export const queryKeys = {
   projects: ['projects'] as const,
+  groups: ['groups'] as const,
   appInfo: ['app-info'] as const,
   settings: ['settings'] as const,
   processes: ['processes'] as const,
@@ -24,6 +25,41 @@ const showError = (error: unknown): void => {
 
 export function useProjects() {
   return useQuery({ queryKey: queryKeys.projects, queryFn: () => api.projects.list() });
+}
+
+export function useGroups() {
+  return useQuery({ queryKey: queryKeys.groups, queryFn: () => api.groups.list() });
+}
+
+/** Sidebar layout changes: groups and project order. Main pushes projects:changed after each. */
+export function useLayoutActions() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.groups });
+  };
+  const run = <T,>(fn: () => Promise<T>): Promise<T | undefined> =>
+    fn().then(
+      (value) => {
+        refresh();
+        return value;
+      },
+      (error: unknown) => {
+        showError(error);
+        return undefined;
+      },
+    );
+  return {
+    moveProject: (id: string, groupId: string | null, beforeId: string | null) =>
+      run(() => api.projects.move(id, groupId, beforeId)),
+    createGroup: (name: string) => run(() => api.groups.create(name)),
+    renameGroup: (id: string, name: string) => run(() => api.groups.rename(id, name)),
+    deleteGroup: (id: string) => run(() => api.groups.delete(id)),
+    setGroupCollapsed: (id: string, collapsed: boolean) => run(() => api.groups.setCollapsed(id, collapsed)),
+    moveGroup: (id: string, beforeId: string | null) => run(() => api.groups.move(id, beforeId)),
+    renameProject: (id: string, name: string) => run(() => api.projects.rename(id, name)),
+    setPinned: (id: string, pinned: boolean) => run(() => api.projects.setPinned(id, pinned)),
+  };
 }
 
 export function useAppInfo() {
@@ -178,6 +214,7 @@ export function useProjectsChangedSubscription(): void {
       api.on('projects:changed', () => {
         // Detection results feed tool lists and tool data (scripts, facts), so all three go stale together.
         void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.groups });
         void queryClient.invalidateQueries({ queryKey: ['tools'] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.toolCalls });
       }),

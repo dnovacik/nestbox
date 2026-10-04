@@ -53,7 +53,7 @@ describe('Sidebar', () => {
   it('marks the selected project and missing folders', () => {
     renderSidebar('p2');
     expect(screen.getByRole('button', { name: 'shop' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: /gone/ })).toHaveTextContent('missing');
+    expect(screen.getByRole('button', { name: /^gone/ })).toHaveTextContent('missing');
   });
 
   it('shows the filtered count and a no-match hint that clears the filter', async () => {
