@@ -19,7 +19,7 @@ import { BatchedLog } from '../batched-log';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import type { CertStore } from './cert-store';
 import { createStaticHandler, type RequestLog } from './handler';
-import { firstFreePort, isPortFree } from './net';
+import { firstFreePort, isPortFree } from '../net';
 
 export interface StaticToolDeps {
   certStore: CertStore;
