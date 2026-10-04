@@ -76,13 +76,18 @@ export function parseVercelList(
       id,
       state: VERCEL_STATES[String(d['state']).toUpperCase()] ?? 'unknown',
       environment: d['target'] === 'production' ? 'production' : 'preview',
-      branch: str(meta['githubCommitRef']) ?? str(meta['gitlabCommitRef']) ?? str(meta['bitbucketCommitRef']),
+      branch:
+        str(meta['githubCommitRef']) ??
+        str(meta['gitlabCommitRef']) ??
+        str(meta['bitbucketCommitRef']),
       label: null,
       createdAt: time(d['createdAt']),
       url: host ? httpsUrl(`https://${host}`) : null,
       logsUrl:
         context && name
-          ? httpsUrl(`https://vercel.com/${encodeURIComponent(context)}/${encodeURIComponent(name)}/${id.replace(/^dpl_/, '')}`)
+          ? httpsUrl(
+              `https://vercel.com/${encodeURIComponent(context)}/${encodeURIComponent(name)}/${id.replace(/^dpl_/, '')}`,
+            )
           : null,
     });
   }
@@ -98,7 +103,10 @@ export function parseWorkersList(text: string, dashboardUrl: string | null): Dep
     if (!isObj(d) || str(d['id']) === null) continue;
     const versions = Array.isArray(d['versions']) ? d['versions'].filter(isObj) : [];
     const label = versions
-      .map((v) => `${String(v['version_id'] ?? '').slice(0, 8)} ${typeof v['percentage'] === 'number' ? v['percentage'] : '?'}%`)
+      .map(
+        (v) =>
+          `${String(v['version_id'] ?? '').slice(0, 8)} ${typeof v['percentage'] === 'number' ? v['percentage'] : '?'}%`,
+      )
       .join(' · ');
     out.push({
       id: str(d['id']) as string,
@@ -134,7 +142,9 @@ export function parsePagesList(text: string): Deployment[] | null {
     const env = String(d['Environment'] ?? '').toLowerCase();
     out.push({
       id: str(d['Id']) as string,
-      state: PAGES_STATES[String(d['Status'] ?? '').toLowerCase()] ?? (str(d['Status']) ? 'ready' : 'unknown'),
+      state:
+        PAGES_STATES[String(d['Status'] ?? '').toLowerCase()] ??
+        (str(d['Status']) ? 'ready' : 'unknown'),
       environment: env === 'production' ? 'production' : env === 'preview' ? 'preview' : null,
       branch: str(d['Branch']),
       label: str(d['Source']),
@@ -216,7 +226,10 @@ const NOT_LINKED: Partial<Record<DeployPlatform, RegExp>> = {
 };
 
 /** Only classifies: the CLI's text is never shown or logged. */
-export function classifyFailure(platform: DeployPlatform, output: string): 'logged-out' | 'not-linked' | 'failed' {
+export function classifyFailure(
+  platform: DeployPlatform,
+  output: string,
+): 'logged-out' | 'not-linked' | 'failed' {
   if (LOGGED_OUT[platform].test(output)) return 'logged-out';
   if (NOT_LINKED[platform]?.test(output)) return 'not-linked';
   return 'failed';

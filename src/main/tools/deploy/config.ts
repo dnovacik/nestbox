@@ -86,7 +86,7 @@ async function exists(path: string): Promise<boolean> {
 
 /** Netlify links a repository: `.netlify/state.json` in the package, or a parent up to the one with `.git`. */
 async function netlifySiteId(dir: string): Promise<string | null> {
-  for (let current = dir; ; ) {
+  for (let current = dir; ;) {
     const siteId = str((await readJsonObject(join(current, '.netlify', 'state.json')))?.['siteId']);
     if (siteId) return siteId;
     const parent = dirname(current);

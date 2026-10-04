@@ -44,11 +44,23 @@ describe('parseJsonc', () => {
 describe('readLocalConfig', () => {
   it('reads a linked Vercel project', async () => {
     const dir = tree({
-      '.vercel/project.json': JSON.stringify({ projectId: 'prj_1', orgId: 'team_1', projectName: 'shop' }),
+      '.vercel/project.json': JSON.stringify({
+        projectId: 'prj_1',
+        orgId: 'team_1',
+        projectName: 'shop',
+      }),
     });
-    expect(await readLocalConfig('vercel', dir)).toEqual({ linked: true, name: 'shop', flavour: null });
+    expect(await readLocalConfig('vercel', dir)).toEqual({
+      linked: true,
+      name: 'shop',
+      flavour: null,
+    });
     const bare = tree({ 'vercel.json': '{}' });
-    expect(await readLocalConfig('vercel', bare)).toEqual({ linked: false, name: null, flavour: null });
+    expect(await readLocalConfig('vercel', bare)).toEqual({
+      linked: false,
+      name: null,
+      flavour: null,
+    });
   });
 
   it('finds the Netlify site in the package or a parent up to the repository', async () => {
@@ -67,7 +79,12 @@ describe('readLocalConfig', () => {
   });
 
   it('reads a Worker or a Pages project from wrangler.toml or wrangler.jsonc', async () => {
-    expect(await readLocalConfig('cloudflare', tree({ 'wrangler.toml': 'name = "api"\nmain = "src/index.ts"' }))).toEqual({
+    expect(
+      await readLocalConfig(
+        'cloudflare',
+        tree({ 'wrangler.toml': 'name = "api"\nmain = "src/index.ts"' }),
+      ),
+    ).toEqual({
       linked: true,
       name: 'api',
       flavour: 'workers',
@@ -75,7 +92,9 @@ describe('readLocalConfig', () => {
     expect(
       await readLocalConfig(
         'cloudflare',
-        tree({ 'wrangler.jsonc': '{ // pages\n "name": "site", "pages_build_output_dir": "./dist", }' }),
+        tree({
+          'wrangler.jsonc': '{ // pages\n "name": "site", "pages_build_output_dir": "./dist", }',
+        }),
       ),
     ).toEqual({ linked: true, name: 'site', flavour: 'pages' });
     expect(await readLocalConfig('cloudflare', tree({ 'wrangler.json': '{}' }))).toEqual({
@@ -91,7 +110,9 @@ describe('readLocalConfig', () => {
       name: 'shop-api',
       flavour: null,
     });
-    expect((await readLocalConfig('fly', tree({ 'fly.toml': '[http_service]' }))).linked).toBe(false);
+    expect((await readLocalConfig('fly', tree({ 'fly.toml': '[http_service]' }))).linked).toBe(
+      false,
+    );
   });
 
   it('ignores oversized files', async () => {

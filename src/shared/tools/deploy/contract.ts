@@ -68,7 +68,14 @@ export const DeployStatusSchema = z.object({
 });
 export type DeployStatus = z.infer<typeof DeployStatusSchema>;
 
-export const DEPLOY_STATES = ['ready', 'building', 'queued', 'error', 'canceled', 'unknown'] as const;
+export const DEPLOY_STATES = [
+  'ready',
+  'building',
+  'queued',
+  'error',
+  'canceled',
+  'unknown',
+] as const;
 export type DeployState = (typeof DEPLOY_STATES)[number];
 
 export const DeploymentSchema = z.object({
@@ -86,7 +93,13 @@ export const DeploymentSchema = z.object({
 });
 export type Deployment = z.infer<typeof DeploymentSchema>;
 
-export const LISTING_FAILURES = ['cli-missing', 'not-linked', 'logged-out', 'failed', 'timeout'] as const;
+export const LISTING_FAILURES = [
+  'cli-missing',
+  'not-linked',
+  'logged-out',
+  'failed',
+  'timeout',
+] as const;
 export type ListingFailure = (typeof LISTING_FAILURES)[number];
 
 export const ListingSchema = z.discriminatedUnion('state', [
@@ -116,7 +129,11 @@ export const deployContract = defineContract({
   /** Production only with `confirmed: true`: the renderer asks first, naming the package and the platform. */
   deploy: {
     input: z
-      .strictObject({ platform: PlatformSchema, target: TargetSchema, confirmed: z.literal(true).optional() })
+      .strictObject({
+        platform: PlatformSchema,
+        target: TargetSchema,
+        confirmed: z.literal(true).optional(),
+      })
       .refine((i) => i.target === 'preview' || i.confirmed === true, 'Confirm a production deploy'),
     output: DeployResultSchema,
   },

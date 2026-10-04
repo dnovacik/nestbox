@@ -46,8 +46,9 @@ export const LINK: Partial<Record<DeployPlatform, string[]>> = {
 };
 
 async function resolvesFrom(dir: string, pkg: string): Promise<boolean> {
-  for (let current = dir; ; ) {
-    if ((await stat(join(current, 'node_modules', pkg, 'package.json')).catch(() => null)) !== null) return true;
+  for (let current = dir; ;) {
+    if ((await stat(join(current, 'node_modules', pkg, 'package.json')).catch(() => null)) !== null)
+      return true;
     const parent = dirname(current);
     if (parent === current) return false;
     current = parent;
@@ -75,7 +76,8 @@ export async function resolveCli(
   exists: (command: string) => Promise<boolean | null>,
 ): Promise<Cli | null> {
   const local = NPM_PACKAGE[platform];
-  if (local && (await resolvesFrom(dir, local.pkg))) return { kind: 'local', ...throughManager(pm, local.bin) };
+  if (local && (await resolvesFrom(dir, local.pkg)))
+    return { kind: 'local', ...throughManager(pm, local.bin) };
   for (const command of GLOBAL[platform]) {
     if ((await exists(command)) !== false) return { kind: 'global', command, prefix: [] };
   }
@@ -86,7 +88,8 @@ export function cliCommand(cli: Cli, args: readonly string[]): { command: string
   return { command: cli.command, args: [...cli.prefix, ...args] };
 }
 
-const terminalLine = (cli: Cli, args: readonly string[]) => [cli.command, ...cli.prefix, ...args].join(' ');
+const terminalLine = (cli: Cli, args: readonly string[]) =>
+  [cli.command, ...cli.prefix, ...args].join(' ');
 
 export function loginCommand(platform: DeployPlatform, cli: Cli): string {
   return terminalLine(cli, LOGIN[platform]);

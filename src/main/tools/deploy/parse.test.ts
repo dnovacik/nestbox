@@ -36,7 +36,9 @@ describe('parseVercelList', () => {
   });
 
   it('drops commit messages and authors', () => {
-    expect(JSON.stringify(parseVercelList(fixture('vercel-list.json')))).not.toMatch(/Add the cart|Dana|dana/);
+    expect(JSON.stringify(parseVercelList(fixture('vercel-list.json')))).not.toMatch(
+      /Add the cart|Dana|dana/,
+    );
   });
 
   it('reads an empty list and refuses anything else', () => {
@@ -76,14 +78,19 @@ describe('parsePagesList', () => {
   });
 
   it('refuses a production branch that is not a plain token', () => {
-    const list = parsePagesList(JSON.stringify([{ Id: '1', Environment: 'Production', Branch: '-rf', Status: 'x' }]));
+    const list = parsePagesList(
+      JSON.stringify([{ Id: '1', Environment: 'Production', Branch: '-rf', Status: 'x' }]),
+    );
     expect(list && productionBranch(list)).toBeNull();
   });
 });
 
 describe('parseFlyReleases', () => {
   it('lists releases with their version, state and time, and no user', () => {
-    const list = parseFlyReleases(fixture('fly-releases.json'), 'https://fly.io/apps/shop-api/monitoring');
+    const list = parseFlyReleases(
+      fixture('fly-releases.json'),
+      'https://fly.io/apps/shop-api/monitoring',
+    );
     expect(list?.map((d) => [d.label, d.state])).toEqual([
       ['v14', 'building'],
       ['v13', 'ready'],
@@ -106,46 +113,73 @@ describe('parseNetlifyStatus', () => {
   });
 
   it('reports logged out and not linked from its error codes', () => {
-    expect(parseNetlifyStatus(fixture('netlify-status-logged-out.json'))).toEqual({ state: 'logged-out' });
-    expect(parseNetlifyStatus('{"loggedIn":true,"linked":false,"siteData":null,"error":{"code":"NOT_LINKED"}}')).toEqual(
-      { state: 'not-linked' },
-    );
+    expect(parseNetlifyStatus(fixture('netlify-status-logged-out.json'))).toEqual({
+      state: 'logged-out',
+    });
+    expect(
+      parseNetlifyStatus(
+        '{"loggedIn":true,"linked":false,"siteData":null,"error":{"code":"NOT_LINKED"}}',
+      ),
+    ).toEqual({ state: 'not-linked' });
     expect(parseNetlifyStatus('boom')).toBeNull();
   });
 });
 
 describe('classifyFailure', () => {
   it("recognises each CLI's logged-out and not-linked wording", () => {
-    expect(classifyFailure('vercel', 'Error: No existing credentials found. Please run `vercel login`')).toBe('logged-out');
-    expect(classifyFailure('vercel', "Error: Your codebase isn't linked to a project on Vercel. Run `vercel link`")).toBe(
-      'not-linked',
-    );
     expect(
-      classifyFailure('cloudflare', "In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN"),
+      classifyFailure('vercel', 'Error: No existing credentials found. Please run `vercel login`'),
     ).toBe('logged-out');
-    expect(classifyFailure('cloudflare', 'You are not authenticated. Please run `wrangler login`.')).toBe('logged-out');
-    expect(classifyFailure('fly', 'Error: no access token available. Please login with `flyctl auth login`')).toBe(
+    expect(
+      classifyFailure(
+        'vercel',
+        "Error: Your codebase isn't linked to a project on Vercel. Run `vercel link`",
+      ),
+    ).toBe('not-linked');
+    expect(
+      classifyFailure(
+        'cloudflare',
+        "In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN",
+      ),
+    ).toBe('logged-out');
+    expect(
+      classifyFailure('cloudflare', 'You are not authenticated. Please run `wrangler login`.'),
+    ).toBe('logged-out');
+    expect(
+      classifyFailure(
+        'fly',
+        'Error: no access token available. Please login with `flyctl auth login`',
+      ),
+    ).toBe('logged-out');
+    expect(classifyFailure('netlify', 'Not logged in. Please log in to see project status.')).toBe(
       'logged-out',
     );
-    expect(classifyFailure('netlify', 'Not logged in. Please log in to see project status.')).toBe('logged-out');
-    expect(classifyFailure('fly', 'Error: failed to fetch an image or build from source')).toBe('failed');
+    expect(classifyFailure('fly', 'Error: failed to fetch an image or build from source')).toBe(
+      'failed',
+    );
   });
 });
 
 describe('deployUrl', () => {
-  it("takes the last platform URL from the output, ignoring other hosts and lookalikes", () => {
+  it('takes the last platform URL from the output, ignoring other hosts and lookalikes', () => {
     const out = [
       'Inspect: https://vercel.com/acme/shop/8xKq2mNw [2s]',
       'Preview: https://shop-git-x-acme.vercel.app [12s]',
       'see https://evil.example/?u=a.vercel.app',
     ].join('\n');
     expect(deployUrl('vercel', out)).toBe('https://shop-git-x-acme.vercel.app');
-    expect(deployUrl('netlify', '"deploy_url": "https://66f-shop.netlify.app",')).toBe('https://66f-shop.netlify.app');
+    expect(deployUrl('netlify', '"deploy_url": "https://66f-shop.netlify.app",')).toBe(
+      'https://66f-shop.netlify.app',
+    );
     expect(deployUrl('cloudflare', 'Version Preview URL: https://abc-api.acme.workers.dev')).toBe(
       'https://abc-api.acme.workers.dev',
     );
-    expect(deployUrl('cloudflare', '✨ Deployment complete! https://1a2b.site.pages.dev')).toBe('https://1a2b.site.pages.dev');
-    expect(deployUrl('fly', 'Visit your newly deployed app at https://shop-api.fly.dev/')).toBe('https://shop-api.fly.dev/');
+    expect(deployUrl('cloudflare', '✨ Deployment complete! https://1a2b.site.pages.dev')).toBe(
+      'https://1a2b.site.pages.dev',
+    );
+    expect(deployUrl('fly', 'Visit your newly deployed app at https://shop-api.fly.dev/')).toBe(
+      'https://shop-api.fly.dev/',
+    );
     expect(deployUrl('vercel', 'nothing here')).toBeNull();
   });
 });
