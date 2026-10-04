@@ -31,7 +31,7 @@ The sixth v2 tool. It ships alone as **v1.7.0**, from the branch `v2-mock-api`, 
 | 4 | Matching | A request's path, without the query, is matched against the enabled routes in list order; the first match wins. A trailing slash is ignored. HEAD matches GET routes and is sent without a body. `ANY` matches every method. A segment match is case-sensitive, and percent-encoding is decoded per segment. |
 | 5 | Placeholders | `{{params.name}}` and `{{query.name}}` are replaced in the body. Missing values become an empty string. In a JSON body the value is escaped as the inside of a JSON string, so a placeholder belongs inside quotes (`"id": "{{params.id}}"`). There are no expressions or other variables. |
 | 6 | Server | One `node:http` server per package, on `127.0.0.1` only, started and stopped by the user (never automatically). A request whose `Host` isn't `localhost`, `127.0.0.1` or `[::1]` (with any port) gets a 403, against DNS rebinding. CORS is always on: `Access-Control-Allow-Origin` echoes the request's origin, `Vary: Origin` is set, and credentials are allowed. An `OPTIONS` preflight gets a 204 with the requested method and headers allowed. A request body is read and dropped, up to 1 MiB; past that the server answers 413. Routes and toggles take effect on the next request. Changing the port while running shows "restart to apply", as Static does. |
-| 7 | Responses | The delay is the global `delayMs` plus the route's own, waited with a timer that a closed request clears. A failing route (its own switch, or `failAll`) answers its fail status with `{"error":"Mocked failure"}`. An unmatched request gets a 404 with `{"error":"No mock route","method":"GET","path":"/x"}`, the path without the query. Every response carries `X-NestBox-Mock: <route id or none>` and `Cache-Control: no-store`. |
+| 7 | Responses | The delay is the global `delayMs` plus the route's own, waited with a timer that a closed request clears. A failing route (its own switch), or any request at all while `failAll` is on (matched or not), answers the fail status with `{"error":"Mocked failure"}`. An unmatched request gets a 404 with `{"error":"No mock route","method":"GET","path":"/x"}`, the path without the query. Every response carries `X-NestBox-Mock: <route id or none>` and `Cache-Control: no-store`. |
 | 8 | Request log | A `BatchedLog` per package: `GET /users/42 → 200 · 12 ms · GET /users/:id`, or `→ 404 · no route`. The query string is dropped, and request headers and bodies are never shown. The log is in memory only. The logger records start and stop, the port and the request count, never paths. |
 | 9 | Lifecycle | The server stops on dispose (quit) and when its project is removed. It doesn't start with the app. Start fails with CONFLICT and "Port 4010 is in use" when a configured port is taken, and offers "Use the next free port", as Static does. |
 | 10 | Overview card | "Mock API": the URL while running (`http://localhost:4010`), or "Stopped". It shows "N routes", "fail all" in red when that is on, Start or Stop, and "Open Mock API". |
@@ -40,6 +40,9 @@ The sixth v2 tool. It ships alone as **v1.7.0**, from the branch `v2-mock-api`, 
 | 13 | Version | 1.7.0, released with the same flow as the earlier v2 releases. |
 
 ## Contract (sketch)
+
+Implementation note: the header shows the URL with an Open button but no Copy (the renderer has no clipboard access; the URL text is selectable).
+
 
 ```ts
 const Route = z.object({ id, enabled, method: z.enum([...METHODS, 'ANY']), path, status, contentType: z.enum(['json', 'text']), headers: z.array(z.object({ name, value })).max(20), body: z.string().max(256 * 1024), delayMs, fail: z.object({ on: z.boolean(), status }) });
