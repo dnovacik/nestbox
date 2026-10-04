@@ -38,6 +38,7 @@ import { checkReachable } from './tools/database/reach';
 import { checkUrl } from './tools/health/check';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
+import { READY_SCRIPT_TIMEOUT_MS, waitForScript } from './tools/deploy/run-script';
 import { createDepsCache } from './tools/deps/cache';
 import { createDepsScheduler } from './tools/deps/scheduler';
 import { createToolHost, type ToolHost } from './tools/tool-host';
@@ -137,6 +138,18 @@ if (!app.requestSingleInstanceLock()) {
       if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
       return (await toolHostRef.invoke('compose', projectId, method, input)) as { ok: boolean };
     };
+    const invokeTool = async (toolId: string, projectId: string, method: string, input: unknown) => {
+      if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
+      return toolHostRef.invoke(toolId, projectId, method, input);
+    };
+    /** "Run checks": a normal script start (Node advice, its own log), watched until it ends. */
+    const runScriptToEnd = (projectId: string, script: string) =>
+      waitForScript({
+        processes: { on: (l) => processes.on(l), get: () => processes.get(projectId, script) },
+        start: () => invokeTool('scripts', projectId, 'start', { script }),
+        stop: () => invokeTool('scripts', projectId, 'stop', { script }),
+        timeoutMs: READY_SCRIPT_TIMEOUT_MS,
+      });
     const depsCache = createDepsCache(join(app.getPath('userData'), 'deps-cache.json'), logger);
     const depsRunning = new Set<string>();
     const tools = createMainTools({
@@ -257,7 +270,7 @@ if (!app.requestSingleInstanceLock()) {
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       node: { logger, getDetected: (id) => projects.getDetected(id) },
       deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
-      deploy: { logger, envFiles },
+      deploy: { logger, envFiles, tools: { invoke: invokeTool }, runScript: runScriptToEnd },
     });
     const toolHost = createToolHost({
       tools,

@@ -10,12 +10,15 @@ import type {
   DeployStatus,
   EnvCompare,
   Listing,
+  Readiness,
 } from '@shared/tools/deploy/contract';
 import { createMemoryLogger } from '../../logger';
 import { type FakeChild, fakePlatform, flushIo } from '../../processes/fake-child';
 import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
+import { NestboxError } from '@shared/errors';
 import { createEnvFileAccess } from '../env/env-files';
+import type { ScriptRunResult } from './run-script';
 import { createDeployTool } from './index';
 
 type SpawnArgs = { cwd: string; command: string; args: string[]; env: NodeJS.ProcessEnv };
@@ -57,6 +60,10 @@ function setup(
     answers?: Record<string, Answer>;
     installed?: (command: string) => boolean | null;
     deployTimeoutMs?: number;
+    tools?: Record<string, unknown>;
+    scripts?: Record<string, string>;
+    git?: boolean;
+    runScript?: (projectId: string, script: string) => Promise<ScriptRunResult>;
   } = {},
 ) {
   const dir = tree(opts.files ?? LINKED);
@@ -79,9 +86,19 @@ function setup(
   const commandExists = vi.fn(async (c: string) => (opts.installed ? opts.installed(c) : true));
   const platform = { ...base, spawnCommand, openTerminal, commandExists };
   const logger = createMemoryLogger();
+  const invoke = vi.fn(async (toolId: string, _projectId: string, method: string) => {
+    const answer = opts.tools?.[`${toolId}.${method}`];
+    if (answer === undefined) throw new NestboxError('NOT_FOUND', 'no such tool');
+    return answer;
+  });
+  const runScript = vi.fn(
+    opts.runScript ?? (async () => ({ outcome: 'exited' as const, code: 0 })),
+  );
   tool = createDeployTool({
     logger,
     envFiles: createEnvFileAccess(),
+    tools: { invoke },
+    runScript,
     now: () => 5_000,
     ...(opts.deployTimeoutMs === undefined ? {} : { deployTimeoutMs: opts.deployTimeoutMs }),
   });
@@ -91,6 +108,8 @@ function setup(
       path: dir,
       packageManager: 'npm',
       deploy: opts.deploy ?? ['vercel', 'netlify', 'cloudflare', 'fly'],
+      packageJson: { name: 'shop', scripts: opts.scripts ?? {} },
+      git: opts.git ? { branch: 'main', head: null } : null,
     }),
     shared: createSharedContext().forProject('p1'),
     emit,
@@ -101,7 +120,18 @@ function setup(
     tool?.handlers[method]?.(ctx, input) as Promise<T>;
   const spawned = () =>
     (spawnCommand.mock.calls as [SpawnArgs][]).map(([o]) => [o.command, ...o.args].join(' '));
-  return { call, emit, logger, spawned, spawnCommand, openTerminal, children: base.children, dir };
+  return {
+    call,
+    emit,
+    logger,
+    spawned,
+    spawnCommand,
+    openTerminal,
+    children: base.children,
+    dir,
+    invoke,
+    runScript,
+  };
 }
 
 describe('deploy tool: status', () => {
@@ -529,5 +559,136 @@ describe('deploy tool: env vs production', () => {
       },
     );
     expect(spawned()).toEqual(['flyctl secrets list --json']);
+  });
+});
+
+describe('deploy tool: ready to deploy', () => {
+  const NODE_OK = {
+    state: 'ok',
+    sources: [],
+    requirement: 'nvmrc',
+    node: { version: 'v22.11.0', ok: true },
+    packageManager: null,
+    manager: null,
+    fnm: { available: false, on: false, version: null },
+    checkedAt: 1,
+  };
+  const GIT_DIRTY = {
+    state: 'ok',
+    branch: 'main',
+    detachedAt: null,
+    operation: null,
+    upstream: 'origin/main',
+    ahead: 0,
+    behind: 0,
+    lastFetchAt: null,
+    changes: { total: 2, staged: 0, unstaged: 2, untracked: 0, conflicted: 0, truncated: false },
+    files: [],
+    lastCommit: null,
+  };
+
+  it('runs the instant checks, then each script in turn, and sums them up', async () => {
+    const order: string[] = [];
+    const { call, emit, invoke } = setup({
+      files: { ...LINKED, '.env.production': 'DATABASE_URL=x\nLOCAL_ONLY=1\n' },
+      deploy: ['vercel'],
+      scripts: { build: 'tsc', test: 'vitest', dev: 'vite' },
+      git: true,
+      tools: {
+        'node.status': NODE_OK,
+        'deps.results': { packages: [], checking: false },
+        'git.status': GIT_DIRTY,
+      },
+      answers: {
+        'env ls production --format json --non-interactive': {
+          code: 0,
+          stdout: fixture('vercel-env.json'),
+        },
+      },
+      runScript: async (_id, script) => {
+        order.push(script);
+        return script === 'test' ? { outcome: 'crashed', code: 1 } : { outcome: 'exited', code: 0 };
+      },
+    });
+    const ready = await call<Readiness>('checkReady', { scripts: ['build', 'test'] });
+    expect(ready.checks.map((c) => [c.label, c.tone])).toEqual([
+      ['Node', 'ok'],
+      ['Dependencies', 'warn'],
+      ['Env', 'fail'],
+      ['Git', 'warn'],
+      ['build', 'ok'],
+      ['test', 'fail'],
+    ]);
+    expect(ready.checks[2]?.detail).toBe('1 key missing on Vercel (production): LOCAL_ONLY');
+    expect(ready.checks[5]?.detail).toBe('Exited with code 1');
+    expect(ready.overall).toBe('red');
+    expect(order).toEqual(['build', 'test']);
+    expect(invoke.mock.calls.map(([t, , m]) => `${t}.${m}`)).toEqual([
+      'node.status',
+      'deps.results',
+      'git.status',
+    ]);
+    expect(emit.mock.calls.filter(([e]) => e === 'changed').length).toBeGreaterThan(6);
+    expect((await call<DeployStatus>('status')).ready).toEqual(ready);
+  });
+
+  it('is amber on warnings, and skips what does not apply', async () => {
+    const { call } = setup({
+      deploy: ['fly'],
+      files: { 'fly.toml': "app = 'x'\n" },
+      tools: { 'node.status': NODE_OK, 'deps.results': { packages: [], checking: false } },
+      installed: () => false,
+    });
+    const ready = await call<Readiness>('checkReady', { scripts: [] });
+    expect(ready.checks.map((c) => [c.label, c.tone])).toEqual([
+      ['Node', 'ok'],
+      ['Dependencies', 'warn'],
+      ['Env', 'skip'],
+      ['Git', 'skip'],
+    ]);
+    expect(ready.overall).toBe('amber');
+  });
+
+  it('reports a script that is already running or timed out', async () => {
+    const { call } = setup({
+      deploy: ['fly'],
+      scripts: { build: 'x', test: 'y' },
+      runScript: async (_id, script) => ({
+        outcome: script === 'build' ? 'busy' : 'timeout',
+        code: null,
+      }),
+    });
+    const ready = await call<Readiness>('checkReady', { scripts: ['build', 'test'] });
+    expect(ready.checks.slice(-2).map((c) => [c.label, c.tone, c.detail])).toEqual([
+      ['build', 'fail', 'Already running: stop it first'],
+      ['test', 'fail', 'Timed out and stopped'],
+    ]);
+  });
+
+  it('refuses scripts the package does not have, and a second run at once', async () => {
+    let release: () => void = () => undefined;
+    const { call } = setup({
+      deploy: ['fly'],
+      scripts: { build: 'x' },
+      runScript: () =>
+        new Promise((r) => {
+          release = () => r({ outcome: 'exited', code: 0 });
+        }),
+    });
+    await expect(call('checkReady', { scripts: ['deploy'] })).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+    const first = call<Readiness>('checkReady', { scripts: ['build'] });
+    await vi.waitFor(async () =>
+      expect((await call<DeployStatus>('status')).ready?.checks.at(-1)?.tone).toBe('running'),
+    );
+    await expect(call('checkReady', { scripts: [] })).rejects.toMatchObject({ code: 'CONFLICT' });
+    release();
+    expect((await first).overall).not.toBeNull();
+  });
+
+  it('lists the package scripts in the status', async () => {
+    const { call } = setup({ deploy: ['fly'], scripts: { build: 'x', lint: 'y' } });
+    expect((await call<DeployStatus>('status')).scripts).toEqual(['build', 'lint']);
   });
 });

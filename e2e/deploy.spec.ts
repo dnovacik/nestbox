@@ -79,3 +79,27 @@ test('compares the local env file with Vercel production, by key name', async ()
   await expect(env.getByRole('list', { name: 'Only on Vercel' })).toHaveText('STRIPE_SECRET');
   await expect(env).not.toContainText('postgres');
 });
+
+test('runs the ready-to-deploy checks: the build passes, a key missing on Vercel makes it red', async () => {
+  await writeFile(join(project, '.env.production'), 'DATABASE_URL=postgres://local\nLOCAL_ONLY=1\n');
+  await page
+    .getByRole('complementary', { name: 'Projects' })
+    .getByRole('button', { name: 'Add project' })
+    .click();
+  await page
+    .getByRole('region', { name: 'Deploy' })
+    .getByRole('button', { name: 'Open Deploy' })
+    .click({ timeout: 15_000 });
+
+  const ready = page.getByRole('region', { name: 'Ready to deploy' });
+  await expect(ready.getByRole('button', { name: 'build' })).toHaveAttribute('aria-pressed', 'true');
+  await ready.getByRole('button', { name: 'Run checks' }).click();
+  await expect(ready.getByText('Not ready')).toBeVisible({ timeout: 60_000 });
+  const checks = ready.getByRole('list', { name: 'Checks' });
+  await expect(checks.getByRole('listitem').filter({ hasText: 'Env' })).toContainText(
+    'failed1 key missing on Vercel (production): LOCAL_ONLY',
+  );
+  await expect(checks.getByRole('listitem').filter({ hasText: 'build' })).toContainText(
+    'passedExited with code 0',
+  );
+});

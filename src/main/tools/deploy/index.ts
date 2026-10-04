@@ -7,6 +7,8 @@ import type { DeployPlatform } from '@shared/detected';
 import { belongsTo } from '@shared/processes';
 import {
   type EnvCompare,
+  type ReadyCheck,
+  type Readiness,
   deployContract,
   deployDefinition,
   type DeployResult,
@@ -25,6 +27,8 @@ import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { type Cli, cliCommand, INSTALL, linkCommand, loginCommand, resolveCli } from './cli';
 import { entries, parseEnv } from '../env/dotenv';
 import type { EnvFileAccess } from '../env/env-files';
+import { depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
+import type { ScriptRunResult } from './run-script';
 import { configVarKeys, type LocalConfig, readLocalConfig, wranglerEnvironments } from './config';
 import {
   parseFlySecrets,
@@ -48,6 +52,12 @@ import {
 export interface DeployToolDeps {
   logger: Logger;
   envFiles: Pick<EnvFileAccess, 'list' | 'read'>;
+  /** The tool host, for the other tools' results in "Run checks". */
+  tools: {
+    invoke(toolId: string, projectId: string, method: string, input: unknown): Promise<unknown>;
+  };
+  /** Starts a script through the Scripts tool and waits for its end. */
+  runScript(projectId: string, script: string): Promise<ScriptRunResult>;
   now?: () => number;
   listTimeoutMs?: number;
   deployTimeoutMs?: number;
@@ -81,6 +91,8 @@ interface PackageState {
   vercel: { context: string; project: string } | null;
   netlifyAdmin: string | null;
   pagesBranch: string | null;
+  ready: Readiness | null;
+  checking: boolean;
   emitChanged: () => void;
 }
 
@@ -217,6 +229,8 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
       vercel: null,
       netlifyAdmin: null,
       pagesBranch: null,
+      ready: null,
+      checking: false,
       emitChanged,
     };
     states.set(ctx.project.id, created);
@@ -616,6 +630,131 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
     return result;
   }
 
+  const defaultEnvFile = (files: string[]) =>
+    DEFAULT_ENV_FILES.find((f) => files.includes(f)) ?? files[0] ?? null;
+
+  async function invokeOrNull(ctx: Ctx, toolId: string, method: string): Promise<unknown> {
+    try {
+      return await deps.tools.invoke(toolId, ctx.project.id, method, {});
+    } catch {
+      return null;
+    }
+  }
+
+  /** Env vs the first platform that can compare: its first environment, the default env file. */
+  async function readyEnvCheck(ctx: Ctx): Promise<ReadyCheck> {
+    const files = (await deps.envFiles.list(ctx.project.path)).map((f) => f.name);
+    const file = defaultEnvFile(files);
+    for (const platform of ctx.project.deploy) {
+      const { cli, local, environments } = await resolve(ctx, platform);
+      const environment = environments[0];
+      if (cli === null || !local.linked || environment === undefined) continue;
+      if (file === null) return { kind: 'env', label: 'Env', tone: 'skip', detail: 'No env file' };
+      try {
+        const compare = await envCompare(ctx, { platform, environment, file });
+        return envCheck(compare, PLATFORM_LABELS[platform], environment);
+      } catch {
+        return {
+          kind: 'env',
+          label: 'Env',
+          tone: 'warn',
+          detail: `Couldn't compare with ${PLATFORM_LABELS[platform]}`,
+        };
+      }
+    }
+    return { kind: 'env', label: 'Env', tone: 'skip', detail: 'No platform ready to compare with' };
+  }
+
+  function scriptCheck(script: string, r: ScriptRunResult): ReadyCheck {
+    const check = (tone: ReadyCheck['tone'], detail: string): ReadyCheck => ({
+      kind: 'script',
+      label: script,
+      tone,
+      detail,
+    });
+    switch (r.outcome) {
+      case 'exited':
+        return r.code === 0
+          ? check('ok', 'Exited with code 0')
+          : check('fail', `Exited with code ${r.code ?? '?'}`);
+      case 'crashed':
+        return check('fail', r.code === null ? "Couldn't start" : `Exited with code ${r.code}`);
+      case 'stopped':
+        return check('fail', 'Stopped before it finished');
+      case 'busy':
+        return check('fail', 'Already running: stop it first');
+      case 'timeout':
+        return check('fail', 'Timed out and stopped');
+      case 'failed':
+        return check('fail', "Couldn't start");
+    }
+  }
+
+  async function checkReady(ctx: Ctx, scripts: string[]): Promise<Readiness> {
+    const known = ctx.project.packageJson?.scripts ?? {};
+    if (scripts.some((s) => !Object.hasOwn(known, s)))
+      throw new NestboxError('VALIDATION', "That script isn't in package.json");
+    const state = stateOf(ctx);
+    if (state.checking)
+      throw new NestboxError('CONFLICT', 'Checks are already running for this package');
+    state.checking = true;
+    const started = now();
+    const pending = (kind: ReadyCheck['kind'], label: string): ReadyCheck => ({
+      kind,
+      label,
+      tone: 'pending',
+      detail: null,
+    });
+    const checks: ReadyCheck[] = [
+      pending('node', 'Node'),
+      pending('deps', 'Dependencies'),
+      pending('env', 'Env'),
+      pending('git', 'Git'),
+      ...[...new Set(scripts)].map((s) => pending('script', s)),
+    ];
+    const publish = () => {
+      state.ready = { at: started, overall: null, checks: [...checks] };
+      state.emitChanged();
+    };
+    const set = (i: number, check: ReadyCheck) => {
+      checks[i] = check;
+      publish();
+    };
+    const running = (i: number) => set(i, { ...(checks[i] as ReadyCheck), tone: 'running' });
+    try {
+      publish();
+      running(0);
+      set(0, nodeCheck(await invokeOrNull(ctx, 'node', 'status')));
+      running(1);
+      set(1, depsCheck(await invokeOrNull(ctx, 'deps', 'results'), ctx.project.id));
+      running(2);
+      set(2, await readyEnvCheck(ctx));
+      running(3);
+      set(
+        3,
+        ctx.project.git === null
+          ? { kind: 'git', label: 'Git', tone: 'skip', detail: 'Not a git repository' }
+          : gitCheck(await invokeOrNull(ctx, 'git', 'status')),
+      );
+      for (let i = 4; i < checks.length; i++) {
+        const script = (checks[i] as ReadyCheck).label;
+        running(i);
+        set(i, scriptCheck(script, await deps.runScript(ctx.project.id, script)));
+      }
+      state.ready = { at: started, overall: overall(checks), checks: [...checks] };
+      deps.logger.info('deploy ready check', {
+        projectId: ctx.project.id,
+        overall: state.ready.overall ?? 'none',
+        checks: checks.length,
+        ms: now() - started,
+      });
+      return state.ready;
+    } finally {
+      state.checking = false;
+      state.emitChanged();
+    }
+  }
+
   const handlers = {
     async status(ctx: Ctx): Promise<DeployStatus> {
       const state = stateOf(ctx);
@@ -631,9 +770,12 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
         action: state.action,
         last: state.last,
         envFiles,
-        defaultEnvFile: DEFAULT_ENV_FILES.find((f) => envFiles.includes(f)) ?? envFiles[0] ?? null,
+        defaultEnvFile: defaultEnvFile(envFiles),
+        scripts: Object.keys(ctx.project.packageJson?.scripts ?? {}),
+        ready: state.ready,
       };
     },
+    checkReady: (ctx: Ctx, { scripts }: { scripts: string[] }) => checkReady(ctx, scripts),
     envCompare: (
       ctx: Ctx,
       input: { platform: DeployPlatform; environment: string; file: string },
