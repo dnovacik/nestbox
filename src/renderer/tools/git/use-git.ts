@@ -12,7 +12,7 @@ export const gitStatusKey = (projectId: string) => queryKeys.tool('git', project
  * The repository summary. Refetched when main reports a change under .git, and when the window regains
  * focus: edits made in the editor change the working tree, which nothing watches.
  */
-export function useGitStatus(projectId: string) {
+export function useGitStatus(projectId: string, enabled = true) {
   const queryClient = useQueryClient();
   useToolEvent('git', projectId, 'changed', () => void queryClient.invalidateQueries({ queryKey: gitStatusKey(projectId) }));
   useEffect(() => {
@@ -20,7 +20,7 @@ export function useGitStatus(projectId: string) {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [queryClient, projectId]);
-  return useQuery({ queryKey: gitStatusKey(projectId), queryFn: () => api.tools.invoke('git', projectId, 'status', {}) });
+  return useQuery({ queryKey: gitStatusKey(projectId), queryFn: () => api.tools.invoke('git', projectId, 'status', {}), enabled });
 }
 
 export function useOpenGitFile(projectId: string) {
