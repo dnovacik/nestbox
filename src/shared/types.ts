@@ -38,6 +38,10 @@ export const ProjectSchema = z.object({
   path: z.string().min(1),
   tags: z.array(z.string()).default([]),
   pinned: z.boolean().default(false),
+  /** The sidebar group it sits in (v1.18); null = ungrouped. Order within a group is the projects array order. */
+  groupId: z.string().nullable().default(null),
+  /** Display names for workspace packages, by relPath (v1.18). */
+  aliases: z.record(z.string(), ProjectNameSchema).default({}),
   /** Live on the root project; entries may name workspace packages. */
   runGroups: z.array(RunGroupSchema).default([]),
   envProfiles: z.array(z.object({ name: z.string().min(1), file: z.string().min(1) })).default([]),
@@ -87,18 +91,28 @@ export const AppSettingsSchema = z.object({
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
+/** A sidebar group (v1.18): one level, ordered by the store's groups array. */
+export const ProjectGroupSchema = z.object({
+  id: z.string().min(1),
+  name: ProjectNameSchema,
+  collapsed: z.boolean().default(false),
+});
+export type ProjectGroup = z.infer<typeof ProjectGroupSchema>;
+
 export const CURRENT_SCHEMA_VERSION = 2;
 
 export const StoreDataSchema = z.object({
   schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
   settings: AppSettingsSchema,
   projects: z.array(ProjectSchema),
+  /** Added in v1.18 with a default, so the store stays at v2. */
+  groups: z.array(ProjectGroupSchema).max(100).default([]),
 });
 export type StoreData = z.infer<typeof StoreDataSchema>;
 
 export function defaultStoreData(): StoreData {
   // A fresh store is a new install: it asks which tools to use (stores that predate the field default to true).
-  return { schemaVersion: CURRENT_SCHEMA_VERSION, settings: { ...AppSettingsSchema.parse({}), toolsChosen: false }, projects: [] };
+  return { schemaVersion: CURRENT_SCHEMA_VERSION, settings: { ...AppSettingsSchema.parse({}), toolsChosen: false }, projects: [], groups: [] };
 }
 
 export const PLATFORM_IDS = ['win32', 'darwin'] as const;

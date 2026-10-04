@@ -20,11 +20,11 @@ const proc = (over: Partial<ProcessSummary>): ProcessSummary => ({
 
 const ws = makeDetectedForTest({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packages/api', name: 'api' });
 const shop: ProjectSummary = {
-  id: 'p1', name: 'shop', path: 'C:\\shop', pinned: false, tags: [],
+  id: 'p1', name: 'shop', path: 'C:\\shop', pinned: false, tags: [], groupId: null,
   detected: makeDetectedForTest({ workspaces: [ws] }),
 };
 const blog: ProjectSummary = {
-  id: 'p2', name: 'blog', path: 'C:\\blog', pinned: false, tags: [],
+  id: 'p2', name: 'blog', path: 'C:\\blog', pinned: false, tags: [], groupId: null,
   detected: makeDetectedForTest({ id: 'p2', rootId: 'p2' }),
 };
 

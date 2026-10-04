@@ -4,7 +4,7 @@ import { createMemoryLogger } from '../logger';
 import { createMemoryBackend } from './backend';
 import { StoreService } from './store-service';
 
-const project = { id: 'p1', name: 'shop', path: 'C:\\Dev\\Shop', tags: [], pinned: false, runGroups: [], envProfiles: [], toolSettings: {} };
+const project = { id: 'p1', name: 'shop', path: 'C:\\Dev\\Shop', tags: [], pinned: false, groupId: null, aliases: {}, runGroups: [], envProfiles: [], toolSettings: {} };
 
 describe('StoreService', () => {
   it('initialises an empty backend with defaults and writes them', () => {

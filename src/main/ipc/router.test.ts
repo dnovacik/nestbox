@@ -168,7 +168,7 @@ describe('router', () => {
 
 function summary(): ProjectSummary {
   return {
-    id: 'a', name: 'New', path: 'C:\\a', pinned: false, tags: [],
+    id: 'a', name: 'New', path: 'C:\\a', pinned: false, tags: [], groupId: null,
     detected: {
       id: 'a', rootId: 'a', path: 'C:\\a', relPath: '', name: 'New', missing: false, packageJson: null,
       packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],

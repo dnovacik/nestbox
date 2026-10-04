@@ -5,6 +5,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   defaultStoreData,
   type Project,
+  type ProjectGroup,
   type StoreData,
   StoreDataSchema,
 } from '@shared/types';
@@ -30,6 +31,17 @@ export class StoreService {
 
   getProjects(): readonly Project[] {
     return this.data.projects;
+  }
+
+  getGroups(): readonly ProjectGroup[] {
+    return this.data.groups;
+  }
+
+  /** Projects and groups in one validated write (moving a project between groups touches both). */
+  updateLayout(fn: (layout: { projects: Project[]; groups: ProjectGroup[] }) => { projects: Project[]; groups: ProjectGroup[] }): void {
+    this.assertWritable();
+    const next = fn({ projects: [...this.data.projects], groups: [...this.data.groups] });
+    this.commit(StoreDataSchema.parse({ ...this.data, ...next }));
   }
 
   getSettings(): AppSettings {

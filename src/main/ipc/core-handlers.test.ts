@@ -31,6 +31,13 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       list: vi.fn(), add: vi.fn(), remove: vi.fn(), rename: vi.fn(), setPinned: vi.fn(),
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
+      moveProject: vi.fn(),
+      listGroups: vi.fn(() => [{ id: 'g1', name: 'Work', collapsed: false }]),
+      createGroup: vi.fn((name: string) => ({ id: 'g2', name, collapsed: false })),
+      renameGroup: vi.fn(),
+      deleteGroup: vi.fn(),
+      setGroupCollapsed: vi.fn(),
+      moveGroup: vi.fn(),
     },
     toolHost: {
       list: vi.fn(async () => []),
@@ -254,5 +261,18 @@ describe('tools:busy and turning tools off', () => {
     expect(SettingsPatchSchema.safeParse({ disabledTools: ['scripts'] }).success).toBe(false);
     expect(SettingsPatchSchema.safeParse({ disabledTools: ['nope'] }).success).toBe(false);
     expect(SettingsPatchSchema.safeParse({ toolsChosen: false }).success).toBe(false);
+  });
+});
+
+describe('groups and project order', () => {
+  it('passes moves and group changes to the project service', async () => {
+    const d = deps();
+    const handlers = createCoreHandlers(d);
+    await handlers['projects:move']({ id: 'p1', groupId: 'g1', beforeId: null });
+    expect(d.projects.moveProject).toHaveBeenCalledWith('p1', 'g1', null);
+    expect(await handlers['groups:list']()).toEqual([{ id: 'g1', name: 'Work', collapsed: false }]);
+    expect(await handlers['groups:create']({ name: 'Side' })).toMatchObject({ name: 'Side' });
+    await handlers['groups:move']({ id: 'g2', beforeId: 'g1' });
+    expect(d.projects.moveGroup).toHaveBeenCalledWith('g2', 'g1');
   });
 });

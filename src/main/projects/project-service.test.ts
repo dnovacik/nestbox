@@ -264,10 +264,10 @@ describe('ProjectService lookups and edits', () => {
     expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
-  it('refuses to rename, pin or remove a workspace package', async () => {
+  it('refuses to pin or remove a workspace package (renaming one gives it an alias)', async () => {
     const { service } = setup();
     await service.add('C:\\Dev\\Shop');
-    expect(() => service.rename('id-1::packages/api', 'x')).toThrow(/Workspace packages/);
+    expect(() => service.setPinned('id-1::packages/api', true)).toThrow(/Workspace packages/);
     expect(() => service.remove('id-1::packages/api')).toThrow(/Workspace packages/);
   });
 
@@ -352,5 +352,69 @@ describe('ProjectService run groups and tool settings', () => {
     expect(service.getToolSettings('id-1', 'scripts')).toEqual({ autoRestart: [] });
     expect(service.getToolSettings('id-1', 'toString')).toBeUndefined();
     expect(store.getProjects()[0]?.toolSettings).toEqual({ scripts: { autoRestart: [] } });
+  });
+});
+
+describe('ProjectService: groups and order', () => {
+  async function three() {
+    const ctx = setup();
+    await ctx.service.add('C:\\Dev\\Shop');
+    await ctx.service.add('C:\\Dev\\Blog');
+    await ctx.service.add('C:\\Dev\\Api');
+    return ctx;
+  }
+  const order = (store: StoreService) => store.getProjects().map((p) => `${p.name}:${p.groupId ?? '-'}`);
+
+  it('creates, renames, collapses and deletes groups; deleting ungroups its projects', async () => {
+    const { service, store, onChanged } = await three();
+    const work = service.createGroup('Work');
+    expect(service.listGroups()).toEqual([{ id: 'id-4', name: 'Work', collapsed: false }]);
+    service.moveProject('id-1', work.id, null);
+    service.renameGroup(work.id, 'Client work');
+    service.setGroupCollapsed(work.id, true);
+    expect(service.listGroups()).toEqual([{ id: 'id-4', name: 'Client work', collapsed: true }]);
+    expect((await service.list()).find((p) => p.id === 'id-1')?.groupId).toBe('id-4');
+    service.deleteGroup(work.id);
+    expect(service.listGroups()).toEqual([]);
+    expect(order(store)).toEqual(['blog:-', 'api:-', 'shop:-']);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('moves a project into a group before another one, or to the end', async () => {
+    const { service, store } = await three();
+    const g = service.createGroup('Work');
+    service.moveProject('id-3', g.id, null);
+    service.moveProject('id-1', g.id, 'id-3');
+    expect(order(store)).toEqual(['blog:-', 'shop:id-4', 'api:id-4']);
+    service.moveProject('id-3', null, 'id-2');
+    expect(order(store)).toEqual(['api:-', 'blog:-', 'shop:id-4']);
+  });
+
+  it('reorders groups', async () => {
+    const { service } = await three();
+    const a = service.createGroup('A');
+    const b = service.createGroup('B');
+    service.moveGroup(b.id, a.id);
+    expect(service.listGroups().map((g) => g.name)).toEqual(['B', 'A']);
+    service.moveGroup(b.id, null);
+    expect(service.listGroups().map((g) => g.name)).toEqual(['A', 'B']);
+  });
+
+  it('refuses unknown groups, packages and a move before a project in another group', async () => {
+    const { service } = await three();
+    const g = service.createGroup('Work');
+    expect(() => service.moveProject('id-1', 'nope', null)).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
+    expect(() => service.moveProject('id-1::packages/api', null, null)).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(() => service.moveProject('id-1', g.id, 'id-2')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+    expect(() => service.renameGroup('nope', 'x')).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
+  });
+
+  it('gives a workspace package an alias, shown in the summary', async () => {
+    const { service, store } = await three();
+    service.rename('id-1::packages/api', 'Backend');
+    expect(store.getProjects()[0]?.aliases).toEqual({ 'packages/api': 'Backend' });
+    expect((await service.list())[0]?.detected.workspaces[0]?.name).toBe('Backend');
   });
 });
