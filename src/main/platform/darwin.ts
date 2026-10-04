@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, chmod, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { join } from 'node:path';
 import { NestboxError } from '@shared/errors';
 import type { Logger } from '../logger';
 import type { PlatformAdapter, PlatformDeps } from './adapter';
@@ -67,7 +67,8 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
   const shellEnv = {
     get: async () => {
       const env = await loginEnv.get();
-      return deps.pathPrepend ? { ...env, PATH: `${deps.pathPrepend}${delimiter}${env['PATH'] ?? ''}` } : env;
+      // POSIX PATH: ':' even when this adapter runs in tests on Windows (node:path's delimiter would be ';').
+      return deps.pathPrepend ? { ...env, PATH: `${deps.pathPrepend}:${env['PATH'] ?? ''}` } : env;
     },
   };
   // ps output is parsed: keep it in the C locale whatever the user's language is.
