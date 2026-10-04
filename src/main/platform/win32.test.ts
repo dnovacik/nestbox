@@ -299,6 +299,14 @@ describe('win32 execCommand', () => {
     expect(env?.['PATH'] ?? env?.['Path']).toBe(process.env['PATH'] ?? process.env['Path']);
   });
 
+  it('adds extra env variables on top of the process env', async () => {
+    const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '' } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.execCommand('pnpm', ['--version'], { cwd: 'C:\\a', timeoutMs: 1_000, env: { COREPACK_ENABLE_NETWORK: '0' } });
+    const env = vi.mocked(runner.exec).mock.calls[0]?.[2]?.env;
+    expect(env).toMatchObject({ COREPACK_ENABLE_NETWORK: '0', NoDefaultCurrentDirectoryInExePath: '1' });
+  });
+
   it('passes an output cap to the runner', async () => {
     const runner = fakeRunner([], { 'cmd.exe': { code: 0, stdout: '' } });
     const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });

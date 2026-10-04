@@ -114,7 +114,14 @@ export interface PlatformAdapter {
   execCommand(
     command: string,
     args: readonly string[],
-    opts: { cwd?: string; timeoutMs: number; /** stdout cap; 64 KiB by default. */ maxBytes?: number },
+    opts: {
+      cwd?: string;
+      timeoutMs: number;
+      /** stdout cap; 64 KiB by default. */
+      maxBytes?: number;
+      /** Extra variables on top of the environment scripts get. */
+      env?: Record<string, string>;
+    },
   ): Promise<ExecResult>;
   /** Opens a terminal in cwd, optionally running command (NestBox-built only: no quotes, newlines or %). */
   openTerminal(cwd: string, command?: string): Promise<void>;
