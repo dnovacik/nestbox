@@ -1,4 +1,4 @@
-import { Box, Braces, Container, Database, GitBranch, HeartPulse, Hexagon, Info, KeyRound, LayoutGrid, ListTodo, type LucideIcon, Package, Radar, Server, Sparkles, SquareTerminal } from 'lucide-react';
+import { Box, Braces, Container, Database, GitBranch, HeartPulse, Hexagon, Info, KeyRound, LayoutGrid, ListTodo, type LucideIcon, Package, Radar, Rocket, Server, Sparkles, SquareTerminal } from 'lucide-react';
 
 /** lucide icon names used by ToolDefinition.icon. Adding a tool with a new icon adds a line here. */
 const ICONS: Record<string, LucideIcon> = {
@@ -14,6 +14,7 @@ const ICONS: Record<string, LucideIcon> = {
   'list-todo': ListTodo,
   package: Package,
   radar: Radar,
+  rocket: Rocket,
   server: Server,
   sparkles: Sparkles,
   terminal: SquareTerminal,
