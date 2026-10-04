@@ -14,7 +14,7 @@ function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
     envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
-    dockerCompose: null,
+    dockerCompose: null, deploy: [],
     git: { branch: 'main', head: null },
     buildOutput: null,
     claude: { claudeMd: true, claudeLocalMd: false, claudeDir: false, mcpJson: false },

@@ -27,7 +27,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
       { ...emptyDetected(), id: `${input.id}::packages/api`, rootId: input.id, relPath: 'packages/api', name: 'api', path: `${input.path}\\packages\\api` },
     ],
     prismaSchema: null,
-    dockerCompose: null,
+    dockerCompose: null, deploy: [],
     git: null,
     buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
@@ -37,7 +37,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
 function emptyDetected(): DetectedProject {
   return {
     id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false, packageJson: null,
-    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null,
+    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],
     git: null, buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   };

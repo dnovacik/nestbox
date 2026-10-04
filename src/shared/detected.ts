@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const PACKAGE_MANAGERS = ['pnpm', 'yarn', 'npm', 'bun'] as const;
 export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 
+export const DEPLOY_PLATFORMS = ['vercel', 'netlify', 'cloudflare', 'fly'] as const;
+export type DeployPlatform = (typeof DEPLOY_PLATFORMS)[number];
+
 export interface GitInfo {
   /** Current branch, or null when HEAD is detached or unreadable. */
   branch: string | null;
@@ -34,6 +37,8 @@ export interface DetectedProject {
   workspaces: DetectedProject[];
   prismaSchema: string | null;
   dockerCompose: string | null;
+  /** Deployment platforms with a config file or link folder in this package, in DEPLOY_PLATFORMS order. */
+  deploy: DeployPlatform[];
   /** null when the folder is not a git repository. */
   git: GitInfo | null;
   buildOutput: 'dist' | 'build' | null;
@@ -57,6 +62,7 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
     workspaces: z.array(DetectedProjectSchema),
     prismaSchema: z.string().nullable(),
     dockerCompose: z.string().nullable(),
+    deploy: z.array(z.enum(DEPLOY_PLATFORMS)),
     git: z.object({ branch: z.string().nullable(), head: z.string().nullable() }).nullable(),
     buildOutput: z.enum(['dist', 'build']).nullable(),
     claude: z.object({

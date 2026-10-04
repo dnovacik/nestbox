@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { type DetectedProject, type PackageManager, workspaceId } from '@shared/detected';
+import { type DeployPlatform, type DetectedProject, type PackageManager, workspaceId } from '@shared/detected';
 import { isRecord } from '@shared/is-record';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
@@ -40,6 +40,20 @@ interface PackageJsonRead {
 }
 
 const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
+
+/** What marks a package as deployed to each platform: config files, or the folder its CLI writes when linking. */
+const DEPLOY_MARKERS: [DeployPlatform, { files: string[]; dirs: string[] }][] = [
+  ['vercel', { files: ['vercel.json'], dirs: ['.vercel'] }],
+  ['netlify', { files: ['netlify.toml'], dirs: ['.netlify'] }],
+  ['cloudflare', { files: ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'], dirs: [] }],
+  ['fly', { files: ['fly.toml'], dirs: [] }],
+];
+
+function detectDeploy(files: ReadonlySet<string>, dirs: ReadonlySet<string>): DeployPlatform[] {
+  return DEPLOY_MARKERS.filter(([, m]) => m.files.some((f) => files.has(f)) || m.dirs.some((d) => dirs.has(d))).map(
+    ([platform]) => platform,
+  );
+}
 
 function label(target: DirTarget, file: string): string {
   return target.relPath ? `${target.relPath}/${file}` : file;
@@ -99,6 +113,7 @@ function missingProject(target: DirTarget): DetectedProject {
     workspaces: [],
     prismaSchema: null,
     dockerCompose: null,
+    deploy: [],
     git: null,
     buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
@@ -148,6 +163,7 @@ async function detectDir(
     workspaces: [],
     prismaSchema: await detectPrisma(target.path),
     dockerCompose: COMPOSE_FILES.find((f) => files.has(f)) ?? null,
+    deploy: detectDeploy(files, dirs),
     git: await readGitInfo(target.path),
     buildOutput: dirs.has('dist') ? 'dist' : dirs.has('build') ? 'build' : null,
     claude: {
