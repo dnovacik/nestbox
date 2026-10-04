@@ -12,13 +12,21 @@ export const platformStatus = (patch: Partial<PlatformStatus> = {}): PlatformSta
   production: true,
   hint: null,
   canLink: false,
+  environments: ['production', 'preview', 'development'],
   ...patch,
 });
 
 export const deployStatus = (
   platforms: PlatformStatus[],
   patch: Partial<DeployStatus> = {},
-): DeployStatus => ({ platforms, action: null, last: null, ...patch });
+): DeployStatus => ({
+  platforms,
+  action: null,
+  last: null,
+  envFiles: ['.env', '.env.production'],
+  defaultEnvFile: '.env.production',
+  ...patch,
+});
 
 export const deployment = (patch: Partial<Deployment> = {}): Deployment => ({
   id: 'dpl_1',

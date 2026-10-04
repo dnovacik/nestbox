@@ -6,6 +6,7 @@ import { NestboxError } from '@shared/errors';
 import type { DeployPlatform } from '@shared/detected';
 import { belongsTo } from '@shared/processes';
 import {
+  type EnvCompare,
   deployContract,
   deployDefinition,
   type DeployResult,
@@ -22,7 +23,16 @@ import { LineSplitter } from '../../processes/line-splitter';
 import { BatchedLog } from '../batched-log';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { type Cli, cliCommand, INSTALL, linkCommand, loginCommand, resolveCli } from './cli';
-import { type LocalConfig, readLocalConfig } from './config';
+import { entries, parseEnv } from '../env/dotenv';
+import type { EnvFileAccess } from '../env/env-files';
+import { configVarKeys, type LocalConfig, readLocalConfig, wranglerEnvironments } from './config';
+import {
+  parseFlySecrets,
+  parseNetlifyEnv,
+  parsePagesSecrets,
+  parseVercelEnv,
+  parseWorkersSecrets,
+} from './env-parse';
 import {
   classifyFailure,
   deployUrl,
@@ -37,6 +47,7 @@ import {
 
 export interface DeployToolDeps {
   logger: Logger;
+  envFiles: Pick<EnvFileAccess, 'list' | 'read'>;
   now?: () => number;
   listTimeoutMs?: number;
   deployTimeoutMs?: number;
@@ -76,6 +87,29 @@ interface PackageState {
 interface Resolved {
   cli: Cli | null;
   local: LocalConfig;
+  environments: string[];
+}
+
+/** The env file "Env" compares by default: production's own first. */
+const DEFAULT_ENV_FILES = ['.env.production', '.env.production.local', '.env'];
+
+async function environmentsOf(
+  platform: DeployPlatform,
+  local: LocalConfig,
+  dir: string,
+): Promise<string[]> {
+  switch (platform) {
+    case 'vercel':
+      return ['production', 'preview', 'development'];
+    case 'netlify':
+      return ['production', 'deploy-preview', 'branch-deploy', 'dev'];
+    case 'cloudflare':
+      return local.flavour === 'pages'
+        ? ['production', 'preview']
+        : ['production', ...(await wranglerEnvironments(dir)).filter((n) => n !== 'production')];
+    case 'fly':
+      return ['app'];
+  }
 }
 
 const NOT_LINKED_HINT: Record<DeployPlatform, string> = {
@@ -134,7 +168,7 @@ function deployArgs(
 
 function platformStatus(
   platform: DeployPlatform,
-  { cli, local }: Resolved,
+  { cli, local, environments }: Resolved,
   state: PackageState,
 ): PlatformStatus {
   const ready = cli !== null && local.linked;
@@ -159,6 +193,7 @@ function platformStatus(
     production,
     hint,
     canLink: cli !== null && !local.linked && linkCommand(platform, cli) !== null,
+    environments,
   };
 }
 
@@ -200,7 +235,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
       ),
       readLocalConfig(platform, ctx.project.path),
     ]);
-    return { cli, local };
+    return { cli, local, environments: await environmentsOf(platform, local, ctx.project.path) };
   }
 
   async function env(
@@ -467,14 +502,142 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
     );
   }
 
+  function envArgs(
+    platform: DeployPlatform,
+    local: LocalConfig,
+    environment: string,
+  ): string[] | null {
+    switch (platform) {
+      case 'vercel':
+        return ['env', 'ls', environment, '--format', 'json', '--non-interactive'];
+      case 'netlify':
+        return ['env:list', '--json', '--context', environment];
+      case 'cloudflare':
+        if (local.flavour === 'workers')
+          return [
+            'secret',
+            'list',
+            '--format',
+            'json',
+            ...(environment === 'production' ? [] : ['--env', environment]),
+          ];
+        return local.name !== null && PAGES_NAME.test(local.name)
+          ? ['pages', 'secret', 'list', '--project-name', local.name, '--env', environment]
+          : null;
+      case 'fly':
+        return ['secrets', 'list', '--json'];
+    }
+  }
+
+  function parseKeys(
+    platform: DeployPlatform,
+    local: LocalConfig,
+    environment: string,
+    text: string,
+  ): string[] | null {
+    switch (platform) {
+      case 'vercel':
+        return parseVercelEnv(text, environment);
+      case 'netlify':
+        return parseNetlifyEnv(text);
+      case 'cloudflare':
+        return local.flavour === 'workers' ? parseWorkersSecrets(text) : parsePagesSecrets(text);
+      case 'fly':
+        return parseFlySecrets(text);
+    }
+  }
+
+  /** The key names of one env file in the package folder; null when it isn't there. Values are dropped here. */
+  async function localKeys(ctx: Ctx, file: string): Promise<string[] | null> {
+    const listed = await deps.envFiles.list(ctx.project.path);
+    if (!listed.some((f) => f.name === file)) return null;
+    try {
+      const { text } = await deps.envFiles.read(ctx.project.path, file);
+      return [...entries(parseEnv(text)).keys()];
+    } catch {
+      return null;
+    }
+  }
+
+  async function envCompare(
+    ctx: Ctx,
+    {
+      platform,
+      environment,
+      file,
+    }: { platform: DeployPlatform; environment: string; file: string },
+  ): Promise<EnvCompare> {
+    ensurePlatform(ctx, platform);
+    const { cli, local, environments } = await resolve(ctx, platform);
+    if (!environments.includes(environment))
+      throw new NestboxError('VALIDATION', 'This platform has no such environment');
+    if (cli === null) return { state: 'cli-missing' };
+    const args = local.linked ? envArgs(platform, local, environment) : null;
+    if (args === null) return { state: 'not-linked' };
+    const mine = await localKeys(ctx, file);
+    if (mine === null) return { state: 'no-file' };
+    const started = now();
+    const r = await collect(ctx, cli, args);
+    // The output may hold values (Vercel, Netlify): only the keys are kept, and r goes out of scope here.
+    const parsed =
+      r.timedOut || r.code !== 0 ? null : parseKeys(platform, local, environment, r.stdout);
+    let result: EnvCompare;
+    if (r.timedOut) result = { state: 'timeout' };
+    else if (parsed === null)
+      result = { state: classifyFailure(platform, `${r.stdout}\n${r.stderr}`) };
+    else {
+      const remote = new Set([
+        ...parsed,
+        ...(await configVarKeys(platform, ctx.project.path, environment)),
+      ]);
+      const localSet = new Set(mine);
+      const sorted = (keys: Iterable<string>) => [...keys].sort();
+      result = {
+        state: 'ok',
+        onlyLocal: sorted(mine.filter((k) => !remote.has(k))),
+        onlyRemote: sorted([...remote].filter((k) => !localSet.has(k))),
+        both: sorted(mine.filter((k) => remote.has(k))),
+      };
+    }
+    deps.logger.info('deploy env compare', {
+      projectId: ctx.project.id,
+      platform,
+      state: result.state,
+      ...(result.state === 'ok'
+        ? {
+            onlyLocal: result.onlyLocal.length,
+            onlyRemote: result.onlyRemote.length,
+            both: result.both.length,
+          }
+        : {}),
+      code: r.code ?? 'none',
+      ms: now() - started,
+    });
+    return result;
+  }
+
   const handlers = {
     async status(ctx: Ctx): Promise<DeployStatus> {
       const state = stateOf(ctx);
-      const platforms = await Promise.all(
-        ctx.project.deploy.map(async (p) => platformStatus(p, await resolve(ctx, p), state)),
-      );
-      return { platforms, action: state.action, last: state.last };
+      const [platforms, files] = await Promise.all([
+        Promise.all(
+          ctx.project.deploy.map(async (p) => platformStatus(p, await resolve(ctx, p), state)),
+        ),
+        deps.envFiles.list(ctx.project.path),
+      ]);
+      const envFiles = files.map((f) => f.name);
+      return {
+        platforms,
+        action: state.action,
+        last: state.last,
+        envFiles,
+        defaultEnvFile: DEFAULT_ENV_FILES.find((f) => envFiles.includes(f)) ?? envFiles[0] ?? null,
+      };
     },
+    envCompare: (
+      ctx: Ctx,
+      input: { platform: DeployPlatform; environment: string; file: string },
+    ) => envCompare(ctx, input),
     deployments: (ctx: Ctx, { platform }: { platform: DeployPlatform }) => list(ctx, platform),
     deploy: (ctx: Ctx, { platform, target }: { platform: DeployPlatform; target: DeployTarget }) =>
       deploy(ctx, platform, target),

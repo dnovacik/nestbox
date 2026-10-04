@@ -2,7 +2,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseJsonc, readLocalConfig, tomlTopLevel } from './config';
+import {
+  configVarKeys,
+  parseJsonc,
+  readLocalConfig,
+  tomlTableKeys,
+  tomlTopLevel,
+  wranglerEnvironments,
+} from './config';
 
 function tree(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'nestbox-deploy-config-'));
@@ -118,5 +125,54 @@ describe('readLocalConfig', () => {
   it('ignores oversized files', async () => {
     const dir = tree({ 'fly.toml': `app = "x"\n${'#'.repeat(70 * 1024)}` });
     expect((await readLocalConfig('fly', dir)).linked).toBe(false);
+  });
+});
+
+describe('config variables and environments', () => {
+  it('reads the keys of a TOML table, stopping at the next one', () => {
+    const text =
+      'name = "api"\n[vars]\nAPI_URL = "x"\nFLAG="1" # on\n\n[env.staging.vars]\nAPI_URL = "y"\nEXTRA = "z"\n';
+    expect(tomlTableKeys(text, 'vars')).toEqual(['API_URL', 'FLAG']);
+    expect(tomlTableKeys(text, 'env.staging.vars')).toEqual(['API_URL', 'EXTRA']);
+    expect(tomlTableKeys(text, 'missing')).toEqual([]);
+  });
+
+  it('lists named Workers environments from TOML or JSONC, valid names only', async () => {
+    const toml = tree({
+      'wrangler.toml':
+        'name = "api"\n[env.staging]\nname="x"\n[env.staging.vars]\nA="1"\n[env.qa.vars]\n[env."bad name"]\n',
+    });
+    expect(await wranglerEnvironments(toml)).toEqual(['staging', 'qa']);
+    const json = tree({
+      'wrangler.jsonc': '{ "name": "api", "env": { "staging": {}, "-x": {} } }',
+    });
+    expect(await wranglerEnvironments(json)).toEqual(['staging']);
+  });
+
+  it('reads the variables a platform gets from config, per environment', async () => {
+    const toml = tree({
+      'wrangler.toml': 'name = "api"\n[vars]\nA = "1"\n[env.staging.vars]\nB = "2"\n',
+    });
+    expect(await configVarKeys('cloudflare', toml, 'production')).toEqual(['A']);
+    expect(await configVarKeys('cloudflare', toml, 'staging')).toEqual(['B']);
+    const json = tree({
+      'wrangler.json':
+        '{ "name": "s", "vars": { "C": "3" }, "env": { "preview": { "vars": { "D": "4" } } } }',
+    });
+    expect(await configVarKeys('cloudflare', json, 'production')).toEqual(['C']);
+    expect(await configVarKeys('cloudflare', json, 'preview')).toEqual(['D']);
+    const fly = tree({
+      'fly.toml': "app = 'x'\n[env]\n  PORT = '8080'\n  NODE_ENV = 'production'\n[http_service]\n",
+    });
+    expect(await configVarKeys('fly', fly, 'app')).toEqual(['PORT', 'NODE_ENV']);
+    expect(await configVarKeys('vercel', fly, 'production')).toEqual([]);
+    const pages = tree({
+      'wrangler.toml':
+        'name = "s"\npages_build_output_dir = "dist"\n[vars]\nA = "1"\n[env.production.vars]\nP = "2"\n',
+    });
+    expect(await configVarKeys('cloudflare', pages, 'production')).toEqual(['P']);
+    expect(await configVarKeys('cloudflare', pages, 'preview')).toEqual(['A']);
+    const worker = tree({ 'wrangler.toml': 'name = "w"\n[vars]\nA = "1"\n[env.qa]\n' });
+    expect(await configVarKeys('cloudflare', worker, 'qa')).toEqual([]);
   });
 });

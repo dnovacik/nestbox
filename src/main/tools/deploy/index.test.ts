@@ -5,11 +5,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DeployPlatform } from '@shared/detected';
 import type { LogSnapshot } from '@shared/processes';
 import { makeDetectedForTest } from '@shared/test-fixtures';
-import type { DeployResult, DeployStatus, Listing } from '@shared/tools/deploy/contract';
+import type {
+  DeployResult,
+  DeployStatus,
+  EnvCompare,
+  Listing,
+} from '@shared/tools/deploy/contract';
 import { createMemoryLogger } from '../../logger';
 import { type FakeChild, fakePlatform, flushIo } from '../../processes/fake-child';
 import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
+import { createEnvFileAccess } from '../env/env-files';
 import { createDeployTool } from './index';
 
 type SpawnArgs = { cwd: string; command: string; args: string[]; env: NodeJS.ProcessEnv };
@@ -75,6 +81,7 @@ function setup(
   const logger = createMemoryLogger();
   tool = createDeployTool({
     logger,
+    envFiles: createEnvFileAccess(),
     now: () => 5_000,
     ...(opts.deployTimeoutMs === undefined ? {} : { deployTimeoutMs: opts.deployTimeoutMs }),
   });
@@ -389,5 +396,138 @@ describe('deploy tool: terminals', () => {
       [dir, 'vercel link'],
     ]);
     await expect(call('link', { platform: 'fly' })).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+});
+
+describe('deploy tool: env vs production', () => {
+  const ENV_FILES = {
+    ...LINKED,
+    '.env': 'DATABASE_URL=postgres://local\nSTRIPE_SECRET=sk_test_hunter2\n',
+    '.env.production': 'DATABASE_URL=postgres://prod-local\nLOCAL_ONLY=1\n',
+  };
+
+  it('offers the environments and env files, preselecting production and .env.production', async () => {
+    const { call } = setup({
+      files: { ...ENV_FILES, 'wrangler.toml': 'name = "api"\n[env.staging]\n' },
+    });
+    const status = await call<DeployStatus>('status');
+    expect(status.envFiles).toEqual(['.env', '.env.production']);
+    expect(status.defaultEnvFile).toBe('.env.production');
+    expect(status.platforms.map((p) => [p.platform, p.environments])).toEqual([
+      ['vercel', ['production', 'preview', 'development']],
+      ['netlify', ['production', 'deploy-preview', 'branch-deploy', 'dev']],
+      ['cloudflare', ['production', 'staging']],
+      ['fly', ['app']],
+    ]);
+  });
+
+  it('compares key names, never values, and logs only counts', async () => {
+    const { call, spawned, logger } = setup({
+      files: ENV_FILES,
+      answers: {
+        'env ls production --format json --non-interactive': {
+          code: 0,
+          stdout: fixture('vercel-env.json'),
+        },
+      },
+    });
+    const result = await call<EnvCompare>('envCompare', {
+      platform: 'vercel',
+      environment: 'production',
+      file: '.env.production',
+    });
+    expect(spawned()).toEqual(['vercel env ls production --format json --non-interactive']);
+    expect(result).toEqual({
+      state: 'ok',
+      onlyLocal: ['LOCAL_ONLY'],
+      onlyRemote: ['STRIPE_SECRET'],
+      both: ['DATABASE_URL'],
+    });
+    const text = JSON.stringify([result, logger.entries]);
+    expect(text).not.toMatch(/hunter2|postgres|prod-local/);
+    expect(JSON.stringify(logger.entries)).not.toMatch(/DATABASE_URL|LOCAL_ONLY/);
+  });
+
+  it('adds the variables the config itself deploys (fly.toml [env], wrangler vars)', async () => {
+    const { call, spawned } = setup({
+      files: {
+        '.env': 'PORT=3000\nDATABASE_URL=x\nSECRET_KEY_BASE=y\n',
+        'fly.toml': "app = 'shop-api'\n[env]\n  PORT = '8080'\n",
+        'wrangler.toml': 'name = "api"\n[env.staging.vars]\nPORT = "1"\n',
+      },
+      answers: {
+        'secrets list --json': { code: 0, stdout: fixture('fly-secrets.json') },
+        'secret list --format json --env staging': {
+          code: 0,
+          stdout: fixture('workers-secrets.json'),
+        },
+      },
+    });
+    expect(await call('envCompare', { platform: 'fly', environment: 'app', file: '.env' })).toEqual(
+      {
+        state: 'ok',
+        onlyLocal: [],
+        onlyRemote: [],
+        both: ['DATABASE_URL', 'PORT', 'SECRET_KEY_BASE'],
+      },
+    );
+    expect(
+      await call('envCompare', { platform: 'cloudflare', environment: 'staging', file: '.env' }),
+    ).toMatchObject({
+      onlyLocal: ['DATABASE_URL', 'SECRET_KEY_BASE'],
+      onlyRemote: ['API_KEY', 'SESSION_SECRET'],
+      both: ['PORT'],
+    });
+    expect(spawned()).toEqual([
+      'flyctl secrets list --json',
+      'wrangler secret list --format json --env staging',
+    ]);
+  });
+
+  it('uses each platform’s command for the environment', async () => {
+    const { call, spawned } = setup({
+      files: ENV_FILES,
+      answers: {
+        'env:list --json --context deploy-preview': {
+          code: 0,
+          stdout: fixture('netlify-env.json'),
+        },
+        'pages secret list --project-name site --env preview': {
+          code: 0,
+          stdout: fixture('pages-secrets.txt'),
+        },
+      },
+    });
+    await call('envCompare', { platform: 'netlify', environment: 'deploy-preview', file: '.env' });
+    await call('envCompare', { platform: 'cloudflare', environment: 'preview', file: '.env' });
+    expect(spawned()).toEqual([
+      'netlify env:list --json --context deploy-preview',
+      'wrangler pages secret list --project-name site --env preview',
+    ]);
+  });
+
+  it('refuses environments the platform does not offer and missing files; reports failures', async () => {
+    const { call, spawned } = setup({
+      files: ENV_FILES,
+      answers: { 'secrets list --json': { code: 1, stderr: 'Error: no access token available' } },
+    });
+    await expect(
+      call('envCompare', { platform: 'vercel', environment: 'staging', file: '.env' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(
+      await call('envCompare', {
+        platform: 'vercel',
+        environment: 'production',
+        file: '.env.local',
+      }),
+    ).toEqual({
+      state: 'no-file',
+    });
+    expect(await call('envCompare', { platform: 'fly', environment: 'app', file: '.env' })).toEqual(
+      {
+        state: 'logged-out',
+      },
+    );
+    expect(spawned()).toEqual(['flyctl secrets list --json']);
   });
 });

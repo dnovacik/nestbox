@@ -1,0 +1,4 @@
+{
+  "DATABASE_URL": "postgres://user:hunter2@db.example.com/shop",
+  "NODE_VERSION": "22"
+}

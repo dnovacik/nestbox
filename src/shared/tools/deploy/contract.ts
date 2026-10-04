@@ -46,6 +46,8 @@ export const PlatformStatusSchema = z.object({
   hint: z.string().nullable(),
   /** Whether "Link" can open the CLI's link command in a terminal. */
   canLink: z.boolean(),
+  /** The environments "Env" can compare against; the first is preselected. */
+  environments: z.array(z.string()),
 });
 export type PlatformStatus = z.infer<typeof PlatformStatusSchema>;
 
@@ -65,6 +67,9 @@ export const DeployStatusSchema = z.object({
   action: z.object({ platform: PlatformSchema, target: TargetSchema }).nullable(),
   /** The last deploy started from NestBox this session. */
   last: LastDeploySchema.nullable(),
+  /** Env files in the package folder (names only), and the one "Env" compares by default. */
+  envFiles: z.array(z.string()),
+  defaultEnvFile: z.string().nullable(),
 });
 export type DeployStatus = z.infer<typeof DeployStatusSchema>;
 
@@ -115,6 +120,18 @@ export const ListingSchema = z.discriminatedUnion('state', [
 ]);
 export type Listing = z.infer<typeof ListingSchema>;
 
+/** Key names only: values never leave main. */
+export const EnvCompareSchema = z.discriminatedUnion('state', [
+  z.object({
+    state: z.literal('ok'),
+    onlyLocal: z.array(z.string()),
+    onlyRemote: z.array(z.string()),
+    both: z.array(z.string()),
+  }),
+  z.object({ state: z.enum([...LISTING_FAILURES, 'no-file']) }),
+]);
+export type EnvCompare = z.infer<typeof EnvCompareSchema>;
+
 const DeployResultSchema = z.object({
   ok: z.boolean(),
   code: z.number().int().nullable(),
@@ -138,6 +155,15 @@ export const deployContract = defineContract({
     output: DeployResultSchema,
   },
   cancel: { input: z.strictObject({}), output: z.void() },
+  /** Network: the platform's keys for one environment against one local env file's keys. */
+  envCompare: {
+    input: z.strictObject({
+      platform: PlatformSchema,
+      environment: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/),
+      file: z.string().regex(/^\.env(\.[^/\\]+)?$/),
+    }),
+    output: EnvCompareSchema,
+  },
   /** Opens a terminal with the CLI's login command. */
   login: { input: z.strictObject({ platform: PlatformSchema }), output: z.void() },
   /** Opens a terminal with the CLI's link command (Vercel, Netlify). */

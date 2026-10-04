@@ -95,6 +95,94 @@ async function netlifySiteId(dir: string): Promise<string | null> {
   }
 }
 
+/** The first wrangler config: TOML text or a parsed JSON(C) object. */
+async function wranglerConfig(
+  dir: string,
+): Promise<{ toml: string } | { json: Record<string, unknown> | null } | null> {
+  for (const file of WRANGLER_FILES) {
+    const text = await readSmall(join(dir, file));
+    if (text === null) continue;
+    return file.endsWith('.toml') ? { toml: text } : { json: parseJsonc(text) };
+  }
+  return null;
+}
+
+/** Environment names that may reach a command line (`--env <name>`). */
+export const ENV_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
+
+const TABLE_HEADER = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/;
+
+/** The keys of a TOML `[table]` (bare keys only), up to the next header. */
+export function tomlTableKeys(text: string, table: string): string[] {
+  const keys: string[] = [];
+  let inside = false;
+  for (const line of text.split(/\r?\n/)) {
+    const header = TABLE_HEADER.exec(line);
+    if (header) {
+      inside = header[1]?.trim() === table;
+      continue;
+    }
+    const key = inside ? /^\s*([A-Za-z0-9_-]+)\s*=/.exec(line)?.[1] : undefined;
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return keys;
+}
+
+/** Named Workers environments (`[env.<name>]` or `env: { <name>: … }`), in file order. */
+export async function wranglerEnvironments(dir: string): Promise<string[]> {
+  const config = await wranglerConfig(dir);
+  if (config === null) return [];
+  let names: string[] = [];
+  if ('toml' in config) {
+    for (const line of config.toml.split(/\r?\n/)) {
+      const name = /^env\.([^.\s]+)(?:\.|$)/.exec(TABLE_HEADER.exec(line)?.[1]?.trim() ?? '')?.[1];
+      if (name !== undefined) names.push(name);
+    }
+  } else {
+    const env = config.json?.['env'];
+    names = isObj(env) ? Object.keys(env) : [];
+  }
+  return [...new Set(names)].filter((n) => ENV_NAME.test(n));
+}
+
+/** Variables the platform gets from the config file itself: wrangler `vars` (per environment), fly.toml `[env]`. */
+export async function configVarKeys(
+  platform: DeployPlatform,
+  dir: string,
+  environment: string,
+): Promise<string[]> {
+  if (platform === 'fly') {
+    const text = await readSmall(join(dir, 'fly.toml'));
+    return text === null ? [] : tomlTableKeys(text, 'env');
+  }
+  if (platform !== 'cloudflare') return [];
+  const config = await wranglerConfig(dir);
+  if (config === null) return [];
+  // Workers' top level is "production" here; its named environments don't inherit `vars`. Pages
+  // environments (production, preview) use the top-level `vars` unless they override them.
+  const pages =
+    'toml' in config
+      ? tomlTopLevel(config.toml, 'pages_build_output_dir') !== null
+      : str(config.json?.['pages_build_output_dir']) !== null;
+  const named = pages || environment !== 'production';
+  const read = (env: string | null): string[] | null => {
+    if ('toml' in config) {
+      const table = env === null ? 'vars' : `env.${env}.vars`;
+      return hasTable(config.toml, table) ? tomlTableKeys(config.toml, table) : null;
+    }
+    const envs = config.json?.['env'];
+    const scope = env === null ? config.json : isObj(envs) ? envs[env] : undefined;
+    const vars = isObj(scope) ? scope['vars'] : undefined;
+    return isObj(vars) ? Object.keys(vars) : null;
+  };
+  if (!named) return read(null) ?? [];
+  return read(environment) ?? (pages ? (read(null) ?? []) : []);
+}
+
+function hasTable(text: string, table: string): boolean {
+  return text.split(/\r?\n/).some((line) => TABLE_HEADER.exec(line)?.[1]?.trim() === table);
+}
+
 async function wrangler(dir: string): Promise<LocalConfig> {
   for (const file of WRANGLER_FILES) {
     const text = await readSmall(join(dir, file));
