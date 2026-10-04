@@ -308,6 +308,20 @@ Both tools work with npm, pnpm, yarn and bun, using the package manager that pro
 - **This is the one exception to NestBox's no-network rule:** it reaches the network through the package manager, and only then.
 - Exact command flags are verified against each package manager's current version when the tool is built.
 
+### Next in v2: deployment tools
+
+Three tools for the step after "it works locally", one release each. They reach the platforms only through their official CLIs (Vercel, Netlify, Wrangler for Cloudflare, flyctl), which the user installs and logs in to. NestBox stores no token or account, and goes to the network only when the user acts: the same exception as dependency health. Render and Railway come later.
+
+**Deployments (M, v1.14.0).**
+- Detects `vercel.json`/`.vercel`, `netlify.toml`/`.netlify`, `wrangler.toml`/`wrangler.json(c)` (Workers or Pages) and `fly.toml`.
+- Lists recent deployments (state, environment, branch, age, URL) when the tab opens and on Refresh, with links to the deployment, its logs and the dashboard. Netlify shows the linked site and links to its deploy history (its deploy list needs a JSON argument that can't pass through cmd.exe safely).
+- Deploy preview runs at once and streams its output into a log; production asks first, naming the package and the platform. Fly.io has no previews. Rollback stays in the dashboard.
+- Logged-out and unlinked CLIs get **Log in** and **Link** buttons that open a terminal with the CLI's own command.
+
+**Env vs production (S, v1.15.0).** Compares the keys in the local `.env` files with the platform's variables for an environment picked from a selector (production preselected): missing on either side, key names only, never values.
+
+**Ready to deploy (M, v1.16.0).** "Run checks" runs the scripts the user picks (build, test, lint and typecheck preselected when present) in the log viewer, plus instant checks: the Node version against the platform's runtime, high or critical advisories from the dependency cache, env keys present in production, and git clean and pushed. The result is a green, amber or red summary.
+
 ## Data model and persistence
 
 All state lives on the user's machine in one JSON store; project files stay the source of truth. Nestbox stores only what it cannot re-read from the project folder.
