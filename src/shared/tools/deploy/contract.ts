@@ -9,7 +9,8 @@ export const deployDefinition: ToolDefinition<Record<string, never>> = {
   id: 'deploy',
   name: 'Deploy',
   icon: 'rocket',
-  appliesTo: (p) => p.deploy.length > 0,
+  // Every package: without a platform config the tab explains how to set one up.
+  appliesTo: (p) => p.packageJson !== null || p.deploy.length > 0,
   settingsSchema: z.object({}),
 };
 
@@ -96,6 +97,10 @@ export const DeployStatusSchema = z.object({
   /** Env files in the package folder (names only), and the one "Env" compares by default. */
   envFiles: z.array(z.string()),
   defaultEnvFile: z.string().nullable(),
+  /** A root's workspace packages that have a platform config (the tab points to them). */
+  elsewhere: z.array(
+    z.object({ projectId: z.string(), name: z.string(), platforms: z.array(PlatformSchema) }),
+  ),
   /** The package's scripts, for "Run checks". */
   scripts: z.array(z.string()),
   /** The last (or running) "Run checks" of this package this session. */
@@ -201,7 +206,7 @@ export const deployContract = defineContract({
   },
   /** Opens a terminal with the CLI's login command. */
   login: { input: z.strictObject({ platform: PlatformSchema }), output: z.void() },
-  /** Opens a terminal with the CLI's link command (Vercel, Netlify). */
+  /** Opens a terminal with the CLI's link command (Vercel, Netlify), also to set a package up. */
   link: { input: z.strictObject({ platform: PlatformSchema }), output: z.void() },
   getLogs: {
     input: z.strictObject({ afterSeq: z.number().int().nonnegative().optional() }),
