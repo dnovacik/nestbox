@@ -4,7 +4,6 @@ import semver from 'semver';
 import { PACKAGE_MANAGERS, type PackageManager } from '@shared/detected';
 import type { SourceKind } from '@shared/tools/node/contract';
 
-
 export interface Requirement {
   /** A normalised semver range, or null for an alias that can't be resolved offline (`lts/*`, `node`). */
   range: string | null;
@@ -31,13 +30,17 @@ const ALIASES = new Set(['node', 'stable', 'latest', 'current']);
 /** A source's value as a requirement, or 'invalid' when it is neither a version, a range nor a known alias. */
 export function parseRequirement(kind: SourceKind, text: string): Requirement | 'invalid' {
   // Version files hold one version on the first line; nvm allows trailing comments.
-  const value = (kind === 'nvmrc' || kind === 'node-version' ? (text.split(/\r?\n/)[0] ?? '') : text).trim();
+  const value = (
+    kind === 'nvmrc' || kind === 'node-version' ? (text.split(/\r?\n/)[0] ?? '') : text
+  ).trim();
   if (value === '') return 'invalid';
   const lower = value.toLowerCase();
   if (lower === 'lts/*') return { range: null, fnmVersion: 'lts/*' };
   if (lower.startsWith('lts/')) {
     const major = LTS[lower.slice(4)];
-    return major === undefined ? 'invalid' : { range: semver.validRange(String(major)), fnmVersion: lower };
+    return major === undefined
+      ? 'invalid'
+      : { range: semver.validRange(String(major)), fnmVersion: lower };
   }
   if (ALIASES.has(lower)) return { range: null, fnmVersion: null };
   const range = semver.validRange(value);
@@ -52,11 +55,15 @@ export function parseRequirement(kind: SourceKind, text: string): Requirement | 
 }
 
 /** The sources that disagree with the requirement (the first source with a range). */
-export function conflictingSources(sources: readonly { kind: SourceKind; range: string | null }[]): SourceKind[] {
+export function conflictingSources(
+  sources: readonly { kind: SourceKind; range: string | null }[],
+): SourceKind[] {
   const ranged = sources.filter((s): s is { kind: SourceKind; range: string } => s.range !== null);
   const [first, ...rest] = ranged;
   if (!first) return [];
-  return rest.filter((s) => !semver.intersects(first.range, s.range, { includePrerelease: true })).map((s) => s.kind);
+  return rest
+    .filter((s) => !semver.intersects(first.range, s.range, { includePrerelease: true }))
+    .map((s) => s.kind);
 }
 
 export function satisfies(version: string, range: string): boolean {
@@ -65,7 +72,9 @@ export function satisfies(version: string, range: string): boolean {
 }
 
 /** `pnpm@10.30.2+sha512.…` → name and exact version; null for anything else. */
-export function parsePackageManager(field: unknown): { name: PackageManager; version: string } | null {
+export function parsePackageManager(
+  field: unknown,
+): { name: PackageManager; version: string } | null {
   if (typeof field !== 'string') return null;
   const match = /^([a-z]+)@([^+]+)(\+.*)?$/.exec(field.trim());
   if (!match) return null;

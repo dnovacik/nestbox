@@ -21,7 +21,13 @@ import {
 import type { Logger } from '../../logger';
 import type { PlatformAdapter } from '../../platform/adapter';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
-import { conflictingSources, parsePackageManager, parseRequirement, type Requirement, satisfies } from './versions';
+import {
+  conflictingSources,
+  parsePackageManager,
+  parseRequirement,
+  type Requirement,
+  satisfies,
+} from './versions';
 
 export interface NodeToolDeps {
   logger: Logger;
@@ -65,7 +71,10 @@ async function readSmall(path: string, max = FILE_MAX_BYTES): Promise<string | n
   }
 }
 
-const FILES: Partial<Record<SourceKind, string>> = { nvmrc: '.nvmrc', 'node-version': '.node-version' };
+const FILES: Partial<Record<SourceKind, string>> = {
+  nvmrc: '.nvmrc',
+  'node-version': '.node-version',
+};
 
 /** package.json as an object (detection keeps only name and scripts); null when missing or unreadable. */
 async function readPackageJson(dir: string): Promise<Record<string, unknown> | null> {
@@ -73,7 +82,9 @@ async function readPackageJson(dir: string): Promise<Record<string, unknown> | n
   if (!text) return null;
   try {
     const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -81,11 +92,16 @@ async function readPackageJson(dir: string): Promise<Record<string, unknown> | n
 
 function fieldOf(json: Record<string, unknown> | null, kind: 'engines' | 'volta'): unknown {
   const holder = json?.[kind];
-  return holder && typeof holder === 'object' ? (holder as Record<string, unknown>)['node'] : undefined;
+  return holder && typeof holder === 'object'
+    ? (holder as Record<string, unknown>)['node']
+    : undefined;
 }
 
 export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
-  const cache = new Map<string, { at: number; status: NodeStatus; requirement: Requirement | null }>();
+  const cache = new Map<
+    string,
+    { at: number; status: NodeStatus; requirement: Requirement | null }
+  >();
   /** `fnm exec --using=<v>` → the folder holding that Node, per version, for the session. */
   const fnmBins = new Map<string, string | null>();
 
@@ -127,7 +143,10 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
       }
       if (text === undefined) continue;
       const parsed = text === null ? 'invalid' : parseRequirement(kind, text);
-      const shown = text === null ? null : (file ? (text.split(/\r?\n/)[0] ?? '') : text).trim().slice(0, VALUE_MAX);
+      const shown =
+        text === null
+          ? null
+          : (file ? (text.split(/\r?\n/)[0] ?? '') : text).trim().slice(0, VALUE_MAX);
       sources.push({
         kind,
         value: shown,
@@ -138,14 +157,29 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
       });
     }
     const conflicts = new Set(
-      conflictingSources(sources.filter((s) => s.valid).map((s) => ({ kind: s.kind, range: s.requirement?.range ?? null }))),
+      conflictingSources(
+        sources
+          .filter((s) => s.valid)
+          .map((s) => ({ kind: s.kind, range: s.requirement?.range ?? null })),
+      ),
     );
     return sources.map((s) => ({ ...s, conflict: conflicts.has(s.kind) }));
   }
 
-  async function version(platform: PlatformAdapter, command: string, args: string[], cwd: string, timeoutMs: number, env?: Record<string, string>) {
+  async function version(
+    platform: PlatformAdapter,
+    command: string,
+    args: string[],
+    cwd: string,
+    timeoutMs: number,
+    env?: Record<string, string>,
+  ) {
     try {
-      const { code, stdout } = await platform.execCommand(command, args, { cwd, timeoutMs, ...(env ? { env } : {}) });
+      const { code, stdout } = await platform.execCommand(command, args, {
+        cwd,
+        timeoutMs,
+        ...(env ? { env } : {}),
+      });
       const text = stdout.trim().split(/\r?\n/).at(-1)?.trim() ?? '';
       return code === 0 && VERSION.test(text) ? text : null;
     } catch {
@@ -156,7 +190,8 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
   async function versionManager(platform: PlatformAdapter): Promise<VersionManager | null> {
     if (await platform.commandExists('fnm')) return 'fnm';
     if (await platform.commandExists('volta')) return 'volta';
-    if (platform.id === 'win32') return (await platform.commandExists('nvm')) ? 'nvm-windows' : null;
+    if (platform.id === 'win32')
+      return (await platform.commandExists('nvm')) ? 'nvm-windows' : null;
     // nvm is a shell function on macOS: its folder in the login-shell env is the sign.
     return (await platform.resolveShellEnv())['NVM_DIR'] ? 'nvm' : null;
   }
@@ -176,20 +211,38 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
     const fnmOn = ctx.settings.get().fnm && fnmFound && fnmVersion !== null;
 
     const nodeVersion = fnmOn
-      ? await version(platform, 'fnm', ['exec', `--using=${fnmVersion}`, 'node', '--version'], project.path, NODE_TIMEOUT_MS)
+      ? await version(
+          platform,
+          'fnm',
+          ['exec', `--using=${fnmVersion}`, 'node', '--version'],
+          project.path,
+          NODE_TIMEOUT_MS,
+        )
       : await version(platform, 'node', ['--version'], project.path, NODE_TIMEOUT_MS);
-    const nodeOk = nodeVersion !== null && requirement?.range ? satisfies(nodeVersion, requirement.range) : null;
+    const nodeOk =
+      nodeVersion !== null && requirement?.range ? satisfies(nodeVersion, requirement.range) : null;
 
     const field = parsePackageManager(json?.['packageManager'] ?? rootJson?.['packageManager']);
     let packageManager: NodeStatus['packageManager'] = null;
     if (field) {
-      const installed = await version(platform, field.name, ['--version'], project.path, PM_TIMEOUT_MS, COREPACK_OFFLINE);
+      const installed = await version(
+        platform,
+        field.name,
+        ['--version'],
+        project.path,
+        PM_TIMEOUT_MS,
+        COREPACK_OFFLINE,
+      );
       const sameName = project.packageManager === null || project.packageManager === field.name;
       packageManager = {
         ...field,
         detected: project.packageManager,
         installed: installed?.replace(/^v/, '') ?? null,
-        ok: !sameName ? false : installed === null ? null : installed.replace(/^v/, '') === field.version,
+        ok: !sameName
+          ? false
+          : installed === null
+            ? null
+            : installed.replace(/^v/, '') === field.version,
       };
     }
 
@@ -247,7 +300,9 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
   function describe(status: NodeStatus, source: SourceView | undefined): string | null {
     const parts: string[] = [];
     if (status.node.ok === false && source) {
-      parts.push(`Node ${status.node.version ?? '?'} doesn't match ${source.value ?? '?'} (${SOURCE_LABELS[source.kind]})`);
+      parts.push(
+        `Node ${status.node.version ?? '?'} doesn't match ${source.value ?? '?'} (${SOURCE_LABELS[source.kind]})`,
+      );
     }
     const pm = status.packageManager;
     if (pm?.ok === false) {
@@ -288,7 +343,11 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
               note: `▲ fnm couldn't provide Node ${wanted} (is it installed? fnm install ${wanted})`,
             };
           }
-          return { warning: describe(status, source), pathPrepend: bin, note: `▸ fnm: Node ${status.fnm.version} from ${bin}` };
+          return {
+            warning: describe(status, source),
+            pathPrepend: bin,
+            note: `▸ fnm: Node ${status.fnm.version} from ${bin}`,
+          };
         }
         return { warning: describe(status, source), pathPrepend: null, note: null };
       },

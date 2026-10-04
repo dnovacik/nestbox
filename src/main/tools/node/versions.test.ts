@@ -3,26 +3,50 @@ import { conflictingSources, parsePackageManager, parseRequirement, satisfies } 
 
 describe('parseRequirement', () => {
   it('reads version files: plain, v-prefixed and partial versions', () => {
-    expect(parseRequirement('nvmrc', '20\n')).toEqual({ range: '>=20.0.0 <21.0.0-0', fnmVersion: '20' });
-    expect(parseRequirement('node-version', 'v20.11.1')).toEqual({ range: '20.11.1', fnmVersion: '20.11.1' });
-    expect(parseRequirement('nvmrc', '  22.4 \n# comment')).toEqual({ range: '>=22.4.0 <22.5.0-0', fnmVersion: '22.4' });
+    expect(parseRequirement('nvmrc', '20\n')).toEqual({
+      range: '>=20.0.0 <21.0.0-0',
+      fnmVersion: '20',
+    });
+    expect(parseRequirement('node-version', 'v20.11.1')).toEqual({
+      range: '20.11.1',
+      fnmVersion: '20.11.1',
+    });
+    expect(parseRequirement('nvmrc', '  22.4 \n# comment')).toEqual({
+      range: '>=22.4.0 <22.5.0-0',
+      fnmVersion: '22.4',
+    });
   });
 
   it('maps LTS codenames to their major and leaves aliases unresolved', () => {
-    expect(parseRequirement('nvmrc', 'lts/iron')).toEqual({ range: '>=20.0.0 <21.0.0-0', fnmVersion: 'lts/iron' });
-    expect(parseRequirement('nvmrc', 'lts/Jod')).toEqual({ range: '>=22.0.0 <23.0.0-0', fnmVersion: 'lts/jod' });
+    expect(parseRequirement('nvmrc', 'lts/iron')).toEqual({
+      range: '>=20.0.0 <21.0.0-0',
+      fnmVersion: 'lts/iron',
+    });
+    expect(parseRequirement('nvmrc', 'lts/Jod')).toEqual({
+      range: '>=22.0.0 <23.0.0-0',
+      fnmVersion: 'lts/jod',
+    });
     expect(parseRequirement('nvmrc', 'lts/*')).toEqual({ range: null, fnmVersion: 'lts/*' });
     expect(parseRequirement('nvmrc', 'node')).toEqual({ range: null, fnmVersion: null });
   });
 
   it('reads engines ranges, with the lowest major for fnm', () => {
-    expect(parseRequirement('engines', '>=20.11 <23')).toEqual({ range: '>=20.11.0 <23.0.0-0', fnmVersion: '20' });
+    expect(parseRequirement('engines', '>=20.11 <23')).toEqual({
+      range: '>=20.11.0 <23.0.0-0',
+      fnmVersion: '20',
+    });
     expect(parseRequirement('engines', '^18 || ^20')).toMatchObject({ fnmVersion: '18' });
-    expect(parseRequirement('volta', '20.11.1')).toEqual({ range: '20.11.1', fnmVersion: '20.11.1' });
+    expect(parseRequirement('volta', '20.11.1')).toEqual({
+      range: '20.11.1',
+      fnmVersion: '20.11.1',
+    });
   });
 
   it('gives fnm only plain version tokens (they go on a command line)', () => {
-    expect(parseRequirement('volta', '20 || 22')).toEqual({ range: '>=20.0.0 <21.0.0-0||>=22.0.0 <23.0.0-0', fnmVersion: null });
+    expect(parseRequirement('volta', '20 || 22')).toEqual({
+      range: '>=20.0.0 <21.0.0-0||>=22.0.0 <23.0.0-0',
+      fnmVersion: null,
+    });
     expect(parseRequirement('nvmrc', '>=20')).toMatchObject({ fnmVersion: null });
   });
 
@@ -64,7 +88,10 @@ describe('satisfies', () => {
 
 describe('parsePackageManager', () => {
   it('splits name and version and drops the hash', () => {
-    expect(parsePackageManager('pnpm@10.30.2+sha512.abcdef')).toEqual({ name: 'pnpm', version: '10.30.2' });
+    expect(parsePackageManager('pnpm@10.30.2+sha512.abcdef')).toEqual({
+      name: 'pnpm',
+      version: '10.30.2',
+    });
     expect(parsePackageManager('npm@10.9.0')).toEqual({ name: 'npm', version: '10.9.0' });
     expect(parsePackageManager('yarn@4.5.1')).toEqual({ name: 'yarn', version: '4.5.1' });
   });
