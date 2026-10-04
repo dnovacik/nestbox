@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { queryKeys, useProcesses, useProjects, useTools } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
+import { composeStepMessage } from '@/tools/scripts/compose-steps';
 import { scriptListKey } from '@/tools/scripts/use-scripts';
 import { findProjectNode } from './find-project';
 import { PALETTE_GROUPS, type PaletteAction, paletteEntries } from './palette-entries';
@@ -86,7 +87,14 @@ export function CommandPalette() {
           }
           return;
         case 'group':
-          await api.tools.invoke('scripts', action.rootId, action.op === 'start' ? 'startRunGroup' : 'stopRunGroup', { name: action.name });
+          if (action.op === 'stop') {
+            await api.tools.invoke('scripts', action.rootId, 'stopRunGroup', { name: action.name });
+            return;
+          }
+          for (const step of (await api.tools.invoke('scripts', action.rootId, 'startRunGroup', { name: action.name })).compose) {
+            const message = composeStepMessage(step);
+            if (message) toast.warning(message);
+          }
           return;
         case 'claude':
           await api.tools.invoke('claude', action.projectId, action.op, {});

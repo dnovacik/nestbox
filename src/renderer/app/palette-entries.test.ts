@@ -12,7 +12,7 @@ function input(over: Partial<PaletteInput> = {}): PaletteInput {
     projects: [shop, blog],
     selected: findProjectNode([shop, blog], 'p1'),
     processes: [],
-    runGroups: [{ name: 'all', entries: [{ relPath: '', script: 'dev' }, { relPath: 'packages/api', script: 'start' }] }],
+    runGroups: [{ name: 'all', entries: [{ relPath: '', script: 'dev' }, { relPath: 'packages/api', script: 'start' }], compose: [] }],
     tools: [{ id: 'scripts', name: 'Scripts', icon: 'play' }],
     ...over,
   };

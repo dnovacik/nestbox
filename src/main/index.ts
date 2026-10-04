@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, Tray } from 'electron';
 import { splitProjectId } from '@shared/detected';
+import { NestboxError } from '@shared/errors';
 import type { EventChannel } from '@shared/ipc-names';
 import { healthDefinition } from '@shared/tools/health/contract';
 import { brandAsset } from './assets';
@@ -37,7 +38,7 @@ import { checkReachable } from './tools/database/reach';
 import { checkUrl } from './tools/health/check';
 import { ENV_FILE_PATTERN } from './detection/detect-project';
 import { createSharedContext } from './tools/shared-context';
-import { createToolHost } from './tools/tool-host';
+import { createToolHost, type ToolHost } from './tools/tool-host';
 import { handleOrphans } from './lifecycle/orphan-prompt';
 import { createQuitController, SHUTDOWN_TIMEOUT_MS } from './lifecycle/quit-controller';
 import { appMenuTemplate } from './app-menu';
@@ -125,6 +126,12 @@ if (!app.requestSingleInstanceLock()) {
     const assetEnv = { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath };
     const shared = createSharedContext();
     const envFiles = createEnvFileAccess();
+    // Run groups drive the Compose tool through the host (created below), so its validation and lock apply.
+    let toolHostRef: ToolHost | null = null;
+    const invokeCompose = async (projectId: string, method: 'up' | 'stop', input: object) => {
+      if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
+      return (await toolHostRef.invoke('compose', projectId, method, input)) as { ok: boolean };
+    };
     const tools = createMainTools({
       scripts: {
         processes,
@@ -154,6 +161,11 @@ if (!app.requestSingleInstanceLock()) {
         },
         emit: (projectId, event, payload) => emit('tools:event', { toolId: 'scripts', projectId, event, payload }),
         logger,
+        compose: {
+          up: (projectId, services, { wait }) =>
+            invokeCompose(projectId, 'up', services.length > 0 ? { services, wait } : { wait }),
+          stop: (projectId, services) => invokeCompose(projectId, 'stop', services.length > 0 ? { services } : {}),
+        },
       },
       env: {
         files: envFiles,
@@ -239,6 +251,7 @@ if (!app.requestSingleInstanceLock()) {
         set: (rootId, toolId, value) => projects.setToolSettings(rootId, toolId, value),
       },
     });
+    toolHostRef = toolHost;
 
     /** "shop" for a root, "shop · api" for a workspace package. Names only, never paths. */
     const projectLabel = (projectId: string): string | null => {

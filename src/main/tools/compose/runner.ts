@@ -16,6 +16,8 @@ export type ComposePlatform = Pick<
 >;
 
 export const ACTION_TIMEOUT_MS = 10 * 60_000;
+/** How long `up --wait` waits for services to become running or healthy. */
+export const WAIT_TIMEOUT_S = 120;
 const LOG_LINES = 5_000;
 const STDERR_CAP = 64 * 1024;
 
@@ -146,12 +148,18 @@ export class ComposePackage {
       await this.deps.platform.killTree(run.child.pid).catch(() => undefined);
   }
 
-  async runAction(name: ComposeAction, service: string | null): Promise<ActionResult> {
+  /** `services` empty = the whole stack. `wait` (up only) returns once the services are running or healthy. */
+  async runAction(
+    name: ComposeAction,
+    services: readonly string[],
+    { wait = false }: { wait?: boolean } = {},
+  ): Promise<ActionResult> {
     if (this.disposed) throw new NestboxError('NOT_FOUND', 'This package is gone');
     if (this.action) throw new NestboxError('CONFLICT', 'Another Compose action is running');
     const args = name === 'up' ? ['up', '-d'] : [name];
-    if (service !== null) args.push(service);
-    this.action = { name, service };
+    if (name === 'up' && wait) args.push('--wait', '--wait-timeout', String(WAIT_TIMEOUT_S));
+    args.push(...services);
+    this.action = { name, service: services.length === 1 ? (services[0] as string) : null };
     this.deps.emit.changed();
     const started = Date.now();
     this.logs.actions.push('system', `▸ docker compose ${args.join(' ')}`);

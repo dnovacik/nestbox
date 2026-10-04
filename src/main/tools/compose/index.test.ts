@@ -148,6 +148,29 @@ describe('compose tool: actions and logs', () => {
     });
   });
 
+  it('runs up for several known services with --wait and drops names that left the file', async () => {
+    const { call, calls, lastChild } = setup();
+    const result = call('up', { services: ['db', 'gone', 'cache'], wait: true });
+    await vi.waitFor(() =>
+      expect(calls().at(-1)).toEqual([
+        'up',
+        '-d',
+        '--wait',
+        '--wait-timeout',
+        '120',
+        'db',
+        'cache',
+      ]),
+    );
+    lastChild().exit(0);
+    expect(await result).toEqual({ ok: true, code: 0 });
+  });
+
+  it('refuses a services list with none left', async () => {
+    const { call } = setup();
+    await expect(call('stop', { services: ['gone'] })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
   it('runs down for the whole stack, without -v', async () => {
     const { call, calls, lastChild } = setup();
     const result = call('down');

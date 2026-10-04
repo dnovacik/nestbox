@@ -7,10 +7,17 @@ import { RunGroups } from './RunGroups';
 import { installScriptsBridge } from './test-bridge';
 
 const packages = [
-  { relPath: '', name: 'shop', scripts: ['dev', 'build'] },
-  { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'] },
+  { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: true },
+  { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false },
 ];
-const group = { name: 'dev', entries: [{ relPath: 'packages/api', script: 'dev' }] };
+const composeOk = () => ({
+  state: 'ok',
+  file: 'compose.yaml',
+  services: ['db', 'redis'].map((name) => ({ name, state: 'running', health: null, exitCode: null, ports: [] })),
+  action: null,
+  following: null,
+});
+const group = { name: 'dev', entries: [{ relPath: 'packages/api', script: 'dev' }], compose: [] };
 
 describe('RunGroups', () => {
   it('is absent on a workspace package', async () => {
@@ -68,6 +75,7 @@ describe('RunGroups', () => {
               { relPath: 'packages/api', script: 'dev' },
               { relPath: '', script: 'build' },
             ],
+            compose: [],
           },
         },
       ]),
@@ -95,5 +103,86 @@ describe('RunGroups', () => {
     const confirm = await screen.findByRole('alertdialog');
     await userEvent.click(within(confirm).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(callsTo('deleteRunGroup')).toEqual([{ name: 'dev' }]));
+  });
+
+  it('creates a compose-only group with some of the services', async () => {
+    const { callsTo } = installScriptsBridge({ runGroups: [], packages, methods: { status: composeOk } });
+    renderWithProviders(<RunGroups projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New run group' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Group name' }), 'services');
+    expect(within(dialog).queryByRole('group', { name: 'Compose: packages/api' })).toBeNull();
+    const compose = within(dialog).getByRole('group', { name: 'Compose: Root' });
+    await userEvent.click(within(compose).getByRole('checkbox', { name: 'Start compose services' }));
+    await userEvent.click(within(compose).getByRole('radio', { name: 'Some services' }));
+    const save = within(dialog).getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    await userEvent.click(await within(compose).findByRole('checkbox', { name: 'redis' }));
+    await userEvent.click(save);
+    await waitFor(() =>
+      expect(callsTo('saveRunGroup')).toEqual([
+        { group: { name: 'services', entries: [], compose: [{ relPath: '', services: ['redis'] }] } },
+      ]),
+    );
+  });
+
+  it('offers only all services when Docker cannot list them', async () => {
+    const { callsTo } = installScriptsBridge({
+      runGroups: [],
+      packages,
+      methods: { status: () => ({ state: 'daemon-down', file: 'compose.yaml' }) },
+    });
+    renderWithProviders(<RunGroups projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New run group' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Group name' }), 'db');
+    const compose = within(dialog).getByRole('group', { name: 'Compose: Root' });
+    await userEvent.click(within(compose).getByRole('checkbox', { name: 'Start compose services' }));
+    expect(await within(compose).findByText(/Docker can't list the services/)).toBeInTheDocument();
+    expect(within(compose).queryByRole('radio', { name: 'Some services' })).toBeNull();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(callsTo('saveRunGroup')).toEqual([
+        { group: { name: 'db', entries: [], compose: [{ relPath: '', services: [] }] } },
+      ]),
+    );
+  });
+
+  it('summarises compose services and offers Start and Stop for a compose-only group', async () => {
+    installScriptsBridge({
+      runGroups: [
+        { ...group, compose: [{ relPath: '', services: ['db', 'redis'] }] },
+        { name: 'stack', entries: [], compose: [{ relPath: 'packages/api', services: [] }] },
+      ],
+      packages,
+    });
+    renderWithProviders(<RunGroups projectId="p1" />);
+    expect(await screen.findByText('packages/api dev · compose: db, redis')).toBeInTheDocument();
+    expect(screen.getByText('compose: packages/api all')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start group stack' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop group stack' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop group dev' })).toBeNull();
+  });
+
+  it('warns about compose steps that did not work', async () => {
+    installScriptsBridge({
+      runGroups: [group],
+      packages,
+      methods: {
+        startRunGroup: () => ({
+          started: [],
+          skipped: [],
+          compose: [
+            { relPath: '', result: 'ok' },
+            { relPath: 'packages/api', result: 'failed' },
+          ],
+        }),
+      },
+    });
+    renderWithProviders(<RunGroups projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Start group dev' }));
+    expect(
+      await screen.findByText("Compose in packages/api didn't start its services: see its Compose tab"),
+    ).toBeInTheDocument();
   });
 });

@@ -58,6 +58,10 @@ function setup() {
     isFile: vi.fn(async (_path: string) => true),
     emit: vi.fn(),
     logger: createMemoryLogger(),
+    compose: {
+      up: vi.fn(async (_projectId: string, _services: string[], _opts: { wait: boolean }) => ({ ok: true })),
+      stop: vi.fn(async (_projectId: string, _services: string[]) => ({ ok: true })),
+    },
   };
   const adapter = createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' });
   const openInEditor = vi.fn(async () => {});
@@ -87,16 +91,16 @@ afterEach(() => {
 describe('scripts tool: list and lifecycle', () => {
   it('lists scripts, run groups and packages on a root', async () => {
     const { call, setGroups } = setup();
-    setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }] }]);
+    setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }]);
     expect(await call('r1', 'list')).toEqual({
       scripts: [
         { name: 'dev', command: 'vite', autoRestart: false },
         { name: 'build', command: 'vite build', autoRestart: false },
       ],
-      runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }] }],
+      runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }],
       packages: [
-        { relPath: '', name: 'shop', scripts: ['dev', 'build'] },
-        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'] },
+        { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: false },
+        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false },
       ],
     });
   });
@@ -249,6 +253,7 @@ describe('scripts tool: run groups', () => {
   const group = (name: string, entries: [string, string][]): RunGroup => ({
     name,
     entries: entries.map(([relPath, script]) => ({ relPath, script })),
+    compose: [],
   });
 
   it('saves, renames and deletes groups on the root only', async () => {
@@ -309,6 +314,87 @@ describe('scripts tool: run groups', () => {
     expect(processes.get(api.id, 'dev')).toMatchObject({ state: 'stopped', nextRestartAt: null });
     await vi.advanceTimersByTimeAsync(30_000);
     expect(platform.spawnScript).toHaveBeenCalledTimes(1);
+  });
+
+  const withCompose = (g: RunGroup, compose: [string, string[]][]): RunGroup => ({
+    ...g,
+    compose: compose.map(([relPath, services]) => ({ relPath, services })),
+  });
+  const composeRoot = makeDetectedForTest({ ...root, dockerCompose: 'compose.yaml', workspaces: [api] });
+
+  it('brings compose services up (and waits) before the scripts start', async () => {
+    const { call, setGroups, deps, platform } = setup();
+    deps.getDetected = (id: string) => (id === 'r1' ? composeRoot : api);
+    const order: string[] = [];
+    let release = () => {};
+    deps.compose.up.mockImplementation(async (projectId: string) => {
+      order.push(`compose ${projectId}`);
+      await new Promise<void>((r) => (release = r));
+      return { ok: true };
+    });
+    platform.spawnScript.mockImplementation(((...args: Parameters<typeof platform.spawnScript>) => {
+      order.push('script');
+      return fakePlatform().spawnScript(...args);
+    }) as typeof platform.spawnScript);
+    setGroups([withCompose(group('dev', [['packages/api', 'dev']]), [['', ['db', 'redis']]])]);
+    const started = call('r1', 'startRunGroup', { name: 'dev' });
+    await vi.waitFor(() => expect(order).toEqual(['compose r1']));
+    release();
+    expect(await started).toMatchObject({ compose: [{ relPath: '', result: 'ok' }] });
+    expect(order).toEqual(['compose r1', 'script']);
+    expect(deps.compose.up).toHaveBeenCalledWith('r1', ['db', 'redis'], { wait: true });
+  });
+
+  it('starts the scripts even when a compose step fails, and says why', async () => {
+    const { call, setGroups, deps } = setup();
+    const composeApi = makeDetectedForTest({ ...api, dockerCompose: 'docker-compose.yml' });
+    deps.getDetected = (id: string) => {
+      if (id === 'r1') return composeRoot;
+      if (id === api.id) return composeApi;
+      throw new NestboxError('NOT_FOUND', 'Project not found');
+    };
+    deps.compose.up.mockImplementation(async (projectId: string) => {
+      if (projectId === 'r1') throw new NestboxError('CONFLICT', 'Another Compose action is running');
+      return { ok: false };
+    });
+    setGroups([
+      withCompose(group('dev', [['packages/api', 'dev']]), [
+        ['', []],
+        ['packages/api', ['db']],
+        ['packages/gone', []],
+      ]),
+    ]);
+    const result = (await call('r1', 'startRunGroup', { name: 'dev' })) as { started: unknown[]; compose: unknown[] };
+    expect(result.started).toHaveLength(1);
+    expect(result.compose).toEqual([
+      { relPath: '', result: 'busy' },
+      { relPath: 'packages/api', result: 'failed' },
+      { relPath: 'packages/gone', result: 'missing' },
+    ]);
+  });
+
+  it('calls a step missing when its services left the file or the package lost its compose file', async () => {
+    const { call, setGroups, deps } = setup();
+    deps.getDetected = (id: string) => (id === 'r1' ? composeRoot : api);
+    deps.compose.up.mockRejectedValue(new NestboxError('NOT_FOUND', 'None of these services are in the compose file'));
+    setGroups([withCompose(group('db', []), [['', ['old']], ['packages/api', []]])]);
+    expect(await call('r1', 'startRunGroup', { name: 'db' })).toEqual({
+      started: [],
+      skipped: [],
+      compose: [
+        { relPath: '', result: 'missing' },
+        { relPath: 'packages/api', result: 'missing' },
+      ],
+    });
+  });
+
+  it('stopping a group stops its compose services, never down', async () => {
+    const { call, setGroups, deps } = setup();
+    deps.getDetected = (id: string) => (id === 'r1' ? composeRoot : api);
+    setGroups([withCompose(group('db', []), [['', ['db']]])]);
+    await call('r1', 'stopRunGroup', { name: 'db' });
+    expect(deps.compose.stop).toHaveBeenCalledWith('r1', ['db']);
+    expect(deps.compose.up).not.toHaveBeenCalled();
   });
 
   it('stops only the group\'s live entries', async () => {

@@ -4,6 +4,7 @@ import type { RunGroup } from '@shared/types';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/queries';
+import { composeStepMessage } from './compose-steps';
 
 const showError = (error: unknown): void => {
   toast.error(errorMessage(error));
@@ -70,6 +71,10 @@ export function useRunGroupActions(projectId: string) {
           .map((e) => `${e.relPath === '' ? '' : `${e.relPath} `}${e.script} (${e.reason})`)
           .join(', ');
         toast.warning(`Skipped ${result.skipped.length} ${result.skipped.length === 1 ? 'script' : 'scripts'}: ${list}`);
+      }
+      for (const step of result.compose) {
+        const message = composeStepMessage(step);
+        if (message) toast.warning(message);
       }
     },
     onSettled: refresh,

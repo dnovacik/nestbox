@@ -30,14 +30,15 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
           return {
             scripts: fx.scripts ?? [{ name: 'dev', command: 'vite', autoRestart: false }],
             runGroups: fx.runGroups === undefined ? [] : fx.runGroups,
-            packages: fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'] }] : fx.packages,
+            packages:
+              fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false }] : fx.packages,
           };
         case 'getLogs':
           return { lines: [], firstSeq: 1, lastSeq: 0 };
         case 'setAutoRestart':
           return { enabled: (input as { enabled: boolean }).enabled };
         case 'startRunGroup':
-          return { started: [], skipped: [] };
+          return { started: [], skipped: [], compose: [] };
         case 'saveRunGroup':
         case 'deleteRunGroup':
           return [];
