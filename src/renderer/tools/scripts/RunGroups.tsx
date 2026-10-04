@@ -254,7 +254,7 @@ export function RunGroups({ projectId }: { projectId: string }) {
         </Button>
       </div>
       {data.runGroups.length === 0 ? (
-        <p className="text-xs text-fg-faint">Start several scripts together, e.g. API + web.</p>
+        <p className="text-xs text-fg-faint">Start several scripts together, e.g. API + web, after their compose services.</p>
       ) : (
         <ul className="space-y-1.5">
           {data.runGroups.map((group) => (
