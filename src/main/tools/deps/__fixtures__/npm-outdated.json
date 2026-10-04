@@ -1,0 +1,16 @@
+{
+  "lodash": {
+    "current": "4.17.15",
+    "wanted": "4.17.15",
+    "latest": "4.18.1",
+    "dependent": "npm",
+    "location": "/work/demo/node_modules/lodash"
+  },
+  "semver": {
+    "current": "6.3.1",
+    "wanted": "6.3.1",
+    "latest": "7.8.5",
+    "dependent": "npm",
+    "location": "/work/demo/node_modules/semver"
+  }
+}

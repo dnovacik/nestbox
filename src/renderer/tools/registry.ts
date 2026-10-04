@@ -1,6 +1,7 @@
 import { claudeRendererTool } from './claude';
 import { composeRendererTool } from './compose';
 import { databaseRendererTool } from './database';
+import { depsRendererTool } from './deps';
 import { envRendererTool } from './env';
 import { gitRendererTool } from './git';
 import { healthRendererTool } from './health';
@@ -28,6 +29,7 @@ export const rendererTools: readonly RendererTool[] = [
   mockRendererTool,
   inspectorRendererTool,
   nodeRendererTool,
+  depsRendererTool,
 ];
 
 export function getRendererTool(id: string): RendererTool | undefined {

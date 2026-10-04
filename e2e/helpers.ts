@@ -44,7 +44,13 @@ export async function launch(
     : process.env[pathKey];
   // A dev-server URL in the environment would point the built app at a server that isn't running.
   const env = Object.fromEntries(
-    Object.entries({ ...process.env, [pathKey]: path, NESTBOX_USER_DATA_DIR: userData }).filter(
+    Object.entries({
+      ...process.env,
+      [pathKey]: path,
+      NESTBOX_USER_DATA_DIR: userData,
+      // macOS and Linux build PATH from a login shell, which puts system folders first: prepend there too.
+      ...(opts.pathPrepend ? { NESTBOX_PATH_PREPEND: opts.pathPrepend } : {}),
+    }).filter(
       (entry): entry is [string, string] =>
         entry[1] !== undefined && entry[0] !== 'ELECTRON_RENDERER_URL',
     ),

@@ -61,6 +61,7 @@ describe('persisted types', () => {
       closeToTray: true,
       trayIconTheme: 'dark-taskbar',
       watchedPorts: [3000, 5173, 5432, 6379, 8080],
+      depsSchedule: 'off',
     });
   });
 

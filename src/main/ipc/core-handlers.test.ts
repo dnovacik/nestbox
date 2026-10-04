@@ -49,6 +49,10 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       kill: vi.fn(async () => ({ result: 'killed' as const, processName: 'node.exe' })),
       waitUntilFree: vi.fn(async () => true),
     },
+    deps: {
+      overview: vi.fn(async () => ({ projects: [], runningAll: false, schedule: 'off' as const })),
+      checkAll: vi.fn(),
+    },
     ...over,
   };
 }
@@ -217,5 +221,13 @@ describe('core handlers', () => {
         expect(d.openExternal).not.toHaveBeenCalled();
       },
     );
+  });
+
+  it('answers the Dependencies page from the cache and starts Check all in the background', async () => {
+    const d = deps();
+    const handlers = createCoreHandlers(d);
+    expect(await handlers['deps:overview']()).toEqual({ projects: [], runningAll: false, schedule: 'off' });
+    await handlers['deps:checkAll']();
+    expect(d.deps.checkAll).toHaveBeenCalledTimes(1);
   });
 });

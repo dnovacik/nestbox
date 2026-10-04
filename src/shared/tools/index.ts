@@ -3,6 +3,7 @@ import type { ToolDefinition, ToolEvents } from '../tool';
 import { claudeContract, claudeDefinition, claudeEvents } from './claude/contract';
 import { composeContract, composeDefinition, composeEvents } from './compose/contract';
 import { databaseContract, databaseDefinition, databaseEvents } from './database/contract';
+import { depsContract, depsDefinition, depsEvents } from './deps/contract';
 import { envContract, envDefinition, envEvents } from './env/contract';
 import { gitContract, gitDefinition, gitEvents } from './git/contract';
 import { healthContract, healthDefinition, healthEvents } from './health/contract';
@@ -29,6 +30,7 @@ export const toolContracts = {
   mock: mockContract,
   inspector: inspectorContract,
   node: nodeContract,
+  deps: depsContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -45,6 +47,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   mockDefinition as ToolDefinition<unknown>,
   inspectorDefinition as ToolDefinition<unknown>,
   nodeDefinition as ToolDefinition<unknown>,
+  depsDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -71,6 +74,7 @@ export const toolEvents = {
   mock: mockEvents,
   inspector: inspectorEvents,
   node: {},
+  deps: depsEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;

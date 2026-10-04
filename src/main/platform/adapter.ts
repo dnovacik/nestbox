@@ -87,6 +87,8 @@ export interface PlatformDeps {
   logger?: Logger;
   /** Windows: finds a command on PATH, never in the current folder (tests inject one). */
   resolveCommand?(command: string, env: NodeJS.ProcessEnv): string | null;
+  /** Development only (NESTBOX_PATH_PREPEND, unpackaged): folders put first on the login shell's PATH, for e2e fakes. */
+  pathPrepend?: string;
 }
 
 export interface PlatformAdapter {
