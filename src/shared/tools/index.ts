@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { ToolDefinition, ToolEvents } from '../tool';
 import { claudeContract, claudeDefinition, claudeEvents } from './claude/contract';
+import { composeContract, composeDefinition, composeEvents } from './compose/contract';
 import { databaseContract, databaseDefinition, databaseEvents } from './database/contract';
 import { envContract, envDefinition, envEvents } from './env/contract';
 import { gitContract, gitDefinition, gitEvents } from './git/contract';
@@ -21,6 +22,7 @@ export const toolContracts = {
   database: databaseContract,
   todos: todosContract,
   health: healthContract,
+  compose: composeContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -33,6 +35,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   databaseDefinition as ToolDefinition<unknown>,
   todosDefinition as ToolDefinition<unknown>,
   healthDefinition as ToolDefinition<unknown>,
+  composeDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -55,6 +58,7 @@ export const toolEvents = {
   database: databaseEvents,
   todos: {},
   health: healthEvents,
+  compose: composeEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
