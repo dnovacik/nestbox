@@ -29,6 +29,12 @@ test('the packaged app starts, answers IPC and adds a project', async () => {
       (globalThis as unknown as { nestbox: { invoke(channel: string, input: unknown): Promise<unknown> } }).nestbox.invoke('app:getInfo', undefined),
     );
     expect(info).toMatchObject({ ok: true, data: { platform: expect.stringMatching(/^(win32|darwin)$/) } });
+    // A fresh profile opens the first-run tool picker (Everything is preselected).
+    const welcome = page.getByRole('dialog', { name: 'Welcome to NestBox' });
+    if (await welcome.waitFor({ timeout: 20_000 }).then(() => true, () => false)) {
+      await welcome.getByRole('button', { name: 'Start with these tools' }).click();
+      await slowExpect(welcome).toBeHidden();
+    }
     await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Add project' }).click();
     await slowExpect(page.getByRole('heading', { name: 'nestbox-e2e-app' })).toBeVisible();
     // A tool that depends on packaged node_modules (sirv) loads and answers.

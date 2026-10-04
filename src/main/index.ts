@@ -24,7 +24,8 @@ import { isAppUrl } from './security/origin';
 import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
 import { createPidLedger } from './processes/pid-ledger';
-import { ProcessManager } from './processes/process-manager';
+import { type ProcessEvent, ProcessManager } from './processes/process-manager';
+import { isToolEnabled } from '@shared/tools';
 import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
@@ -79,6 +80,8 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     const store = new StoreService(createElectronStoreBackend(app.getPath('userData')), logger);
+    /** Settings → Tools (v1.17): the core is always on. */
+    const toolEnabled = (toolId: string) => isToolEnabled(store.getSettings().disabledTools, toolId);
     const platform = createPlatformAdapter({
       // Development only, like NESTBOX_USER_DATA_DIR: the end-to-end tests' fake commands.
       ...(app.isPackaged || !process.env['NESTBOX_PATH_PREPEND'] ? {} : { pathPrepend: process.env['NESTBOX_PATH_PREPEND'] }),
@@ -150,6 +153,10 @@ if (!app.requestSingleInstanceLock()) {
         stop: () => invokeTool('scripts', projectId, 'stop', { script }),
         timeoutMs: READY_SCRIPT_TIMEOUT_MS,
       });
+    const healthListeners = new Set<(event: ProcessEvent) => void>();
+    processes.on((event) => {
+      for (const listener of healthListeners) listener(event);
+    });
     const depsCache = createDepsCache(join(app.getPath('userData'), 'deps-cache.json'), logger);
     const depsRunning = new Set<string>();
     const tools = createMainTools({
@@ -239,7 +246,14 @@ if (!app.requestSingleInstanceLock()) {
       database: { envFiles, checkReachable, firstFreePort, logger },
       todos: { logger },
       health: {
-        processes,
+        // Gated: while Health is off it sees no live scripts, so no checks run.
+        processes: {
+          list: () => (toolEnabled('health') ? processes.list() : []),
+          on: (listener) => {
+            healthListeners.add(listener);
+            return () => healthListeners.delete(listener);
+          },
+        },
         getDetected: (id) => {
           try {
             return projects.getDetected(id);
@@ -279,15 +293,17 @@ if (!app.requestSingleInstanceLock()) {
       platform,
       emit: (payload) => emit('tools:event', payload),
       logger,
+      isEnabled: toolEnabled,
       toolSettings: {
         get: (rootId, toolId) => projects.getToolSettings(rootId, toolId),
         set: (rootId, toolId, value) => projects.setToolSettings(rootId, toolId, value),
       },
     });
     toolHostRef = toolHost;
+    let disabledBefore: readonly string[] = [...store.getSettings().disabledTools];
     const depsScheduler = createDepsScheduler({
       rootIds: async () => (await projects.list()).map((p) => p.id),
-      schedule: () => store.getSettings().depsSchedule,
+      schedule: () => (toolEnabled('deps') ? store.getSettings().depsSchedule : 'off'),
       lastChecked: (rootId) => depsCache.get(rootId)?.checkedAt ?? null,
       check: async (rootId) => {
         await toolHost.invoke('deps', rootId, 'check', {});
@@ -412,11 +428,21 @@ if (!app.requestSingleInstanceLock()) {
             runningAll: depsScheduler.running(),
             schedule: store.getSettings().depsSchedule,
           }),
-          checkAll: () => void depsScheduler.runAll(),
+          checkAll: () => {
+            if (toolEnabled('deps')) void depsScheduler.runAll();
+          },
         },
         onSettingsChanged: (settings) => {
           nativeTheme.themeSource = settings.theme;
           tray?.refresh();
+          // A tool turned off lets go of every project (its servers, followers and watchers stop).
+          const off = settings.disabledTools.filter((id) => !disabledBefore.includes(id) && !toolEnabled(id));
+          const rootIds = store.getProjects().map((p) => p.id);
+          for (const toolId of off) toolHost.deactivate(toolId, rootIds);
+          if (off.includes('health') || (disabledBefore.includes('health') && toolEnabled('health')))
+            for (const listener of healthListeners) listener({ type: 'changed' });
+          if (off.length > 0) logger.info('tools turned off', { count: off.length });
+          disabledBefore = [...settings.disabledTools];
         },
         appInfo: () => ({ version: app.getVersion(), platform: platform.id }),
         openExternal: (url) => shell.openExternal(url),

@@ -80,6 +80,10 @@ export const AppSettingsSchema = z.object({
   watchedPorts: WatchedPortsSchema.default(() => [...DEFAULT_WATCHED_PORTS]),
   /** Background dependency checks (the one tool that reaches the network); added in v1.12 with a default. */
   depsSchedule: z.enum(DEPS_SCHEDULES).default('off'),
+  /** Tools turned off app-wide (v1.17). A deny list, so tools added later start on. */
+  disabledTools: z.array(z.string().min(1).max(64)).max(64).default([]),
+  /** Whether the first-run tool picker was answered. Stores from before v1.17 default to true (no picker). */
+  toolsChosen: z.boolean().default(true),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -93,7 +97,8 @@ export const StoreDataSchema = z.object({
 export type StoreData = z.infer<typeof StoreDataSchema>;
 
 export function defaultStoreData(): StoreData {
-  return { schemaVersion: CURRENT_SCHEMA_VERSION, settings: AppSettingsSchema.parse({}), projects: [] };
+  // A fresh store is a new install: it asks which tools to use (stores that predate the field default to true).
+  return { schemaVersion: CURRENT_SCHEMA_VERSION, settings: { ...AppSettingsSchema.parse({}), toolsChosen: false }, projects: [] };
 }
 
 export const PLATFORM_IDS = ['win32', 'darwin'] as const;

@@ -33,6 +33,8 @@ export interface MainTool<S, C extends ToolContract> extends ToolDefinition<S> {
   dispose?(): Promise<void>;
   /** A root project (and its workspace packages) was removed: drop watchers and caches for it. */
   forgetProject?(rootId: string): void;
+  /** Something of this tool runs now (a server, a deploy…): turning it off asks first. */
+  busy?(): boolean;
 }
 
 /** Type-erased tool for the host's dynamic dispatch. */
@@ -42,6 +44,7 @@ export interface AnyMainTool extends ToolDefinition<unknown> {
   activate?(ctx: ToolContext): void;
   dispose?(): Promise<void>;
   forgetProject?(rootId: string): void;
+  busy?(): boolean;
 }
 
 export function defineMainTool<S, C extends ToolContract>(tool: MainTool<S, C>): AnyMainTool {

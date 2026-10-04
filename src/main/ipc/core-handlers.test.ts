@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { AppSettingsSchema, type AppSettings } from '@shared/types';
+import { SettingsPatchSchema } from '@shared/settings';
 import { createCoreHandlers, type CoreHandlerDeps } from './core-handlers';
 
 const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
@@ -31,7 +32,14 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
     },
-    toolHost: { list: vi.fn(async () => []), invoke: vi.fn(), disposeAll: vi.fn(), forgetProject: vi.fn() },
+    toolHost: {
+      list: vi.fn(async () => []),
+      invoke: vi.fn(),
+      disposeAll: vi.fn(),
+      forgetProject: vi.fn(),
+      deactivate: vi.fn(),
+      busyTools: vi.fn(() => ['static']),
+    },
     platform: {
       openInEditor: vi.fn(async () => {}),
       openTerminal: vi.fn(async () => {}),
@@ -229,5 +237,22 @@ describe('core handlers', () => {
     expect(await handlers['deps:overview']()).toEqual({ projects: [], runningAll: false, schedule: 'off' });
     await handlers['deps:checkAll']();
     expect(d.deps.checkAll).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('tools:busy and turning tools off', () => {
+  it('answers the busy tool ids', async () => {
+    const handlers = createCoreHandlers(deps());
+    expect(await handlers['tools:busy']()).toEqual(['static']);
+  });
+
+  it('accepts only toggleable tools and toolsChosen: true in a settings patch', async () => {
+    const d = deps();
+    const handlers = createCoreHandlers(d);
+    const view = await handlers['settings:update']({ disabledTools: ['static', 'git'], toolsChosen: true });
+    expect(view).toMatchObject({ disabledTools: ['static', 'git'], toolsChosen: true });
+    expect(SettingsPatchSchema.safeParse({ disabledTools: ['scripts'] }).success).toBe(false);
+    expect(SettingsPatchSchema.safeParse({ disabledTools: ['nope'] }).success).toBe(false);
+    expect(SettingsPatchSchema.safeParse({ toolsChosen: false }).success).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
@@ -35,9 +35,18 @@ export async function launch(
   opts: {
     userData?: string;
     /** Put first on PATH, e.g. a fake command. */ pathPrepend?: string;
+    /** Start like a new install, with the first-run tool picker (by default the profile has answered it). */
+    firstRun?: boolean;
   } = {},
 ): Promise<{ app: ElectronApplication; page: Page; userData: string }> {
   const userData = opts.userData ?? (await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-')));
+  // A fresh profile is a new install, which opens the tool picker: answer it ahead unless the test wants it.
+  if (!opts.userData && !opts.firstRun) {
+    await writeFile(
+      join(userData, 'config.json'),
+      JSON.stringify({ schemaVersion: 2, settings: { toolsChosen: true }, projects: [] }),
+    );
+  }
   const pathKey = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
   const path = opts.pathPrepend
     ? `${opts.pathPrepend}${delimiter}${process.env[pathKey] ?? ''}`

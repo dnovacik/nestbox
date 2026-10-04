@@ -221,6 +221,7 @@ export function createMockTool(deps: MockToolDeps): AnyMainTool {
         stateOf(ctx).logs.clear();
       },
     },
+    busy: () => [...states.values()].some((s) => s.running !== null || s.starting !== null),
     async dispose() {
       disposed = true;
       await Promise.all([...states.values()].map((s) => stopState(s)));

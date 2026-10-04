@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TOGGLEABLE_TOOLS } from './tools';
 import { AppSettingsSchema, DEPS_SCHEDULES, THEMES, TERMINAL_APPS, TRAY_ICON_THEMES, WatchedPortsSchema } from './types';
 
 /** Editor command as the user types it. Rejects what cannot pass safely through cmd.exe (see assertCmdSafe). */
@@ -21,6 +22,13 @@ export const SettingsPatchSchema = z.strictObject({
   terminalApp: z.enum(TERMINAL_APPS).optional(),
   depsSchedule: z.enum(DEPS_SCHEDULES).optional(),
   theme: z.enum(THEMES).optional(),
+  /** Only tools that can be turned off; the core stays on. */
+  disabledTools: z
+    .array(z.string().refine((id) => TOGGLEABLE_TOOLS.some((t) => t.id === id), 'not-toggleable'))
+    .max(64)
+    .optional(),
+  /** Set once, by the first-run picker. */
+  toolsChosen: z.literal(true).optional(),
 });
 
 /** "3000, 5173" → [3000, 5173] (duplicates dropped, order kept); null when any entry is not a valid port. */

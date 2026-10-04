@@ -63,7 +63,11 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (patch: SettingsPatch) => api.settings.update(patch),
-    onSuccess: (view) => queryClient.setQueryData(queryKeys.settings, view),
+    onSuccess: (view) => {
+      queryClient.setQueryData(queryKeys.settings, view);
+      // Turning tools on or off changes every project's tool list.
+      void queryClient.invalidateQueries({ queryKey: ['tools'] });
+    },
     onError: showError,
   });
 }

@@ -26,6 +26,8 @@ export interface ToolHostDeps {
     get(rootId: string, toolId: string): unknown;
     set(rootId: string, toolId: string, value: unknown): void;
   };
+  /** Settings → Tools: a turned-off tool is not listed and refuses calls (all on when omitted). */
+  isEnabled?(toolId: string): boolean;
 }
 
 export interface DisposeResult {
@@ -40,12 +42,17 @@ export interface ToolHost {
   disposeAll(timeoutMs?: number): Promise<DisposeResult>;
   /** After a root project is removed: tools drop what they hold for it, and its shared facts go. */
   forgetProject(rootId: string): void;
+  /** A tool was turned off: it lets go of every root project (servers, followers, watchers stop). */
+  deactivate(toolId: string, rootIds: readonly string[]): void;
+  /** Tools with something running now. */
+  busyTools(): string[];
 }
 
 const DEFAULT_DISPOSE_TIMEOUT_MS = 4_500;
 
 export function createToolHost(deps: ToolHostDeps): ToolHost {
   const byId = new Map(deps.tools.map((tool) => [tool.id, tool]));
+  const isEnabled = (toolId: string) => deps.isEnabled?.(toolId) ?? true;
 
   function settingsFor(tool: AnyMainTool, project: DetectedProject): ToolContext['settings'] {
     const get = (): unknown => {
@@ -79,13 +86,14 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     async list(projectId) {
       const project = await deps.getProject(projectId);
       return deps.tools
-        .filter((tool) => tool.appliesTo(project))
+        .filter((tool) => isEnabled(tool.id) && tool.appliesTo(project))
         .map(({ id, name, icon }) => ({ id, name, icon }));
     },
 
     async invoke(toolId, projectId, method, input) {
       const tool = byId.get(toolId);
       if (!tool) throw new NestboxError('NOT_FOUND', `Unknown tool: ${toolId}`);
+      if (!isEnabled(toolId)) throw new NestboxError('NOT_FOUND', `Tool ${toolId} is turned off`);
       const project = await deps.getProject(projectId);
       if (!tool.appliesTo(project)) {
         throw new NestboxError('NOT_FOUND', `Tool ${toolId} does not apply to this project`);
@@ -105,6 +113,21 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
         throw new NestboxError('INTERNAL', `${toolId}.${method} returned invalid output`);
       }
       return output.data;
+    },
+
+    deactivate(toolId, rootIds) {
+      const tool = byId.get(toolId);
+      for (const rootId of rootIds) {
+        try {
+          tool?.forgetProject?.(rootId);
+        } catch {
+          deps.logger.warn('tool deactivate failed', { toolId });
+        }
+      }
+    },
+
+    busyTools() {
+      return deps.tools.filter((tool) => tool.busy?.() === true).map((tool) => tool.id);
     },
 
     forgetProject(rootId) {

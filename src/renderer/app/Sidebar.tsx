@@ -4,12 +4,13 @@ import { Input } from '@/components/ui/input';
 import { aggregateState, belongsTo, type AggregateState } from '@shared/processes';
 import { StateDot } from '@/components/StateDot';
 import { usePorts } from '@/lib/ports';
-import { useAddProject, useProcesses } from '@/lib/queries';
+import { useAddProject, useProcesses, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import type { DetectedProject, ProjectSummary } from '@shared/detected';
 import { filterProjects } from './find-project';
 import { summarize } from '@shared/tools/deps/contract';
+import { isToolEnabled } from '@shared/tools';
 import { useDepsOverview } from '@/deps/use-deps-overview';
 
 interface SidebarProps {
@@ -18,6 +19,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, selectedId }: SidebarProps) {
+  const { data: settings } = useSettings();
+  const depsOn = isToolEnabled(settings?.disabledTools ?? [], 'deps');
   const filter = useUiStore((s) => s.filter);
   const setFilter = useUiStore((s) => s.setFilter);
   const addProject = useAddProject();
@@ -40,7 +43,7 @@ export function Sidebar({ projects, selectedId }: SidebarProps) {
           />
         </div>
         <PortsEntry />
-        <DepsEntry />
+        {depsOn && <DepsEntry />}
         {pinned.length > 0 && (
           <ProjectSection title="Pinned" count={String(pinned.length)} projects={pinned} selectedId={selectedId} />
         )}

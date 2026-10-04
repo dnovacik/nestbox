@@ -810,6 +810,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
     ...deployDefinition,
     contract: deployContract,
     handlers,
+    busy: () => [...states.values()].some((s) => s.action !== null || s.checking),
     async dispose() {
       await forget(() => true);
     },

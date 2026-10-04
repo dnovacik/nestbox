@@ -378,6 +378,7 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
         entriesChanged(state);
       },
     },
+    busy: () => [...states.values()].some((s) => s.running !== null || s.starting !== null || s.tunnel !== null),
     async dispose() {
       disposed = true;
       await Promise.all([...states.values()].map((s) => stopState(s)));

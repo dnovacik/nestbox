@@ -50,6 +50,7 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
     },
     tools: {
       list: (projectId: string) => call('tools:list', { projectId }),
+      busy: () => call('tools:busy'),
       invoke: <T extends ToolId, M extends ToolMethodName<T>>(
         toolId: T,
         projectId: string,

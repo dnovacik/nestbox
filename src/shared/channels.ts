@@ -31,6 +31,8 @@ export const channels = {
   'projects:openInEditor': { input: IdInput, output: z.void() },
   'projects:openTerminal': { input: IdInput, output: z.void() },
   'tools:list': { input: z.strictObject({ projectId: Id }), output: z.array(ToolSummarySchema) },
+  /** Tools with something running now (a server, a deploy…): turning one off asks first. */
+  'tools:busy': { input: NoInput, output: z.array(z.string()) },
   'tools:invoke': {
     input: z.strictObject({
       toolId: z.string().min(1).max(100),

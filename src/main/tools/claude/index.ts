@@ -164,6 +164,7 @@ export function createClaudeTool(deps: ClaudeToolDeps): AnyMainTool {
         return saved;
       },
     },
+    busy: () => [...states.values()].some((s) => s.run !== null),
     async dispose() {
       await Promise.all([...states.values()].map((s) => stopRun(s).catch(() => undefined)));
       for (const s of states.values()) s.logs.dispose();

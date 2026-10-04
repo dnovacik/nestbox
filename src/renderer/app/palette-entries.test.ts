@@ -63,6 +63,10 @@ describe('paletteEntries', () => {
     expect(labels(entries, 'Go to')).toEqual(['Ports', 'Settings']);
   });
 
+  it('leaves Claude out when the Claude Code tool is off', () => {
+    expect(labels(paletteEntries(input({ claudeOn: false })), 'Claude')).toEqual([]);
+  });
+
   it('gives every entry a unique id', () => {
     const ids = paletteEntries(input()).map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
