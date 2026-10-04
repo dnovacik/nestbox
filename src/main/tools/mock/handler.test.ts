@@ -148,6 +148,7 @@ describe('mock handler', () => {
     expect(lines[0]).toMatch(/→ 503 · \d+ ms · GET \/users\/:id · failed$/);
     set({ routes: [route({})], failAll: { on: true, status: 500 } });
     expect((await call(port, { path: '/users/1' })).status).toBe(500);
+    expect((await call(port, { path: '/unmatched' })).status).toBe(500);
     set({ failAll: { on: false, status: 500 } });
     expect((await call(port, { path: '/users/1' })).status).toBe(200);
   });

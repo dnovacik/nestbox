@@ -134,21 +134,11 @@ export function createMockHandler(deps: MockHandlerDeps) {
           'X-NestBox-Mock': match?.route.id ?? 'none',
         };
         const withBody = method !== 'HEAD';
-        if (!match) {
-          send(
-            res,
-            404,
-            { ...base, 'Content-Type': CONTENT_TYPES.json },
-            JSON.stringify({ error: 'No mock route', method, path }),
-            withBody,
-          );
-          finish(404, 'no route');
-          return;
-        }
-        const label = `${match.route.method} ${match.route.path}`;
+        const label = match ? `${match.route.method} ${match.route.path}` : 'no route';
+        // "Fail every request" means every request, matched or not.
         const fail = config.failAll.on
           ? config.failAll
-          : match.route.fail.on
+          : match?.route.fail.on
             ? match.route.fail
             : null;
         if (fail) {
@@ -160,6 +150,17 @@ export function createMockHandler(deps: MockHandlerDeps) {
             withBody,
           );
           finish(fail.status, `${label} · failed`);
+          return;
+        }
+        if (!match) {
+          send(
+            res,
+            404,
+            { ...base, 'Content-Type': CONTENT_TYPES.json },
+            JSON.stringify({ error: 'No mock route', method, path }),
+            withBody,
+          );
+          finish(404, 'no route');
           return;
         }
         const route = match.route;
