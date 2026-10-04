@@ -59,6 +59,8 @@
 - Release order: 1.6.0 and 1.7.0 drafts (published by the owner), then #16 + #17 as 1.8.0, then #18 as 1.9.0.
 - Portfolio items from the spec: branch `v2-portfolio` (stacked on `v2-tunnel`), docs only, no version bump. It adds screenshots of the v2 tools (made by `scripts/screenshots.mjs`), `CONTRIBUTING.md` and a write-up of a hard problem (`docs/writeups/process-trees.md`). It can merge with or after #18.
 - Compose in run groups: branch `v2-compose-groups` (stacked on `v2-portfolio`), version 1.10.0. Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-compose-groups-design.md` (the owner picked this follow-up; defaults chosen without approval stops, review with the PR). Not verifiable in CI: a real `docker compose up --wait` with healthchecks (the e2e uses the fake docker).
+- Node version check: branch `v2-node-check` (stacked on `v2-compose-groups`), version 1.11.0. From the owner's write-up; design `docs/superpowers/specs/2026-10-04-nestbox-v2-node-check-design.md`. Owner's answers: Node check first, then Dependency health; warn in the log and start; a per-project fnm switch; a card and a tab. Not verifiable in CI: fnm, Volta and nvm-windows themselves, and Corepack offline behaviour (unit tests fake `execCommand`).
+- Next: Dependency health (1.12.0), the spec's network exception.
 - Next: the planned v2 tools, follow-ups and portfolio docs are done. Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
