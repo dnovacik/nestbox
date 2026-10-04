@@ -5,7 +5,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { copyFixture, launch } from './helpers';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
-const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database', 'TODOs', 'Health', 'Compose', 'Mock API'];
+const TABS = ['Overview', 'Project info', 'Scripts', 'Env', 'Static', 'Claude Code', ...(hasGit ? ['Git'] : []), 'Database', 'TODOs', 'Health', 'Compose', 'Mock API', 'Inspector'];
 
 let app: ElectronApplication;
 let page: Page;
@@ -67,4 +67,22 @@ test('the Claude Code panel scrolls in a short window', async () => {
 test('the Static panel scrolls in a short window', async () => {
   await page.getByRole('tab', { name: 'Static' }).click();
   await expectScrolls('Static server');
+});
+
+test('the tab bar scrolls by itself instead of widening the window', async () => {
+  const tablist = page.getByRole('tablist', { name: 'Project tools' });
+  await expect(tablist).toBeVisible();
+  const sizes = await tablist.evaluate((el) => ({
+    pageOverflow: el.ownerDocument.documentElement.scrollWidth - el.ownerDocument.documentElement.clientWidth,
+    tabsOverflow: el.scrollWidth - el.clientWidth,
+    heights: [...el.querySelectorAll('[role="tab"]')].map((t) => Math.round(t.getBoundingClientRect().height)),
+  }));
+  expect(sizes.pageOverflow).toBe(0);
+  // Every tab stays on one line.
+  expect(new Set(sizes.heights).size).toBe(1);
+  // The last tab can be reached: selecting it scrolls it into view.
+  await page.getByRole('tab', { name: 'Inspector' }).click();
+  const box = await page.getByRole('tab', { name: 'Inspector' }).boundingBox();
+  const bar = await tablist.boundingBox();
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((bar?.x ?? 0) + (bar?.width ?? 0) + 1);
 });

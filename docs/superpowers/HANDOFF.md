@@ -49,7 +49,12 @@
 - Mock API (the sixth v2 tool): branch `v2-mock-api`, draft PR #15, version 1.7.0 in `package.json`.
   - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-mock-api-design.md` (approved). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-mock-api.md`.
   - Owner's answers: saved in NestBox settings; static JSON with `:params` and placeholders; per-route and global delay/fail; 404 plus a request log.
-- Next v2 tool: the request inspector.
+- v1.7.0 (mock API) is merged and its release draft built (PR #15). The owner is away from their PC: v1.6.0 and v1.7.0 drafts wait to be published and tested together.
+- Request inspector (the seventh v2 tool): branch `v2-inspector`, draft PR #16, version 1.8.0 in `package.json`.
+  - Design: `docs/superpowers/specs/2026-10-04-nestbox-v2-inspector-design.md` (owner's answers; continued without a separate approval stop). Plan: `docs/superpowers/plans/2026-10-04-nestbox-v2-inspector.md`.
+  - Owner's answers: a proxy in front of the API; full request/response in memory with secret headers masked; Replay plus Edit & send; target from PORT, editable to local addresses.
+  - Also fixes the tool tab bar, which overflowed the window once there were twelve tools.
+- Next: the planned v2 tools are done. Follow-ups: the `cloudflared` tunnel for the inspector, the Windows current-folder lookup in `spawnCommand`, and the header branch refresh.
 - Still open from v1: record the README GIF on Windows.
 
 **Read, in order**
