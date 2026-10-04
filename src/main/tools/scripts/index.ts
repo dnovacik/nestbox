@@ -4,12 +4,13 @@ import { type DetectedProject, workspaceId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { isLive, type LogLine, type ProcessState, type ProcessSummary } from '@shared/processes';
 import {
+  type ComposeStep,
   scriptsContract,
   scriptsDefinition,
   type ScriptsSettings,
   type SkippedEntry,
 } from '@shared/tools/scripts/contract';
-import type { RunGroup, RunGroupEntry } from '@shared/types';
+import type { RunGroup, RunGroupCompose, RunGroupEntry } from '@shared/types';
 import type { Logger } from '../../logger';
 import type { ProcessManager, StartRequest } from '../../processes/process-manager';
 import type { SharedContext } from '../shared-context';
@@ -31,6 +32,11 @@ export interface ScriptsToolDeps {
   isFile(path: string): Promise<boolean>;
   emit(projectId: string, event: 'logs', payload: { script: string; lines: LogLine[] }): void;
   logger: Logger;
+  /** The Compose tool's actions for a package (services empty = the whole stack). */
+  compose: {
+    up(projectId: string, services: string[], opts: { wait: boolean }): Promise<{ ok: boolean }>;
+    stop(projectId: string, services: string[]): Promise<{ ok: boolean }>;
+  };
 }
 
 /** The shared-context fact the scripts tool publishes per project (read by the M2 port manager). */
@@ -102,6 +108,32 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       return hasScript(project, entry.script) ? project : null;
     } catch {
       return null;
+    }
+  }
+
+  /** The package a compose entry names, or null when it is gone or has no compose file. */
+  function resolveCompose(rootId: string, entry: RunGroupCompose): DetectedProject | null {
+    const id = entry.relPath === '' ? rootId : workspaceId(rootId, entry.relPath);
+    try {
+      const project = deps.getDetected(id);
+      return project.dockerCompose === null ? null : project;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Brings a group's compose services up and waits for them; a failure never stops the scripts. */
+  async function composeUp(rootId: string, entry: RunGroupCompose): Promise<ComposeStep> {
+    const project = resolveCompose(rootId, entry);
+    if (!project) return { relPath: entry.relPath, result: 'missing' };
+    try {
+      const { ok } = await deps.compose.up(project.id, entry.services, { wait: true });
+      if (!ok) deps.logger.warn('run group compose failed', { projectId: project.id });
+      return { relPath: entry.relPath, result: ok ? 'ok' : 'failed' };
+    } catch (error) {
+      const code = error instanceof NestboxError ? error.code : 'unknown';
+      deps.logger.warn('run group compose failed', { projectId: project.id, code });
+      return { relPath: entry.relPath, result: code === 'CONFLICT' ? 'busy' : code === 'NOT_FOUND' ? 'missing' : 'failed' };
     }
   }
 
@@ -224,6 +256,8 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
 
       startRunGroup: async (ctx: Ctx, { name }) => {
         const group = findGroup(ctx.project, name);
+        // Services first, so a database is accepting connections before the API starts.
+        const compose = await Promise.all(group.compose.map((entry) => composeUp(ctx.project.rootId, entry)));
         const settings = ctx.settings.get();
         const skipped: SkippedEntry[] = [];
         const started: ProcessSummary[] = [];
@@ -249,7 +283,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         );
         const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
         if (failure) throw failure.reason;
-        return { started, skipped };
+        return { started, skipped, compose };
       },
 
       stopRunGroup: async (ctx: Ctx, { name }) => {
@@ -263,7 +297,22 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           .filter(
             (p) => (isLive(p.state) || p.nextRestartAt !== null) && ids.has(JSON.stringify([p.projectId, p.script])),
           );
-        await Promise.allSettled(targets.map((p) => deps.processes.stop(p.projectId, p.script)));
+        const services = group.compose.flatMap((entry) => {
+          const project = resolveCompose(ctx.project.rootId, entry);
+          return project ? [{ project, entry }] : [];
+        });
+        await Promise.allSettled([
+          ...targets.map((p) => deps.processes.stop(p.projectId, p.script)),
+          // `stop`, never `down`: containers and volumes stay.
+          ...services.map(({ project, entry }) =>
+            deps.compose.stop(project.id, entry.services).catch((error: unknown) => {
+              deps.logger.warn('run group compose stop failed', {
+                projectId: project.id,
+                code: error instanceof NestboxError ? error.code : 'unknown',
+              });
+            }),
+          ),
+        ]);
       },
     },
   });

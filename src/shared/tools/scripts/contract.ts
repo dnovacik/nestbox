@@ -30,6 +30,13 @@ export type PackageScripts = z.infer<typeof PackageScriptsSchema>;
 export const SkippedEntrySchema = RunGroupEntrySchema.extend({ reason: z.enum(['missing', 'running']) });
 export type SkippedEntry = z.infer<typeof SkippedEntrySchema>;
 
+/** What happened to one package's compose services when a group started. */
+export const ComposeStepSchema = z.object({
+  relPath: z.string(),
+  result: z.enum(['ok', 'missing', 'busy', 'failed']),
+});
+export type ComposeStep = z.infer<typeof ComposeStepSchema>;
+
 export { MAX_EXPORT_SEQS } from '../../processes';
 
 export const scriptsContract = defineContract({
@@ -73,7 +80,12 @@ export const scriptsContract = defineContract({
   deleteRunGroup: { input: z.strictObject({ name: GroupName }), output: z.array(RunGroupSchema) },
   startRunGroup: {
     input: z.strictObject({ name: GroupName }),
-    output: z.object({ started: z.array(ProcessSummarySchema), skipped: z.array(SkippedEntrySchema) }),
+    output: z.object({
+      started: z.array(ProcessSummarySchema),
+      skipped: z.array(SkippedEntrySchema),
+      /** Compose steps run before the scripts, one per package, in the group's order. */
+      compose: z.array(ComposeStepSchema),
+    }),
   },
   stopRunGroup: { input: z.strictObject({ name: GroupName }), output: z.void() },
 });

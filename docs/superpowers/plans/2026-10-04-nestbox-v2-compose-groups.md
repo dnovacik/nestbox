@@ -7,7 +7,7 @@
 ## Main
 1. `shared/types.ts`: `SERVICE_NAME` moves here (the compose contract re-exports it). Add `RunGroupComposeSchema` and `compose` on `RunGroupSchema` with the default `[]`.
 2. Compose: `runAction(name, services[], { wait })` builds the argv. The contract's `up`/`stop` take `services`, and `up` takes `wait`. Unknown services are filtered out, and none left means NOT_FOUND.
-3. Scripts tool: a `compose` dependency. `startRunGroup` runs compose first and returns `compose: ComposeStep[]`; `stopRunGroup` stops compose services; `saveRunGroup` refuses an empty group. Wiring goes in `index.ts`.
+3. Scripts tool: a `compose` dependency. `startRunGroup` runs compose first and returns `compose: ComposeStep[]`; `stopRunGroup` stops compose services. Wiring goes in `index.ts`.
 
 ## Renderer
 4. The editor's Compose section, the line summary, Start/Stop for compose-only groups, the toast for failed steps.
