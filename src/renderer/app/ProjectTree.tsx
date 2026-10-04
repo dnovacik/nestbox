@@ -227,8 +227,8 @@ function ProjectSection({
       <SectionTitle title={title} count={count}>
         <button
           type="button"
-          aria-label="New group"
-          title="New group"
+          aria-label="New project group"
+          title="New project group"
           onClick={onNewGroup}
           className="rounded p-0.5 text-fg-faint hover:text-fg"
         >
@@ -287,7 +287,7 @@ function GroupSection({
         {renaming ? (
           <InlineName
             initial={group.name}
-            label="Group name"
+            label="Project group name"
             onSubmit={(name) => void actions.renameGroup(group.id, name)}
             onDone={() => state.setRenaming(null)}
           />

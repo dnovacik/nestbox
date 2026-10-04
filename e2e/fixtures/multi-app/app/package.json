@@ -1,0 +1,5 @@
+{
+  "name": "multi-web",
+  "private": true,
+  "scripts": { "build": "node -e \"console.log('built')\"" }
+}

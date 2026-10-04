@@ -77,7 +77,7 @@ describe('Sidebar groups', () => {
 
   it('creates a group and names it inline', async () => {
     const bridge = setup([]);
-    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New project group' }));
     await waitFor(() => expect(bridge.callsTo('groups:create')).toEqual([{ name: 'New group' }]));
   });
 

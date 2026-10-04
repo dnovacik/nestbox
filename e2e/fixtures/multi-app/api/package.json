@@ -1,0 +1,5 @@
+{
+  "name": "multi-api",
+  "private": true,
+  "scripts": { "start": "node -e \"console.log('api')\"" }
+}
