@@ -4,13 +4,15 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 const [command, ...rest] = process.argv.slice(2);
+// npm exits 1 when it finds something. exitCode, not exit(): on Windows stdout to a pipe is asynchronous, and
+// process.exit() can cut the JSON short.
 const answer = (file) => {
   process.stdout.write(readFileSync(join(__dirname, file), 'utf8'));
-  process.exit(1);
+  process.exitCode = 1;
 };
 if (command === 'outdated' && rest.includes('--json')) answer('outdated.json');
 else if (command === 'audit' && rest.includes('--json')) answer('audit.json');
 else {
   console.error(`fake npm: unsupported ${command}`);
-  process.exit(2);
+  process.exitCode = 2;
 }
