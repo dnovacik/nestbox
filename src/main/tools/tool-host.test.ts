@@ -49,7 +49,7 @@ function memoryToolSettings(initial: Record<string, unknown> = {}) {
 function host(getProject: (id: string) => typeof project | Promise<typeof project> = (id: string) => {
   if (id !== 'p1') throw new NestboxError('NOT_FOUND', 'Project not found');
   return project;
-}) {
+}, isEnabled: (toolId: string) => boolean = () => true) {
   const emit = vi.fn();
   const shared = createSharedContext();
   const h = createToolHost({
@@ -60,6 +60,7 @@ function host(getProject: (id: string) => typeof project | Promise<typeof projec
     emit,
     logger: createMemoryLogger(),
     toolSettings: memoryToolSettings(),
+    isEnabled,
   });
   return { h, emit, shared };
 }
@@ -247,5 +248,38 @@ describe('tool host', () => {
     expect(shared.forProject('p1').get('k')).toBeUndefined();
     expect(shared.forProject('p1::packages/api').get('k')).toBeUndefined();
     expect(shared.forProject('p2').get('k')).toBe(3);
+  });
+});
+
+describe('tool host: turned-off tools', () => {
+  const offEcho = (toolId: string) => toolId !== 'echo';
+
+  it('leaves a turned-off tool out of the list and refuses its calls', async () => {
+    const { h } = host(undefined, offEcho);
+    expect((await h.list('p1')).map((t) => t.id)).toEqual(['project-info']);
+    await expect(h.invoke('echo', 'p1', 'echo', { text: 'x' })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Tool echo is turned off',
+    });
+  });
+
+  it('stops what a tool holds for every root project, and lists the busy ones', () => {
+    const forgetProject = vi.fn();
+    const busyTool = defineMainTool({ ...echoTool, id: 'busy', forgetProject, busy: () => true });
+    const idleTool = defineMainTool({ ...echoTool, id: 'idle', busy: () => false });
+    const h = createToolHost({
+      tools: [projectInfoTool, busyTool, idleTool],
+      getProject: () => project,
+      shared: createSharedContext(),
+      platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
+      emit: vi.fn(),
+      logger: createMemoryLogger(),
+      toolSettings: memoryToolSettings(),
+      isEnabled: () => true,
+    });
+    expect(h.busyTools()).toEqual(['busy']);
+    h.deactivate('busy', ['r1', 'r2']);
+    expect(forgetProject.mock.calls).toEqual([['r1'], ['r2']]);
+    expect(() => h.deactivate('nope', ['r1'])).not.toThrow();
   });
 });

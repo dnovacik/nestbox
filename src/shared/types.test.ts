@@ -62,7 +62,14 @@ describe('persisted types', () => {
       trayIconTheme: 'dark-taskbar',
       watchedPorts: [3000, 5173, 5432, 6379, 8080],
       depsSchedule: 'off',
+      disabledTools: [],
+      // A store from before v1.17 has no picker answer: it keeps every tool and never sees the picker.
+      toolsChosen: true,
     });
+  });
+
+  it('asks a fresh store which tools to use', () => {
+    expect(defaultStoreData().settings).toMatchObject({ disabledTools: [], toolsChosen: false });
   });
 
   it('default store data is valid and versioned', () => {

@@ -78,6 +78,7 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
       await deps.platform.openTerminal(await existingPath(id));
     },
     'tools:list': async ({ projectId }) => deps.toolHost.list(projectId),
+    'tools:busy': async () => deps.toolHost.busyTools(),
     'tools:invoke': ({ toolId, projectId, method, input }) => deps.toolHost.invoke(toolId, projectId, method, input),
     'processes:list': async () => deps.processes.list(),
     'processes:stopAll': async ({ projectId }) => {

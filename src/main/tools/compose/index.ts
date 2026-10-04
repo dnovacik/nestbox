@@ -189,6 +189,7 @@ export function createComposeTool(deps: ComposeToolDeps): AnyMainTool {
         packageOf(ctx).logs[source].snapshot(afterSeq),
       clearLogs: async (ctx: Ctx, { source }) => packageOf(ctx).logs[source].clear(),
     },
+    busy: () => [...packages.values()].some((p) => p.action !== null),
     async dispose() {
       await forget(() => true);
     },

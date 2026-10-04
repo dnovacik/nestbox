@@ -54,6 +54,19 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
 ];
 
 export type ToolId = keyof typeof toolContracts;
+
+/** The core: never turned off, whatever the stored list says. */
+export const ALWAYS_ON_TOOLS: readonly string[] = ['project-info', 'scripts'];
+/** The tools Settings → Tools and the first-run picker offer, in registry order. */
+export const TOGGLEABLE_TOOLS = toolDefinitions
+  .filter((d) => !ALWAYS_ON_TOOLS.includes(d.id))
+  .map(({ id, name, icon }) => ({ id, name, icon }));
+/** The first-run picker's "Essentials" preset. */
+export const ESSENTIAL_TOOLS: readonly string[] = ['env', 'claude', 'git', 'node', 'deps'];
+
+export function isToolEnabled(disabledTools: readonly string[], toolId: string): boolean {
+  return ALWAYS_ON_TOOLS.includes(toolId) || !disabledTools.includes(toolId);
+}
 export type ToolMethodName<T extends ToolId> = keyof (typeof toolContracts)[T] & string;
 type MethodSpec<T extends ToolId, M extends ToolMethodName<T>> = (typeof toolContracts)[T][M] & {
   input: z.ZodType;

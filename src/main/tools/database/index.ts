@@ -242,6 +242,7 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
       getLogs: async (ctx: Ctx, { afterSeq }) => stateOf(ctx).logs.snapshot(afterSeq),
       clearLogs: async (ctx: Ctx) => stateOf(ctx).logs.clear(),
     },
+    busy: () => [...states.values()].some((s) => s.command !== null || s.studio !== null),
     async dispose() {
       await Promise.all([...states.values()].flatMap((s) => [stopRun(s.command?.run), stopRun(s.studio?.run)]));
       for (const s of states.values()) s.logs.dispose();

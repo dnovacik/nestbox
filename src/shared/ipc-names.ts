@@ -12,6 +12,7 @@ export const INVOKE_CHANNELS = [
   'projects:openTerminal',
   'tools:list',
   'tools:invoke',
+  'tools:busy',
   'settings:get',
   'settings:update',
   'processes:list',
