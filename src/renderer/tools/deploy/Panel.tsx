@@ -23,6 +23,7 @@ import { relativeTime } from '@/lib/relative-time';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { EnvCompareRow } from './EnvCompare';
+import { ReadySection } from './ReadySection';
 import { LISTING_TEXT, STATE_CLASS, STATE_LABEL } from './labels';
 import {
   deployLogSource,
@@ -303,6 +304,7 @@ export default function DeployPanel({ projectId }: ToolPanelProps) {
         NestBox deploys through each platform's own CLI and its login, and keeps no tokens. Listing
         and deploying reach the platform; rollbacks stay in its dashboard.
       </p>
+      <ReadySection projectId={projectId} scripts={status.scripts} ready={status.ready} />
       {status.platforms.map((p) => (
         <PlatformSection
           key={p.platform}
