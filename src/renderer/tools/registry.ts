@@ -4,6 +4,7 @@ import { databaseRendererTool } from './database';
 import { envRendererTool } from './env';
 import { gitRendererTool } from './git';
 import { healthRendererTool } from './health';
+import { mockRendererTool } from './mock';
 import { projectInfoRendererTool } from './project-info';
 import { scriptsRendererTool } from './scripts';
 import { staticRendererTool } from './static';
@@ -22,6 +23,7 @@ export const rendererTools: readonly RendererTool[] = [
   todosRendererTool,
   healthRendererTool,
   composeRendererTool,
+  mockRendererTool,
 ];
 
 export function getRendererTool(id: string): RendererTool | undefined {
