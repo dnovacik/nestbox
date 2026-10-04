@@ -6,6 +6,7 @@ import { databaseContract, databaseDefinition, databaseEvents } from './database
 import { envContract, envDefinition, envEvents } from './env/contract';
 import { gitContract, gitDefinition, gitEvents } from './git/contract';
 import { healthContract, healthDefinition, healthEvents } from './health/contract';
+import { mockContract, mockDefinition, mockEvents } from './mock/contract';
 import { projectInfoContract, projectInfoDefinition } from './project-info/contract';
 import { scriptsContract, scriptsDefinition, scriptsEvents } from './scripts/contract';
 import { staticContract, staticDefinition, staticEvents } from './static/contract';
@@ -23,6 +24,7 @@ export const toolContracts = {
   todos: todosContract,
   health: healthContract,
   compose: composeContract,
+  mock: mockContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -36,6 +38,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   todosDefinition as ToolDefinition<unknown>,
   healthDefinition as ToolDefinition<unknown>,
   composeDefinition as ToolDefinition<unknown>,
+  mockDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -59,6 +62,7 @@ export const toolEvents = {
   todos: {},
   health: healthEvents,
   compose: composeEvents,
+  mock: mockEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;
