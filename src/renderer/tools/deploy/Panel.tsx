@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { relativeTime } from '@/lib/relative-time';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
+import { EnvCompareRow } from './EnvCompare';
 import { LISTING_TEXT, STATE_CLASS, STATE_LABEL } from './labels';
 import {
   deployLogSource,
@@ -138,10 +139,20 @@ interface PlatformProps {
   p: PlatformStatus;
   busy: boolean;
   running: boolean;
+  envFiles: string[];
+  defaultEnvFile: string | null;
   onDeploy(platform: DeployPlatform, target: 'preview' | 'production'): void;
 }
 
-function PlatformSection({ projectId, p, busy, running, onDeploy }: PlatformProps) {
+function PlatformSection({
+  projectId,
+  p,
+  busy,
+  running,
+  envFiles,
+  defaultEnvFile,
+  onDeploy,
+}: PlatformProps) {
   const label = PLATFORM_LABELS[p.platform];
   const listing = useDeployments(projectId, p.platform, false);
   const command = useDeployCommand(projectId);
@@ -241,6 +252,14 @@ function PlatformSection({ projectId, p, busy, running, onDeploy }: PlatformProp
             </div>
           )}
           {ready && <Listing projectId={projectId} p={p} />}
+          {ready && (
+            <EnvCompareRow
+              projectId={projectId}
+              p={p}
+              envFiles={envFiles}
+              defaultEnvFile={defaultEnvFile}
+            />
+          )}
         </>
       )}
     </section>
@@ -291,6 +310,8 @@ export default function DeployPanel({ projectId }: ToolPanelProps) {
           p={p}
           busy={busy}
           running={status.action?.platform === p.platform}
+          envFiles={status.envFiles}
+          defaultEnvFile={status.defaultEnvFile}
           onDeploy={onDeploy}
         />
       ))}
