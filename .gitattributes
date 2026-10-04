@@ -6,3 +6,5 @@ e2e/fixtures/fake-docker/docker.cmd text eol=crlf
 e2e/fixtures/fake-docker/docker text eol=lf
 e2e/fixtures/fake-cloudflared/cloudflared.cmd text eol=crlf
 e2e/fixtures/fake-cloudflared/cloudflared text eol=lf
+e2e/fixtures/fake-npm/npm.cmd text eol=crlf
+e2e/fixtures/fake-npm/npm text eol=lf
