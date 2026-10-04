@@ -1,0 +1,11 @@
+{
+  "name": "nestbox-e2e-node",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=1"
+  },
+  "scripts": {
+    "dev": "node dev.js"
+  }
+}
