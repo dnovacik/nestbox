@@ -141,7 +141,7 @@ describe('core handlers', () => {
       const d = deps();
       const summary = {
         projectId: 'p1', script: 'dev', state: 'running' as const, pid: 1, startedAt: 1, exit: null,
-        crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false,
+        crashCount: 0, autoRestart: false, nextRestartAt: null, gaveUp: false, warning: null,
       };
       vi.mocked(d.processes.list).mockReturnValue([summary]);
       expect(await createCoreHandlers(d)['processes:list']()).toEqual([summary]);

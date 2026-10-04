@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
+import { delimiter } from 'node:path';
 import type { PackageManager } from '@shared/detected';
 import { stripAnsi } from '@shared/ansi-strip';
 import { NestboxError } from '@shared/errors';
@@ -37,6 +38,19 @@ export interface StartRequest {
   cwd: string;
   packageManager: PackageManager | null;
   autoRestart: boolean;
+  /** A Node or package manager mismatch: logged first and shown on the script row. */
+  warning?: string | null;
+  /** An extra first log line (e.g. which Node fnm provides). */
+  note?: string | null;
+  /** A folder put first on the script's PATH (fnm's Node). */
+  pathPrepend?: string | null;
+}
+
+/** The env with `dir` first on PATH, under whatever casing the env uses for it (Windows: Path). */
+function withPathFirst(env: NodeJS.ProcessEnv, dir: string): NodeJS.ProcessEnv {
+  const key = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const current = env[key];
+  return { ...env, [key]: current ? `${dir}${delimiter}${current}` : dir };
 }
 
 export type ProcessEvent =
@@ -283,12 +297,15 @@ export class ProcessManager {
     entry.state = 'starting';
     entry.startedAt = this.now();
     const command = entry.req.packageManager ?? 'npm';
+    if (entry.req.note) this.system(entry, entry.req.note);
+    if (entry.req.warning) this.system(entry, `▲ ${entry.req.warning}`);
     this.system(entry, `▸ ${command} run ${entry.req.script}`);
     this.changed();
 
     let child: ChildProcess;
     try {
-      const env = { ...(await this.deps.platform.resolveShellEnv()), FORCE_COLOR: '1' };
+      const shell = await this.deps.platform.resolveShellEnv();
+      const env = { ...(entry.req.pathPrepend ? withPathFirst(shell, entry.req.pathPrepend) : shell), FORCE_COLOR: '1' };
       if (run !== entry.run) return; // a stop pre-empted the spawn
       child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args: ['run', entry.req.script], env });
     } catch (error) {
@@ -477,6 +494,7 @@ export class ProcessManager {
       autoRestart: entry.req.autoRestart,
       nextRestartAt: entry.nextRestartAt,
       gaveUp: entry.gaveUp,
+      warning: entry.req.warning ?? null,
     };
   }
 

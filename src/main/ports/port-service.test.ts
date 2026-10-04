@@ -15,7 +15,7 @@ const summary = (projectId: string, script: string, pid: number | null, state: P
   crashCount: 0,
   autoRestart: false,
   nextRestartAt: null,
-  gaveUp: false,
+  gaveUp: false, warning: null,
 });
 
 function setup(ports: PortEntry[] = [

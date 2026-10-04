@@ -38,6 +38,8 @@ export const ProcessSummarySchema = z.object({
   nextRestartAt: z.number().nullable(),
   /** Auto-restart stopped trying after too many crashes. */
   gaveUp: z.boolean(),
+  /** The Node or package manager didn't match the requirement at start (the Node tool's advice). */
+  warning: z.string().nullable(),
 });
 export type ProcessSummary = z.infer<typeof ProcessSummarySchema>;
 

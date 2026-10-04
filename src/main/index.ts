@@ -126,7 +126,7 @@ if (!app.requestSingleInstanceLock()) {
     const assetEnv = { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath };
     const shared = createSharedContext();
     const envFiles = createEnvFileAccess();
-    // Run groups drive the Compose tool through the host (created below), so its validation and lock apply.
+    // Scripts ask the Node tool and drive the Compose tool through the host (created below), so validation applies.
     let toolHostRef: ToolHost | null = null;
     const invokeCompose = async (projectId: string, method: 'up' | 'stop', input: object) => {
       if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
@@ -161,6 +161,16 @@ if (!app.requestSingleInstanceLock()) {
         },
         emit: (projectId, event, payload) => emit('tools:event', { toolId: 'scripts', projectId, event, payload }),
         logger,
+        node: {
+          advice: async (projectId) => {
+            if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
+            return (await toolHostRef.invoke('node', projectId, 'startAdvice', {})) as {
+              warning: string | null;
+              pathPrepend: string | null;
+              note: string | null;
+            };
+          },
+        },
         compose: {
           up: (projectId, services, { wait }) =>
             invokeCompose(projectId, 'up', services.length > 0 ? { services, wait } : { wait }),
