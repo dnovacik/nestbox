@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAppInfo, useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
-import { DEPS_SCHEDULES, type DepsSchedule } from '@shared/types';
+import { DEPS_SCHEDULES, type DepsSchedule, type Theme, THEMES as APP_THEMES } from '@shared/types';
 
 
 const THEMES: { value: TrayIconTheme; label: string }[] = [
@@ -53,6 +53,8 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: string;
   );
 }
 
+const THEME_LABELS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+
 const SCHEDULE_LABELS: Record<DepsSchedule, string> = { off: 'Off (Check by hand)', daily: 'Daily', weekly: 'Weekly' };
 
 function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; platform: PlatformId; onDone(): void }) {
@@ -67,6 +69,7 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   const [editorCommand, setEditorCommand] = useState(initial.editorCommand);
   const [watchedPorts, setWatchedPorts] = useState(initial.watchedPorts.join(', '));
   const [depsSchedule, setDepsSchedule] = useState<DepsSchedule>(initial.depsSchedule);
+  const [theme, setTheme] = useState<Theme>(initial.theme);
   const readOnly = initial.readOnly;
 
   const buffer = Number(logBufferLines);
@@ -85,6 +88,7 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   if (ports && ports.join(',') !== initial.watchedPorts.join(',')) patch.watchedPorts = ports;
   if (terminalApp !== initialTerminal) patch.terminalApp = terminalApp;
   if (depsSchedule !== initial.depsSchedule) patch.depsSchedule = depsSchedule;
+  if (theme !== initial.theme) patch.theme = theme;
   const canSave = !readOnly && !bufferError && !editorError && !portsError && Object.keys(patch).length > 0 && !update.isPending;
 
   return (
@@ -101,6 +105,20 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
         </p>
       )}
       <fieldset disabled={readOnly} className="space-y-4">
+        <Row label="Theme" htmlFor="settings-theme" hint="System follows your operating system's light or dark mode.">
+          <Select value={theme} onValueChange={(value) => setTheme(value as Theme)} disabled={readOnly}>
+            <SelectTrigger id="settings-theme" size="sm" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {APP_THEMES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {THEME_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
         <Row label="Close to tray" htmlFor="settings-close-to-tray" hint="Closing the window keeps NestBox and your scripts running in the tray.">
           <Switch id="settings-close-to-tray" checked={closeToTray} onCheckedChange={setCloseToTray} disabled={readOnly} />
         </Row>

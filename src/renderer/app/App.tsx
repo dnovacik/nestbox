@@ -11,6 +11,7 @@ import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
 import { DepsPage } from '@/deps/DepsPage';
+import { useAppliedTheme } from '@/lib/use-applied-theme';
 
 export function App() {
   useProjectsChangedSubscription();
@@ -19,6 +20,7 @@ export function App() {
   const { data: projects = [], isPending } = useProjects();
   const selectedId = useUiStore((s) => s.selectedProjectId);
   const view = useUiStore((s) => s.view);
+  useAppliedTheme();
   const node = findProjectNode(projects, selectedId) ?? findProjectNode(projects, projects[0]?.id ?? null);
 
   return (

@@ -61,11 +61,14 @@ export const WatchedPortsSchema = z
   .refine((ports) => new Set(ports).size === ports.length, { message: 'duplicate-port' });
 export const DEFAULT_WATCHED_PORTS = [3000, 5173, 5432, 6379, 8080];
 
+export const THEMES = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof THEMES)[number];
+
 export const DEPS_SCHEDULES = ['off', 'daily', 'weekly'] as const;
 export type DepsSchedule = (typeof DEPS_SCHEDULES)[number];
 
 export const AppSettingsSchema = z.object({
-  theme: z.enum(['system', 'light', 'dark']).default('system'),
+  theme: z.enum(THEMES).default('system'),
   editorCommand: z.string().min(1).default('code'),
   /** 'auto' lets the platform adapter pick (wt with cmd fallback on Windows). */
   terminalApp: z.string().min(1).default('auto'),

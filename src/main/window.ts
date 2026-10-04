@@ -1,28 +1,31 @@
 import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import type { PlatformAdapter } from './platform/adapter';
-import { TITLE_BAR_OVERLAY_HEIGHT, WINDOW_COLORS } from './window-theme';
+import { TITLE_BAR_OVERLAY_HEIGHT, windowColors } from './window-theme';
 
 export interface MainWindowOptions {
   platform: PlatformAdapter;
   devServerUrl: string | undefined;
   icon: string;
+  /** The theme in effect (nativeTheme.shouldUseDarkColors), so the first paint has the right colours. */
+  dark: boolean;
   /** Ctrl+Q (⌘Q on macOS) inside the window. */
   onQuitShortcut(): void;
 }
 
 export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
+  const colors = windowColors(opts.dark);
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 900,
     minHeight: 560,
     show: false,
-    backgroundColor: WINDOW_COLORS.background,
+    backgroundColor: colors.background,
     icon: opts.icon,
     ...opts.platform.windowChrome({
-      color: WINDOW_COLORS.titleBar,
-      symbolColor: WINDOW_COLORS.titleBarSymbols,
+      color: colors.titleBar,
+      symbolColor: colors.titleBarSymbols,
       height: TITLE_BAR_OVERLAY_HEIGHT,
     }),
     webPreferences: {

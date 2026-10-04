@@ -133,6 +133,10 @@ async function main() {
   const app = await electron.launch({ args: [ROOT], cwd: ROOT, env });
   try {
     const page = await app.firstWindow();
+    // The README shows the dark theme, whatever the desktop this runs on prefers.
+    await app.evaluate(({ nativeTheme }) => {
+      nativeTheme.themeSource = 'dark';
+    });
     await page.setViewportSize({ width: 1280, height: 800 });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1280, 800));
     const queue = [projects.shop, projects.platform, projects.blog];
@@ -163,7 +167,7 @@ async function main() {
       const now = Date.now();
       const proc = (projectId, script, pid, minutes) => ({
         projectId, script, state: 'running', pid, startedAt: now - minutes * 60_000, exit: null,
-        crashCount: 0, autoRestart: script === 'dev', nextRestartAt: null, gaveUp: false,
+        crashCount: 0, autoRestart: script === 'dev', nextRestartAt: null, gaveUp: false, warning: null,
       });
       const processes = [proc(fake.shopId, 'dev', 18244, 42), proc(fake.apiId, 'dev', 20112, 12)];
       wrap('processes:list', () => ok(processes));
