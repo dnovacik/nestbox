@@ -1,0 +1,27 @@
+{
+  "envs": [
+    {
+      "key": "DATABASE_URL",
+      "value": "postgres://user:hunter2@db.example.com/shop",
+      "type": "encrypted",
+      "target": ["production"],
+      "gitBranch": null,
+      "createdAt": 1759514400000,
+      "updatedAt": 1759514400000
+    },
+    {
+      "key": "STRIPE_SECRET",
+      "type": "sensitive",
+      "target": ["production", "preview"],
+      "createdAt": 1759514400000,
+      "updatedAt": 1759514400000
+    },
+    {
+      "key": "DATABASE_URL",
+      "value": "postgres://other",
+      "type": "encrypted",
+      "target": ["production"],
+      "gitBranch": null
+    }
+  ]
+}
