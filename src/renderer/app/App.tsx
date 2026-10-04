@@ -10,6 +10,7 @@ import { SettingsDialog } from './SettingsDialog';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
+import { DepsPage } from '@/deps/DepsPage';
 
 export function App() {
   useProjectsChangedSubscription();
@@ -24,10 +25,12 @@ export function App() {
     <div className="flex h-full flex-col bg-app text-fg">
       <TitleBar node={node} />
       <div className="flex min-h-0 flex-1">
-        <Sidebar projects={projects} selectedId={view === 'ports' ? null : (node?.detected.id ?? null)} />
+        <Sidebar projects={projects} selectedId={view === 'project' ? (node?.detected.id ?? null) : null} />
         <main className="flex min-w-0 flex-1 flex-col">
           {view === 'ports' ? (
             <PortsPage />
+          ) : view === 'deps' ? (
+            <DepsPage />
           ) : isPending ? null : node ? (
             <ProjectView key={node.detected.id} node={node} />
           ) : (

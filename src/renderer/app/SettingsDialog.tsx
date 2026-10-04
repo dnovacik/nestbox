@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAppInfo, useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
+import { DEPS_SCHEDULES, type DepsSchedule } from '@shared/types';
 
 
 const THEMES: { value: TrayIconTheme; label: string }[] = [
@@ -52,6 +53,8 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: string;
   );
 }
 
+const SCHEDULE_LABELS: Record<DepsSchedule, string> = { off: 'Off (Check by hand)', daily: 'Daily', weekly: 'Weekly' };
+
 function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; platform: PlatformId; onDone(): void }) {
   const update = useUpdateSettings();
   const terminals: readonly TerminalApp[] = TERMINALS_BY_PLATFORM[platform];
@@ -63,6 +66,7 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   const [logBufferLines, setLogBufferLines] = useState(String(initial.logBufferLines));
   const [editorCommand, setEditorCommand] = useState(initial.editorCommand);
   const [watchedPorts, setWatchedPorts] = useState(initial.watchedPorts.join(', '));
+  const [depsSchedule, setDepsSchedule] = useState<DepsSchedule>(initial.depsSchedule);
   const readOnly = initial.readOnly;
 
   const buffer = Number(logBufferLines);
@@ -80,6 +84,7 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
   if (editorParse.success && editorParse.data !== initial.editorCommand) patch.editorCommand = editorParse.data;
   if (ports && ports.join(',') !== initial.watchedPorts.join(',')) patch.watchedPorts = ports;
   if (terminalApp !== initialTerminal) patch.terminalApp = terminalApp;
+  if (depsSchedule !== initial.depsSchedule) patch.depsSchedule = depsSchedule;
   const canSave = !readOnly && !bufferError && !editorError && !portsError && Object.keys(patch).length > 0 && !update.isPending;
 
   return (
@@ -161,6 +166,24 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
             className={cn('h-8 font-mono text-sm', portsError && 'border-err')}
           />
           {portsError && <p className="text-[11px] text-err">{portsError}</p>}
+        </Row>
+        <Row
+          label="Dependency checks"
+          htmlFor="settings-deps-schedule"
+          hint="Runs each project's outdated and audit commands in the background. They contact your package registries."
+        >
+          <Select value={depsSchedule} onValueChange={(value) => setDepsSchedule(value as DepsSchedule)} disabled={readOnly}>
+            <SelectTrigger id="settings-deps-schedule" size="sm" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPS_SCHEDULES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {SCHEDULE_LABELS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Row>
       </fieldset>
       <DialogFooter>
