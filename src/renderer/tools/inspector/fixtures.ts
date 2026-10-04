@@ -15,6 +15,7 @@ export const summary = (id: string, patch: Partial<EntrySummary> = {}): EntrySum
   reqBytes: 0,
   resBytes: 20,
   replayOf: null,
+  tunnel: false,
   error: null,
   ...patch,
 });
@@ -53,6 +54,8 @@ export const inspectorStatus = (patch: Partial<InspectorStatus> = {}): Inspector
   targetSource: 'env',
   configChanged: false,
   count: 0,
+  tunnel: { state: 'off', url: null, error: null },
+  cloudflared: true,
   ...patch,
 });
 

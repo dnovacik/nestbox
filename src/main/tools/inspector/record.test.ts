@@ -45,6 +45,7 @@ describe('headers', () => {
     'x-session-id',
     'X-Client-Secret',
     'api_key',
+    'CF-Connecting-IP',
   ])('masks %s', (name) => {
     expect(isMasked(name)).toBe(true);
   });
