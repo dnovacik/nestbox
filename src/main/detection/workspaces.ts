@@ -53,16 +53,54 @@ function insideRoot(root: string, dir: string): boolean {
   return !rel.startsWith('..') && !isAbsolute(rel);
 }
 
+/** Folders never taken as packages when looking for them without a workspaces config. */
+const NOT_PACKAGES = [
+  'node_modules',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  'vendor',
+  'tmp',
+  'test',
+  'tests',
+  'e2e',
+  'fixtures',
+  '__fixtures__',
+  'examples',
+  'example',
+];
+
+/**
+ * A folder like shop/ holding app/ and api/ (each with its own package.json) but no workspaces config:
+ * its packages are the package.json folders one or two levels down.
+ */
+async function subFolderPackages(root: string): Promise<string[]> {
+  const ignore = NOT_PACKAGES.flatMap((name) => [`${name}/**`, `*/${name}/**`]);
+  return glob(['*/package.json', '*/*/package.json'], {
+    cwd: root,
+    ignore,
+    onlyFiles: true,
+    dot: false,
+  });
+}
+
 export async function findWorkspaceDirs(
   root: string,
   packageJson: Record<string, unknown> | null,
   options: DetectOptions = {},
 ): Promise<string[]> {
   const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
-  if (patterns.length === 0) return [];
+  if (patterns.length === 0) return keepInside(root, await subFolderPackages(root), options);
 
-  const include = patterns.filter((p) => !p.startsWith('!')).map(clean).filter((p) => p && p !== '.' && !escapesRoot(p));
-  const exclude = patterns.filter((p) => p.startsWith('!')).map((p) => clean(p.slice(1))).filter((p) => !escapesRoot(p));
+  const include = patterns
+    .filter((p) => !p.startsWith('!'))
+    .map(clean)
+    .filter((p) => p && p !== '.' && !escapesRoot(p));
+  const exclude = patterns
+    .filter((p) => p.startsWith('!'))
+    .map((p) => clean(p.slice(1)))
+    .filter((p) => !escapesRoot(p));
   if (include.length === 0) return [];
 
   const manifests = await glob(
@@ -73,6 +111,15 @@ export async function findWorkspaceDirs(
       onlyFiles: true,
     },
   );
+  return keepInside(root, manifests, options);
+}
+
+/** Package folders from manifest paths: sorted, never the root, and only those really inside it. */
+async function keepInside(
+  root: string,
+  manifests: string[],
+  options: DetectOptions,
+): Promise<string[]> {
   const dirs = new Set(manifests.map((file) => posix.dirname(file.replace(/\\/g, '/'))));
   dirs.delete('.');
   const realRoot = await realpath(root).catch(() => resolve(root));
