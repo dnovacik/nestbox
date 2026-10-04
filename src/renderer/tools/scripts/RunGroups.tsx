@@ -265,7 +265,14 @@ export function RunGroups({ projectId }: { projectId: string }) {
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 {!liveIn(group) && (
-                  <Button variant="ghost" size="icon" aria-label={`Start group ${group.name}`} onClick={() => actions.start.mutate(group.name)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Start group ${group.name}`}
+                    // Compose can take a while to report its services healthy: one start at a time.
+                    disabled={actions.start.isPending}
+                    onClick={() => actions.start.mutate(group.name)}
+                  >
                     <Play className="text-ok" />
                   </Button>
                 )}
