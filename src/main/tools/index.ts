@@ -4,6 +4,7 @@ import { createDatabaseTool, type DatabaseToolDeps } from './database';
 import { createEnvTool, type EnvToolDeps } from './env';
 import { createGitTool, type GitToolDeps } from './git';
 import { createHealthTool, type HealthToolDeps } from './health';
+import { createMockTool, type MockToolDeps } from './mock';
 import { projectInfoTool } from './project-info';
 import { createStaticTool, type StaticToolDeps } from './static';
 import { createTodosTool, type TodosToolDeps } from './todos';
@@ -20,6 +21,7 @@ export interface MainToolDeps {
   todos: TodosToolDeps;
   health: HealthToolDeps;
   compose: ComposeToolDeps;
+  mock: MockToolDeps;
 }
 
 /** Tool registry, main half. Tools that need core services are built by factories. */
@@ -35,5 +37,6 @@ export function createMainTools(deps: MainToolDeps): readonly AnyMainTool[] {
     createTodosTool(deps.todos),
     createHealthTool(deps.health),
     createComposeTool(deps.compose),
+    createMockTool(deps.mock),
   ];
 }

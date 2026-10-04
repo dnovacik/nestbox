@@ -224,6 +224,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       compose: { logger },
+      mock: { logger },
     });
     const toolHost = createToolHost({
       tools,
