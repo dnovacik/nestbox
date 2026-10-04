@@ -370,12 +370,14 @@ describe('deploy tool: deploying', () => {
       platform: 'vercel',
       target: 'preview',
     });
+    expect(tool?.busy?.()).toBe(true);
     await expect(call('deploy', { platform: 'netlify', target: 'preview' })).rejects.toMatchObject({
       code: 'CONFLICT',
     });
     await call('cancel', {});
     expect(await first).toEqual({ ok: false, code: null, url: null });
     expect(children).toHaveLength(1);
+    expect(tool?.busy?.()).toBe(false);
     expect((await call<DeployStatus>('status')).action).toBeNull();
     const log = await call<LogSnapshot>('getLogs', {});
     expect(log.lines.at(-1)?.text).toBe('■ canceled');
