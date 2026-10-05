@@ -90,6 +90,10 @@ if (!app.requestSingleInstanceLock()) {
       getTerminalApp: () => store.getSettings().terminalApp,
       logger,
     });
+    // Before any window exists: Windows ties a window's taskbar button (and its icon) to the AppUserModelID it
+    // had when created. Set later, the button no longer matches the installer's shortcut and shows Electron's icon.
+    const appId = platform.notificationAppId();
+    if (appId) app.setAppUserModelId(appId);
     /** False until the renderer has loaded, and again after its process died (until the reload finishes). */
     let rendererReady = false;
     const emit = (channel: EventChannel, payload?: unknown): void => {
@@ -492,9 +496,6 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     // Everything below is independent of the window and of each other: a failure is logged, not fatal.
-    const appId = platform.notificationAppId();
-    if (appId) app.setAppUserModelId(appId);
-
     try {
       tray = createTrayController({
         electron: {
