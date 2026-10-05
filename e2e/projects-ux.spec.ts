@@ -93,7 +93,7 @@ test('renaming from the row menu keeps the field focused while typing', async ()
   await expect(name).toBeFocused();
   // Like a person: after the menu has closed, one key at a time.
   await page.waitForTimeout(400);
-  await name.press('Control+a');
+  await name.press('ControlOrMeta+a');
   await name.pressSequentially('Backend', { delay: 30 });
   await expect(name).toBeFocused();
   await name.press('Enter');
@@ -106,7 +106,7 @@ test('renaming from the row menu keeps the field focused while typing', async ()
   await page.getByRole('menuitem', { name: 'Rename group' }).click();
   const group = sidebar.getByRole('textbox', { name: 'Project group name' });
   await page.waitForTimeout(400);
-  await group.press('Control+a');
+  await group.press('ControlOrMeta+a');
   await group.pressSequentially('Clients', { delay: 30 });
   await expect(group).toBeFocused();
   await group.press('Enter');
