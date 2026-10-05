@@ -418,3 +418,85 @@ describe('ProjectService: groups and order', () => {
     expect((await service.list())[0]?.detected.workspaces[0]?.name).toBe('Backend');
   });
 });
+
+describe('ProjectService.scan and addFolders', () => {
+  /** A folder without its own package.json holding app/ and api/. */
+  function withFolders(detect: ReturnType<typeof setup>['detect']) {
+    detect.mockImplementation(async (input: DetectInput) => {
+      const base = fakeDetect(input);
+      if (input.path !== 'C:\\Dev\\Shop') return { ...base, workspaces: [] };
+      return {
+        ...base,
+        name: 'Shop',
+        workspaces: ['app', 'api'].map((rel) => ({
+          ...emptyDetected(),
+          id: `${input.id}::${rel}`,
+          rootId: input.id,
+          relPath: rel,
+          name: `shop-${rel}`,
+          path: `${input.path}\\${rel}`,
+        })),
+      };
+    });
+  }
+
+  it('offers the sub-folders of a folder without its own package.json', async () => {
+    const { service, detect, store } = setup();
+    withFolders(detect);
+    expect(await service.scan('C:\\Dev\\Shop')).toEqual({
+      name: 'Shop',
+      folders: [
+        { relPath: 'app', name: 'shop-app' },
+        { relPath: 'api', name: 'shop-api' },
+      ],
+    });
+    expect(store.getProjects()).toEqual([]);
+  });
+
+  it('offers nothing for a package or a workspace root (they stay one project)', async () => {
+    const { service, detect } = setup();
+    detect.mockImplementation(async (input: DetectInput) => ({
+      ...fakeDetect(input),
+      packageJson: { name: 'mono', scripts: {} },
+    }));
+    expect(await service.scan('C:\\Dev\\Mono')).toEqual({ name: 'mono', folders: [] });
+  });
+
+  it('adds each sub-folder as its own project inside a new group', async () => {
+    const { service, detect, store, onChanged } = setup();
+    withFolders(detect);
+    const added = await service.addFolders('C:\\Dev\\Shop', 'Shop');
+    expect(added.map((p) => [p.name, p.path])).toEqual([
+      ['app', 'C:\\Dev\\Shop\\app'],
+      ['api', 'C:\\Dev\\Shop\\api'],
+    ]);
+    const [group] = store.getGroups();
+    expect(group?.name).toBe('Shop');
+    expect(store.getProjects().map((p) => p.groupId)).toEqual([group?.id, group?.id]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds them to the root without a group, skipping folders already added', async () => {
+    const { service, detect, store } = setup();
+    withFolders(detect);
+    await service.add('C:\\Dev\\Shop\\app');
+    const added = await service.addFolders('C:\\Dev\\Shop', null);
+    expect(added.map((p) => p.path)).toEqual(['C:\\Dev\\Shop\\api']);
+    expect(store.getGroups()).toEqual([]);
+    expect(store.getProjects().map((p) => p.path)).toEqual([
+      'C:\\Dev\\Shop\\app',
+      'C:\\Dev\\Shop\\api',
+    ]);
+  });
+
+  it('refuses a folder with nothing to split', async () => {
+    const { service, detect } = setup();
+    detect.mockImplementation(async (input: DetectInput) => ({
+      ...fakeDetect(input),
+      workspaces: [],
+    }));
+    await expect(service.addFolders('C:\\Dev\\Empty', null)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+  });
+});

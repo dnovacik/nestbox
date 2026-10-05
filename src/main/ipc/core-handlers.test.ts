@@ -28,7 +28,7 @@ function memorySettings(readOnly = false) {
 function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
   return {
     projects: {
-      list: vi.fn(), add: vi.fn(), remove: vi.fn(), rename: vi.fn(), setPinned: vi.fn(),
+      list: vi.fn(), add: vi.fn(), scan: vi.fn(), addFolders: vi.fn(), remove: vi.fn(), rename: vi.fn(), setPinned: vi.fn(),
       refresh: vi.fn(async () => ({}) as never),
       getDetected: vi.fn(() => detected()),
       moveProject: vi.fn(),

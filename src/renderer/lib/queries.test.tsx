@@ -30,6 +30,32 @@ describe('useAddProject', () => {
     expect(bridge.callsTo('projects:add')).toEqual([{ path: 'C:\\Dev\\Shop' }]);
   });
 
+  it('asks how to add a folder that splits into sub-folder projects', async () => {
+    const bridge = installMockBridge({
+      'dialog:pickFolder': () => 'C:\\Dev\\Shop',
+      'projects:scan': () => ({
+        name: 'Shop',
+        folders: [
+          { relPath: 'app', name: 'shop-app' },
+          { relPath: 'api', name: 'shop-api' },
+        ],
+      }),
+    });
+    renderWithProviders(<AddButton />);
+    await userEvent.click(screen.getByRole('button', { name: 'add' }));
+    await waitFor(() =>
+      expect(useUiStore.getState().pendingFolders).toEqual({
+        path: 'C:\\Dev\\Shop',
+        name: 'Shop',
+        folders: [
+          { relPath: 'app', name: 'shop-app' },
+          { relPath: 'api', name: 'shop-api' },
+        ],
+      }),
+    );
+    expect(bridge.callsTo('projects:add')).toEqual([]);
+  });
+
   it('does nothing when the picker is cancelled', async () => {
     const bridge = installMockBridge({ 'dialog:pickFolder': () => null });
     renderWithProviders(<AddButton />);

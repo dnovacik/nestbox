@@ -17,21 +17,38 @@ test.afterEach(async () => {
   await app.close();
 });
 
-test('a folder with app/ and api/ shows both packages, and the Deploy tab on each', async () => {
+/** "Add project" on the fixture folder (app/ + api/, no package.json of its own) asks about a group. */
+async function addFolder(answer: 'group' | 'no', groupName?: string) {
   const sidebar = page.getByRole('complementary', { name: 'Projects' });
   await sidebar.getByRole('button', { name: 'Add project' }).click();
-  await expect(sidebar.getByRole('button', { name: 'multi-web', exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(sidebar.getByRole('button', { name: 'multi-api', exact: true })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Add under a group?' });
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.getByText('multi-web')).toBeVisible();
+  if (answer === 'no') {
+    await dialog.getByRole('button', { name: 'No, add without a group' }).click();
+  } else {
+    const name = dialog.getByRole('textbox', { name: 'Group name' });
+    await expect(name).toHaveValue(/^nestbox-e2e-multi-app/);
+    if (groupName) await name.fill(groupName);
+    await dialog.getByRole('button', { name: 'Add under group' }).click();
+  }
+  await expect(dialog).toHaveCount(0);
+  return sidebar;
+}
+
+test('"No" adds app/ and api/ as separate projects, each with the Deploy tab', async () => {
+  const sidebar = await addFolder('no');
+  const other = sidebar.getByRole('region', { name: 'All projects' });
+  await expect(other.getByRole('button', { name: 'multi-web', exact: true })).toBeVisible();
+  await expect(other.getByRole('button', { name: 'multi-api', exact: true })).toBeVisible();
+  // No row for the folder itself.
+  await expect(sidebar.getByRole('button', { name: /^nestbox-e2e-multi-app/ })).toHaveCount(0);
 
   await sidebar.getByRole('button', { name: 'multi-web', exact: true }).click();
   await page.getByRole('tab', { name: 'Deploy' }).click();
   await expect(page.getByRole('region', { name: 'Vercel' })).toContainText(
     'Not linked to a Vercel project yet.',
-    {
-      timeout: 15_000,
-    },
+    { timeout: 15_000 },
   );
 
   await sidebar.getByRole('button', { name: 'multi-api', exact: true }).click();
@@ -39,49 +56,44 @@ test('a folder with app/ and api/ shows both packages, and the Deploy tab on eac
   await expect(page.getByRole('region', { name: 'Set up deploys' })).toBeVisible();
 });
 
-test('groups: create one, drag a project into it, and rename both inline', async () => {
-  const sidebar = page.getByRole('complementary', { name: 'Projects' });
-  await sidebar.getByRole('button', { name: 'Add project' }).click();
-  await expect(sidebar.getByRole('button', { name: 'multi-web', exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+test('a group from the dialog holds both projects; rename them by double-click', async () => {
+  const sidebar = await addFolder('group', 'Work');
+  const work = sidebar.getByRole('region', { name: 'Work' });
+  await expect(work.getByRole('button', { name: 'multi-web', exact: true })).toBeVisible();
+  await expect(work.getByRole('button', { name: 'multi-api', exact: true })).toBeVisible();
 
+  // Drag one out to the ungrouped list's own group, then back.
   await sidebar.getByRole('button', { name: 'New project group' }).click();
   const groupName = sidebar.getByRole('textbox', { name: 'Project group name' });
   await expect(groupName).toBeFocused();
-  await groupName.fill('Work');
+  await groupName.fill('Later');
   await groupName.press('Enter');
-  const work = sidebar.getByRole('region', { name: 'Work' });
-  await expect(work).toBeVisible();
-
-  const root = sidebar
-    .getByRole('region', { name: 'Other projects' })
+  const later = sidebar.getByRole('region', { name: 'Later' });
+  await work
     .getByRole('listitem')
-    .first();
-  await root.dragTo(work.getByText('Drag projects here'));
-  await expect(work.getByRole('button', { name: 'multi-web', exact: true })).toBeVisible();
+    .filter({ hasText: 'multi-api' })
+    .dragTo(later.getByText('Drag projects here'));
+  await expect(later.getByRole('button', { name: 'multi-api', exact: true })).toBeVisible();
 
-  const rootRow = work.getByRole('listitem').first().getByRole('button').first();
-  await rootRow.dblclick();
+  await work.getByRole('button', { name: 'multi-web', exact: true }).dblclick();
   const name = sidebar.getByRole('textbox', { name: 'Project name' });
   await expect(name).toBeFocused();
-  await name.fill('Multi');
+  await name.fill('Web');
   await name.press('Enter');
-  await expect(work.getByRole('button', { name: 'Multi', exact: true })).toBeVisible();
+  await expect(work.getByRole('button', { name: 'Web', exact: true })).toBeVisible();
 });
 
 test('renaming from the row menu keeps the field focused while typing', async () => {
-  const sidebar = page.getByRole('complementary', { name: 'Projects' });
-  await sidebar.getByRole('button', { name: 'Add project' }).click();
-  const row = sidebar.getByRole('button', { name: 'multi-api', exact: true });
-  await expect(row).toBeVisible({ timeout: 15_000 });
+  const sidebar = await addFolder('no');
+  await expect(sidebar.getByRole('button', { name: 'multi-api', exact: true })).toBeVisible();
 
-  await sidebar.getByRole('button', { name: /^Actions for nestbox-e2e-multi-app/ }).click();
+  await sidebar.getByRole('button', { name: 'Actions for multi-api' }).click();
   await page.getByRole('menuitem', { name: 'Rename' }).click();
   const name = sidebar.getByRole('textbox', { name: 'Project name' });
   await expect(name).toBeFocused();
   // Like a person: after the menu has closed, one key at a time.
   await page.waitForTimeout(400);
+  await name.press('Control+a');
   await name.pressSequentially('Backend', { delay: 30 });
   await expect(name).toBeFocused();
   await name.press('Enter');

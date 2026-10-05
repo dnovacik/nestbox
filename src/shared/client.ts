@@ -24,6 +24,8 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
     projects: {
       list: () => call('projects:list'),
       add: (path: string) => call('projects:add', { path }),
+      scan: (path: string) => call('projects:scan', { path }),
+      addFolders: (path: string, group: string | null) => call('projects:addFolders', { path, group }),
       remove: (id: string) => call('projects:remove', { id }),
       rename: (id: string, name: string) => call('projects:rename', { id, name }),
       setPinned: (id: string, pinned: boolean) => call('projects:setPinned', { id, pinned }),
