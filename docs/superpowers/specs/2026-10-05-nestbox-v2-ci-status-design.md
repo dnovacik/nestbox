@@ -18,7 +18,7 @@ A tool `ci` ("CI", lucide `workflow`) on folders with their own `.git` (`p.git !
 - otherwise `.github/workflows/` → GitHub, `.gitlab-ci.yml` → GitLab;
 - otherwise null, and the tab explains what it needs.
 
-**Branch.** The current branch is read live with `readGitInfo`, not from detection. A branch name reaches the command line only when it matches `^[A-Za-z0-9._/-]{1,200}$`; otherwise the listing isn't filtered and the tab says so.
+**Branch.** The current branch is read live with `readGitInfo`, not from detection. A branch name reaches the command line only when it matches `^[A-Za-z0-9._/-]{1,200}$`; otherwise gh lists 100 runs and main filters them by branch (glab is always filtered in main).
 
 ## Commands
 
@@ -26,7 +26,7 @@ All of them run through `spawnCommand` in the project folder (shell env, `NO_COL
 
 | | GitHub (`gh`) | GitLab (`glab`) |
 | --- | --- | --- |
-| Runs | `run list --branch <b> --limit 15 --json databaseId,status,conclusion,workflowName,displayTitle,headBranch,headSha,event,createdAt,updatedAt,url` | `ci list --per-page 30 --output json`, filtered by `ref` in main (15 kept) |
+| Runs | `run list --branch <b> --limit 15 --json databaseId,status,conclusion,workflowName,displayTitle,headBranch,headSha,event,createdAt,updatedAt,url` | `ci list --per-page 50 --output json`, filtered by `ref` in main (15 kept) |
 | Jobs | `run view <id> --json jobs` | `ci get --pipeline-id <id> --output json` (`jobs`) |
 | Log tail | `run view --job <jobId> --log-failed` (tab-separated `job, step, line`; the first two columns are dropped) | `ci trace <jobId>`, finished jobs only |
 | Re-run failed | `run rerun <id> --failed` | `ci retry <jobId>` for each failed job that isn't allowed to fail (at most 20) |
@@ -43,7 +43,7 @@ All of them run through `spawnCommand` in the project folder (shell env, `NO_COL
 
 ## Contract
 
-- `status` (local only): `{ provider, cli: found|missing, install, branch, latest }`. `latest` is the newest run of the current branch that this session has seen, from the last listing. The overview card shows it without touching the network.
+- `status` (local only): `{ provider, cli: found|missing, install, loginCommand, branch, latest, busy }`. `latest` is the newest run of the current branch that this session has seen, from the last listing. The overview card shows it without touching the network.
 - `runs` `{ scope: 'branch' | 'all' }` → `{ state: 'ok', branch, filtered, runs } | { state: 'cli-missing' | 'logged-out' | 'no-remote' | 'no-provider' | 'failed' | 'timeout' }`.
 - `jobs` `{ runId }` → `{ state: 'ok', jobs } | failure`.
 - `jobLog` `{ runId, jobId }` → `{ state: 'ok', lines, truncated } | failure`.
@@ -60,7 +60,7 @@ All of them run through `spawnCommand` in the project folder (shell env, `NO_COL
 - Selected run: its jobs. A failed job shows its failed step and a "Show log" button, which loads the tail into a monospace block.
 - "Re-run failed jobs" appears when the run failed.
 - Follow: while the shown runs or the selected run are queued or running, refetch every 20 s, and only while the panel is mounted.
-- Setup states: install the CLI (with Copy), log in (opens a terminal), no remote.
+- Setup states: install the CLI (a link to its install page), log in (opens a terminal), no remote.
 
 **Overview card.** The latest run of the current branch from `status`, or nothing until the tab has listed runs this session.
 
