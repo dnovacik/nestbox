@@ -17,9 +17,9 @@ describe('ci contract', () => {
   });
 
   it('applies to folders with their own repository', () => {
-    expect(ciDefinition.appliesTo(makeDetectedForTest({ git: { branch: 'main', head: null } }))).toBe(
-      true,
-    );
+    expect(
+      ciDefinition.appliesTo(makeDetectedForTest({ git: { branch: 'main', head: null } })),
+    ).toBe(true);
     expect(ciDefinition.appliesTo(makeDetectedForTest({ git: null }))).toBe(false);
   });
 });

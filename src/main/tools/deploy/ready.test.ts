@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
+import { ciCheck, depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
 
 const node = (patch: object) => ({
   state: 'ok',
@@ -144,6 +144,56 @@ describe('gitCheck', () => {
       detail: 'No upstream branch',
     });
     expect(gitCheck({ state: 'not-a-repo' })).toMatchObject({ tone: 'skip' });
+  });
+});
+
+describe('ciCheck', () => {
+  const run = (state: string) => ({
+    state: 'ok',
+    branch: 'main',
+    run: {
+      id: '9',
+      title: 'Add cart',
+      workflow: 'CI',
+      branch: 'main',
+      sha: 'abc1234',
+      event: 'push',
+      state,
+      createdAt: 1,
+      updatedAt: 2,
+      url: null,
+    },
+  });
+
+  it("follows the branch's newest run", () => {
+    expect(ciCheck(run('success'))).toMatchObject({
+      kind: 'ci',
+      label: 'CI',
+      tone: 'ok',
+      detail: 'CI passed on main (abc1234)',
+    });
+    expect(ciCheck(run('failure'))).toMatchObject({
+      tone: 'fail',
+      detail: 'CI failed on main (abc1234)',
+    });
+    expect(ciCheck(run('running'))).toMatchObject({
+      tone: 'warn',
+      detail: 'Still running on main (abc1234)',
+    });
+    expect(ciCheck(run('canceled'))).toMatchObject({ tone: 'warn' });
+  });
+
+  it('skips without a run, a provider, a login or the tool', () => {
+    expect(ciCheck({ state: 'ok', branch: 'main', run: null })).toMatchObject({
+      tone: 'skip',
+      detail: 'No CI runs for main yet',
+    });
+    expect(ciCheck({ state: 'logged-out' })).toMatchObject({
+      tone: 'skip',
+      detail: 'Not logged in to the CI CLI',
+    });
+    expect(ciCheck({ state: 'cli-missing' })).toMatchObject({ tone: 'skip' });
+    expect(ciCheck(null)).toMatchObject({ tone: 'skip', detail: 'CI not set up' });
   });
 });
 

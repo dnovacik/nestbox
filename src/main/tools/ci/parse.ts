@@ -1,6 +1,7 @@
 // Reads what gh and glab print. Only ids, states, names, branches, short SHAs, times, https URLs and run
 // titles leave this file: users, emails, commit messages beyond the title and variables are dropped. Output
 // that isn't the expected shape is null (a failed listing), never a guess.
+import { stripAnsi } from '@shared/ansi-strip';
 import type { CiJob, CiRun, CiState } from '@shared/tools/ci/contract';
 
 type Obj = Record<string, unknown>;
@@ -35,7 +36,7 @@ const shortSha = (v: unknown) => str(v)?.slice(0, 7) ?? null;
 
 function parseJson(stdout: string): unknown {
   try {
-    return JSON.parse(stdout.replace(/^﻿/, ''));
+    return JSON.parse(stdout.replace(/^\uFEFF/, ''));
   } catch {
     return undefined;
   }
@@ -193,12 +194,14 @@ export function parseGlabJobs(stdout: string): CiJob[] | null {
   return jobs.sort((a, b) => Number(BigInt(a.id) - BigInt(b.id)));
 }
 
-// CSI and OSC escape sequences (colours, hyperlinks), then the remaining control characters but tab.
-const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-const CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/g;
-
+/** Escape sequences (colours, hyperlinks), then the control characters left but tab. */
 export function cleanLine(line: string): string {
-  return line.replace(ANSI, '').replace(CONTROL, '');
+  return [...stripAnsi(line)]
+    .filter((c) => {
+      const code = c.charCodeAt(0);
+      return code === 9 || (code >= 32 && code !== 127);
+    })
+    .join('');
 }
 
 function tail(lines: string[], max: number): { lines: string[]; truncated: boolean } {
@@ -213,15 +216,14 @@ export function tailGhLog(stdout: string, max: number): { lines: string[]; trunc
   const lines = stdout.split(/\r?\n/).map((raw) => {
     const parts = raw.split('\t');
     const text = parts.length >= 3 ? parts.slice(2).join('\t') : raw;
-    return cleanLine(
-      text.replace(/^﻿/, '').replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z ?/, ''),
-    );
+    return cleanLine(text.replace(/^\uFEFF/, '').replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z ?/, ''));
   });
   return tail(lines, max);
 }
 
 // A runner's collapsible sections: `section_start:<time>:<name>[<options>]\r\x1b[0K`.
-const SECTION = /section_(?:start|end):\d+:[A-Za-z0-9_.-]+(?:\[[^\]]*\])?\r?(?:\x1b\[0K)?/g;
+// eslint-disable-next-line no-control-regex -- the runner's marker ends with an escape sequence
+const SECTION = /section_(?:start|end):\d+:[A-Za-z0-9_.-]+(?:\[[^\]]*\])?\r?(?:\u001b\[0K)?/g;
 
 /** `glab ci trace <jobId>` of a finished job. */
 export function tailTrace(stdout: string, max: number): { lines: string[]; truncated: boolean } {
@@ -241,7 +243,11 @@ export function classifyFailure(stderr: string): 'logged-out' | 'no-remote' | 'f
     )
   )
     return 'logged-out';
-  if (/no git remote|known github host|could not determine|not a git repository|could not find .*project|404 project not found/.test(s))
+  if (
+    /no git remote|known github host|could not determine|not a git repository|could not find .*project|404 project not found/.test(
+      s,
+    )
+  )
     return 'no-remote';
   return 'failed';
 }

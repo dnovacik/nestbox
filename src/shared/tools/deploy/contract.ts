@@ -62,13 +62,13 @@ export const LastDeploySchema = z.object({
 });
 export type LastDeploy = z.infer<typeof LastDeploySchema>;
 
-export const READY_KINDS = ['node', 'deps', 'env', 'git', 'script'] as const;
+export const READY_KINDS = ['node', 'deps', 'env', 'git', 'ci', 'script'] as const;
 export const READY_TONES = ['pending', 'running', 'ok', 'warn', 'fail', 'skip'] as const;
 export type ReadyTone = (typeof READY_TONES)[number];
 
 export const ReadyCheckSchema = z.object({
   kind: z.enum(READY_KINDS),
-  /** "Node", "Dependencies", "Env", "Git" or the script name. */
+  /** "Node", "Dependencies", "Env", "Git", "CI" or the script name. */
   label: z.string(),
   tone: z.enum(READY_TONES),
   detail: z.string().nullable(),

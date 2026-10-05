@@ -11,7 +11,9 @@ export function hostOf(url: string): string | null {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
     try {
       const parsed = new URL(value);
-      return parsed.protocol === 'file:' || parsed.hostname === '' ? null : parsed.hostname.toLowerCase();
+      return parsed.protocol === 'file:' || parsed.hostname === ''
+        ? null
+        : parsed.hostname.toLowerCase();
     } catch {
       return null;
     }
@@ -51,10 +53,11 @@ export function providerFor(
   return null;
 }
 
-const exists = (path: string) => stat(path).then(
-  () => true,
-  () => false,
-);
+const exists = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
 
 export async function detectProvider(dir: string): Promise<CiProvider | null> {
   const dirs = await resolveGitDirs(dir);

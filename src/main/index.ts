@@ -285,6 +285,7 @@ if (!app.requestSingleInstanceLock()) {
       node: { logger, getDetected: (id) => projects.getDetected(id) },
       deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       deploy: { logger, envFiles, tools: { invoke: invokeTool }, runScript: runScriptToEnd },
+      ci: { logger },
     });
     const toolHost = createToolHost({
       tools,

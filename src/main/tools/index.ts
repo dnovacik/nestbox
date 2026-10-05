@@ -1,3 +1,4 @@
+import { createCiTool, type CiToolDeps } from './ci';
 import { createClaudeTool, type ClaudeToolDeps } from './claude';
 import { createComposeTool, type ComposeToolDeps } from './compose';
 import { createDatabaseTool, type DatabaseToolDeps } from './database';
@@ -30,6 +31,7 @@ export interface MainToolDeps {
   node: NodeToolDeps;
   deps: DepsToolDeps;
   deploy: DeployToolDeps;
+  ci: CiToolDeps;
 }
 
 /** Tool registry, main half. Tools that need core services are built by factories. */
@@ -50,5 +52,6 @@ export function createMainTools(deps: MainToolDeps): readonly AnyMainTool[] {
     createNodeTool(deps.node),
     createDepsTool(deps.deps),
     createDeployTool(deps.deploy),
+    createCiTool(deps.ci),
   ];
 }

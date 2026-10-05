@@ -1,1 +1,96 @@
-{"id":2081230001,"iid":411,"project_id":51234567,"status":"failed","source":"merge_request_event","ref":"feature/cart","sha":"77aa88bb99cc00dd11ee22ff33aa44bb55cc66dd","before_sha":"0000000000000000000000000000000000000000","tag":false,"yaml_errors":"","user":{"id":1,"username":"dev","name":"A Developer","state":"active","avatar_url":"","web_url":"https://gitlab.com/dev"},"updated_at":"2026-10-05T05:48:31.000Z","created_at":"2026-10-05T05:40:10.000Z","started_at":"2026-10-05T05:40:12.000Z","finished_at":"2026-10-05T05:48:31.000Z","duration":499,"queued_duration":2,"coverage":"","web_url":"https://gitlab.com/acme/shop/-/pipelines/2081230001","detailed_status":{"icon":"status_failed","text":"Failed","label":"failed","group":"failed"},"jobs":[{"id":8812340001,"status":"success","stage":"build","name":"build","ref":"feature/cart","tag":false,"allow_failure":false,"created_at":"2026-10-05T05:40:10.000Z","started_at":"2026-10-05T05:40:12.000Z","finished_at":"2026-10-05T05:43:00.000Z","duration":168.2,"web_url":"https://gitlab.com/acme/shop/-/jobs/8812340001","failure_reason":""},{"id":8812340002,"status":"failed","stage":"test","name":"unit tests","ref":"feature/cart","tag":false,"allow_failure":false,"created_at":"2026-10-05T05:40:10.000Z","started_at":"2026-10-05T05:43:02.000Z","finished_at":"2026-10-05T05:48:30.000Z","duration":328.0,"web_url":"https://gitlab.com/acme/shop/-/jobs/8812340002","failure_reason":"script_failure"},{"id":8812340003,"status":"failed","stage":"test","name":"lint","ref":"feature/cart","tag":false,"allow_failure":true,"created_at":"2026-10-05T05:40:10.000Z","started_at":"2026-10-05T05:43:02.000Z","finished_at":"2026-10-05T05:44:00.000Z","duration":58.0,"web_url":"https://gitlab.com/acme/shop/-/jobs/8812340003","failure_reason":"script_failure"},{"id":8812340004,"status":"skipped","stage":"deploy","name":"deploy","ref":"feature/cart","tag":false,"allow_failure":false,"created_at":"2026-10-05T05:40:10.000Z","started_at":null,"finished_at":null,"duration":null,"web_url":"https://gitlab.com/acme/shop/-/jobs/8812340004","failure_reason":""}]}
+{
+  "id": 2081230001,
+  "iid": 411,
+  "project_id": 51234567,
+  "status": "failed",
+  "source": "merge_request_event",
+  "ref": "feature/cart",
+  "sha": "77aa88bb99cc00dd11ee22ff33aa44bb55cc66dd",
+  "before_sha": "0000000000000000000000000000000000000000",
+  "tag": false,
+  "yaml_errors": "",
+  "user": {
+    "id": 1,
+    "username": "dev",
+    "name": "A Developer",
+    "state": "active",
+    "avatar_url": "",
+    "web_url": "https://gitlab.com/dev"
+  },
+  "updated_at": "2026-10-05T05:48:31.000Z",
+  "created_at": "2026-10-05T05:40:10.000Z",
+  "started_at": "2026-10-05T05:40:12.000Z",
+  "finished_at": "2026-10-05T05:48:31.000Z",
+  "duration": 499,
+  "queued_duration": 2,
+  "coverage": "",
+  "web_url": "https://gitlab.com/acme/shop/-/pipelines/2081230001",
+  "detailed_status": {
+    "icon": "status_failed",
+    "text": "Failed",
+    "label": "failed",
+    "group": "failed"
+  },
+  "jobs": [
+    {
+      "id": 8812340001,
+      "status": "success",
+      "stage": "build",
+      "name": "build",
+      "ref": "feature/cart",
+      "tag": false,
+      "allow_failure": false,
+      "created_at": "2026-10-05T05:40:10.000Z",
+      "started_at": "2026-10-05T05:40:12.000Z",
+      "finished_at": "2026-10-05T05:43:00.000Z",
+      "duration": 168.2,
+      "web_url": "https://gitlab.com/acme/shop/-/jobs/8812340001",
+      "failure_reason": ""
+    },
+    {
+      "id": 8812340002,
+      "status": "failed",
+      "stage": "test",
+      "name": "unit tests",
+      "ref": "feature/cart",
+      "tag": false,
+      "allow_failure": false,
+      "created_at": "2026-10-05T05:40:10.000Z",
+      "started_at": "2026-10-05T05:43:02.000Z",
+      "finished_at": "2026-10-05T05:48:30.000Z",
+      "duration": 328.0,
+      "web_url": "https://gitlab.com/acme/shop/-/jobs/8812340002",
+      "failure_reason": "script_failure"
+    },
+    {
+      "id": 8812340003,
+      "status": "failed",
+      "stage": "test",
+      "name": "lint",
+      "ref": "feature/cart",
+      "tag": false,
+      "allow_failure": true,
+      "created_at": "2026-10-05T05:40:10.000Z",
+      "started_at": "2026-10-05T05:43:02.000Z",
+      "finished_at": "2026-10-05T05:44:00.000Z",
+      "duration": 58.0,
+      "web_url": "https://gitlab.com/acme/shop/-/jobs/8812340003",
+      "failure_reason": "script_failure"
+    },
+    {
+      "id": 8812340004,
+      "status": "skipped",
+      "stage": "deploy",
+      "name": "deploy",
+      "ref": "feature/cart",
+      "tag": false,
+      "allow_failure": false,
+      "created_at": "2026-10-05T05:40:10.000Z",
+      "started_at": null,
+      "finished_at": null,
+      "duration": null,
+      "web_url": "https://gitlab.com/acme/shop/-/jobs/8812340004",
+      "failure_reason": ""
+    }
+  ]
+}

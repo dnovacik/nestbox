@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { ToolDefinition, ToolEvents } from '../tool';
+import { ciContract, ciDefinition, ciEvents } from './ci/contract';
 import { claudeContract, claudeDefinition, claudeEvents } from './claude/contract';
 import { composeContract, composeDefinition, composeEvents } from './compose/contract';
 import { databaseContract, databaseDefinition, databaseEvents } from './database/contract';
@@ -33,6 +34,7 @@ export const toolContracts = {
   node: nodeContract,
   deps: depsContract,
   deploy: deployContract,
+  ci: ciContract,
 } as const;
 
 export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
@@ -51,6 +53,7 @@ export const toolDefinitions: readonly ToolDefinition<unknown>[] = [
   nodeDefinition as ToolDefinition<unknown>,
   depsDefinition as ToolDefinition<unknown>,
   deployDefinition as ToolDefinition<unknown>,
+  ciDefinition as ToolDefinition<unknown>,
 ];
 
 export type ToolId = keyof typeof toolContracts;
@@ -92,6 +95,7 @@ export const toolEvents = {
   node: {},
   deps: depsEvents,
   deploy: deployEvents,
+  ci: ciEvents,
 } as const satisfies Record<ToolId, ToolEvents>;
 
 export type ToolEventName<T extends ToolId> = keyof (typeof toolEvents)[T] & string;

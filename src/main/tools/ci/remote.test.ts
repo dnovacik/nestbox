@@ -62,7 +62,10 @@ describe('detectProvider', () => {
   it("reads the repository's config", async () => {
     dir = await mkdtemp(join(tmpdir(), 'nestbox-ci-'));
     await mkdir(join(dir, '.git'));
-    await writeFile(join(dir, '.git', 'config'), '[remote "origin"]\n\turl = https://gitlab.com/t/a\n');
+    await writeFile(
+      join(dir, '.git', 'config'),
+      '[remote "origin"]\n\turl = https://gitlab.com/t/a\n',
+    );
     expect(await detectProvider(dir)).toBe('gitlab');
   });
 

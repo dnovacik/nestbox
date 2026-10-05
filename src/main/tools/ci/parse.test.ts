@@ -73,7 +73,10 @@ describe('GitHub', () => {
     const tail = tailGhLog(fixture('gh-log-failed.txt'), 2);
     expect(tail).toEqual({
       truncated: true,
-      lines: [' ELIFECYCLE  Command failed with exit code 1.', '##[error]Process completed with exit code 1.'],
+      lines: [
+        ' ELIFECYCLE  Command failed with exit code 1.',
+        '##[error]Process completed with exit code 1.',
+      ],
     });
   });
 
@@ -148,12 +151,16 @@ describe('cleanLine', () => {
 
 describe('classifyFailure', () => {
   it('recognises a missing login', () => {
-    expect(classifyFailure('To get started with GitHub CLI, please run:  gh auth login')).toBe('logged-out');
+    expect(classifyFailure('To get started with GitHub CLI, please run:  gh auth login')).toBe(
+      'logged-out',
+    );
     expect(classifyFailure('HTTP 401: Bad credentials')).toBe('logged-out');
     expect(classifyFailure('glab: 401 Unauthorized')).toBe('logged-out');
-    expect(classifyFailure('none of the git remotes configured for this repository point to a known GitHub host')).toBe(
-      'no-remote',
-    );
+    expect(
+      classifyFailure(
+        'none of the git remotes configured for this repository point to a known GitHub host',
+      ),
+    ).toBe('no-remote');
     expect(classifyFailure('no git remotes found')).toBe('no-remote');
     expect(classifyFailure('HTTP 500')).toBe('failed');
   });
