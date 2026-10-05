@@ -37,7 +37,10 @@ interface TreeState {
   setDragging(value: { type: 'project' | 'group'; id: string } | null): void;
 }
 
-/** An inline name editor: Enter saves, Escape or leaving cancels. */
+/** Focus a brand-new editor can lose to the menu or click that opened it: it takes it back. */
+const SETTLE_MS = 500;
+
+/** An inline name editor: Enter or leaving saves, Escape cancels. */
 function InlineName({
   initial,
   label,
@@ -51,7 +54,9 @@ function InlineName({
 }) {
   const [value, setValue] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
-  // Focused after the click or double-click that opened it has finished, so its own events don't blur it.
+  const openedAt = useRef(Date.now());
+  const finished = useRef(false);
+  // Focused after the click, double-click or menu that opened it has finished, so its own events don't blur it.
   useEffect(() => {
     const timer = setTimeout(() => {
       ref.current?.focus();
@@ -59,6 +64,13 @@ function InlineName({
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+  const finish = (save: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    const name = value.trim();
+    if (save && name && name !== initial) onSubmit(name);
+    onDone();
+  };
   return (
     <Input
       ref={ref}
@@ -66,24 +78,41 @@ function InlineName({
       value={value}
       maxLength={100}
       onChange={(e) => setValue(e.target.value)}
-      onBlur={(e) => {
-        // Only a blur after it had focus ends the edit.
-        if (e.relatedTarget !== null || document.hasFocus()) onDone();
+      onBlur={() => {
+        // A menu closing or a row re-rendering can move focus just after the editor opened: take it back.
+        if (Date.now() - openedAt.current < SETTLE_MS) {
+          setTimeout(() => ref.current?.focus(), 0);
+          return;
+        }
+        finish(true);
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
-          onDone();
+          finish(false);
         } else if (e.key === 'Enter') {
           e.preventDefault();
-          const name = value.trim();
-          if (name && name !== initial) onSubmit(name);
-          onDone();
+          finish(true);
         }
       }}
       className="h-7 flex-1 text-xs"
     />
   );
+}
+
+/** Keeps a menu from handing focus back to its button when the chosen item opened an editor. */
+function useRenameMenu(open: () => void) {
+  const chosen = useRef(false);
+  return {
+    onSelectRename: () => {
+      chosen.current = true;
+      open();
+    },
+    onCloseAutoFocus: (event: Event) => {
+      if (chosen.current) event.preventDefault();
+      chosen.current = false;
+    },
+  };
 }
 
 /** Groups, their projects in order, and the ungrouped rest; drag and drop or each row's menu reorders them. */
@@ -255,6 +284,7 @@ function GroupSection({
 }) {
   const { actions } = state;
   const renaming = state.renaming === `g:${group.id}`;
+  const menu = useRenameMenu(() => state.setRenaming(`g:${group.id}`));
   return (
     <section
       aria-label={group.name}
@@ -307,8 +337,8 @@ function GroupSection({
               <MoreHorizontal className="size-3" aria-hidden />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => state.setRenaming(`g:${group.id}`)}>
+          <DropdownMenuContent align="end" onCloseAutoFocus={menu.onCloseAutoFocus}>
+            <DropdownMenuItem onSelect={menu.onSelectRename}>
               Rename group
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void actions.deleteGroup(group.id)}>
@@ -356,6 +386,7 @@ function ProjectItem({ project, siblings, groupId, state }: ProjectItemProps) {
   const workspaces = project.detected.workspaces;
   const { data: processes = [] } = useProcesses();
   const { actions } = state;
+  const menu = useRenameMenu(() => state.setRenaming(`p:${project.id}`));
   const stateOf = (projectId: string, withWorkspaces: boolean): AggregateState =>
     aggregateState(
       processes
@@ -426,8 +457,8 @@ function ProjectItem({ project, siblings, groupId, state }: ProjectItemProps) {
               <MoreHorizontal className="size-3.5" aria-hidden />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => state.setRenaming(`p:${project.id}`)}>
+          <DropdownMenuContent align="end" onCloseAutoFocus={menu.onCloseAutoFocus}>
+            <DropdownMenuItem onSelect={menu.onSelectRename}>
               Rename
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void actions.setPinned(project.id, !project.pinned)}>

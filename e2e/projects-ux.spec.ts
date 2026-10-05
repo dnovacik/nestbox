@@ -69,3 +69,34 @@ test('groups: create one, drag a project into it, and rename both inline', async
   await name.press('Enter');
   await expect(work.getByRole('button', { name: 'Multi', exact: true })).toBeVisible();
 });
+
+test('renaming from the row menu keeps the field focused while typing', async () => {
+  const sidebar = page.getByRole('complementary', { name: 'Projects' });
+  await sidebar.getByRole('button', { name: 'Add project' }).click();
+  const row = sidebar.getByRole('button', { name: 'multi-api', exact: true });
+  await expect(row).toBeVisible({ timeout: 15_000 });
+
+  await sidebar.getByRole('button', { name: /^Actions for nestbox-e2e-multi-app/ }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  const name = sidebar.getByRole('textbox', { name: 'Project name' });
+  await expect(name).toBeFocused();
+  // Like a person: after the menu has closed, one key at a time.
+  await page.waitForTimeout(400);
+  await name.pressSequentially('Backend', { delay: 30 });
+  await expect(name).toBeFocused();
+  await name.press('Enter');
+  await expect(sidebar.getByRole('button', { name: 'Backend', exact: true })).toBeVisible();
+
+  // A group from its menu, too.
+  await sidebar.getByRole('button', { name: 'New project group' }).click();
+  await sidebar.getByRole('textbox', { name: 'Project group name' }).press('Enter');
+  await sidebar.getByRole('button', { name: 'Actions for group New group' }).click();
+  await page.getByRole('menuitem', { name: 'Rename group' }).click();
+  const group = sidebar.getByRole('textbox', { name: 'Project group name' });
+  await page.waitForTimeout(400);
+  await group.press('Control+a');
+  await group.pressSequentially('Clients', { delay: 30 });
+  await expect(group).toBeFocused();
+  await group.press('Enter');
+  await expect(sidebar.getByRole('region', { name: 'Clients' })).toBeVisible();
+});
