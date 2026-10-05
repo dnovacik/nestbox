@@ -74,6 +74,68 @@ export class ProjectService {
     return this.toSummary(project, detected);
   }
 
+  /**
+   * What adding a folder would add. A folder without its own package.json whose sub-folders hold packages
+   * (app/ + api/) is offered as separate projects; anything else stays one project (folders is empty).
+   */
+  async scan(
+    rawPath: string,
+  ): Promise<{ name: string; folders: { relPath: string; name: string }[] }> {
+    const path = this.deps.resolvePath(rawPath);
+    if (!(await this.deps.isDirectory(path))) {
+      throw new NestboxError('VALIDATION', 'The selected folder does not exist');
+    }
+    const detected = await this.deps.detect({ id: 'scan', path });
+    const folders =
+      detected.packageJson === null && detected.workspaces.length >= 2
+        ? detected.workspaces.map((w) => ({ relPath: w.relPath, name: w.name }))
+        : [];
+    return { name: displayName(detected.name, path), folders };
+  }
+
+  /** Adds each sub-folder from `scan` as its own project, in a new group when `groupName` is given. */
+  async addFolders(rawPath: string, groupName: string | null): Promise<ProjectSummary[]> {
+    const path = this.deps.resolvePath(rawPath);
+    if (!(await this.deps.isDirectory(path))) {
+      throw new NestboxError('VALIDATION', 'The selected folder does not exist');
+    }
+    const scanned = await this.deps.detect({ id: 'scan', path });
+    if (scanned.packageJson !== null || scanned.workspaces.length < 2) {
+      throw new NestboxError('VALIDATION', 'This folder has no sub-folders to add separately');
+    }
+    const isAdded = (p: string) =>
+      this.deps.store.getProjects().some((q) => this.deps.samePath(q.path, p));
+    const found = await Promise.all(
+      scanned.workspaces
+        .filter((w) => !isAdded(w.path))
+        .map(async (w) => {
+          const id = this.deps.newId();
+          return { id, path: w.path, detected: await this.deps.detect({ id, path: w.path }) };
+        }),
+    );
+    // Re-check after detection: another add may have won the race meanwhile.
+    const fresh = found.filter((f) => !isAdded(f.path));
+    const group: ProjectGroup | null =
+      groupName === null || fresh.length === 0
+        ? null
+        : { id: this.deps.newId(), name: groupName, collapsed: false };
+    const projects = fresh.map((f) =>
+      ProjectSchema.parse({
+        id: f.id,
+        name: displayName(f.detected.name, f.path),
+        path: f.path,
+        groupId: group?.id ?? null,
+      }),
+    );
+    this.deps.store.updateLayout(({ projects: ps, groups }) => ({
+      projects: [...ps, ...projects],
+      groups: group ? [...groups, group] : groups,
+    }));
+    for (const f of fresh) this.detected.set(f.id, f.detected);
+    this.deps.onChanged();
+    return projects.map((p, i) => this.toSummary(p, (fresh[i] as (typeof fresh)[number]).detected));
+  }
+
   remove(id: string): void {
     const project = this.requireRoot(id);
     this.deps.store.updateProjects((ps) => ps.filter((p) => p.id !== project.id));

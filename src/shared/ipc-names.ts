@@ -4,6 +4,8 @@ export const INVOKE_CHANNELS = [
   'dialog:pickFolder',
   'projects:list',
   'projects:add',
+  'projects:scan',
+  'projects:addFolders',
   'projects:remove',
   'projects:rename',
   'projects:setPinned',

@@ -16,6 +16,8 @@ export interface CoreHandlerDeps {
     ProjectService,
     | 'list'
     | 'add'
+    | 'scan'
+    | 'addFolders'
     | 'remove'
     | 'rename'
     | 'setPinned'
@@ -72,6 +74,8 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'dialog:pickFolder': () => deps.pickFolder(),
     'projects:list': () => deps.projects.list(),
     'projects:add': ({ path }) => deps.projects.add(path),
+    'projects:scan': ({ path }) => deps.projects.scan(path),
+    'projects:addFolders': ({ path, group }) => deps.projects.addFolders(path, group),
     'projects:remove': async ({ id }) => {
       // Fail the way remove() would before touching any process. An unknown id matches no process,
       // so remove() reports NOT_FOUND; detection results are not needed (they may still be loading).

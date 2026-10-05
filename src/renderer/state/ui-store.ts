@@ -21,6 +21,14 @@ export interface UiData {
   /** Scripts tab panes per project id. */
   scriptPanes: Record<string, ScriptPanes>;
   settingsOpen: boolean;
+  /** A picked folder that splits into sub-folder projects, waiting for "Add under a group?" (v1.20). */
+  pendingFolders: PendingFolders | null;
+}
+
+export interface PendingFolders {
+  path: string;
+  name: string;
+  folders: { relPath: string; name: string }[];
 }
 
 export interface UiState extends UiData {
@@ -38,6 +46,7 @@ export interface UiState extends UiData {
   /** One pane ↔ two panes; closing the split keeps pane 0. */
   toggleSplit(projectId: string): void;
   setSettingsOpen(open: boolean): void;
+  setPendingFolders(pending: PendingFolders | null): void;
 }
 
 export const initialUiState: UiData = {
@@ -48,6 +57,7 @@ export const initialUiState: UiData = {
   collapsed: {},
   scriptPanes: {},
   settingsOpen: false,
+  pendingFolders: null,
 };
 
 const panesOf = (s: UiData, projectId: string): ScriptPanes => s.scriptPanes[projectId] ?? DEFAULT_PANES;
@@ -59,6 +69,7 @@ export const useUiStore = create<UiState>()((set) => {
     ...initialUiState,
     select: (id) => set({ selectedProjectId: id, view: 'project' }),
     showPorts: () => set({ view: 'ports' }),
+    setPendingFolders: (pendingFolders) => set({ pendingFolders }),
     showDeps: () => set({ view: 'deps' }),
     setActiveTab: (projectId, tab) => set((s) => ({ activeTab: { ...s.activeTab, [projectId]: tab } })),
     setFilter: (filter) => set({ filter }),

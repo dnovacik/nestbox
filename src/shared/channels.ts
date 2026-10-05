@@ -24,6 +24,16 @@ export const channels = {
   'dialog:pickFolder': { input: NoInput, output: z.string().nullable() },
   'projects:list': { input: NoInput, output: z.array(ProjectSummarySchema) },
   'projects:add': { input: z.strictObject({ path: z.string().min(1).max(4096) }), output: ProjectSummarySchema },
+  /** v1.20: whether a picked folder splits into sub-folder projects (empty `folders`: add it as one). */
+  'projects:scan': {
+    input: z.strictObject({ path: z.string().min(1).max(4096) }),
+    output: z.object({ name: z.string(), folders: z.array(z.object({ relPath: z.string(), name: z.string() })) }),
+  },
+  /** v1.20: each sub-folder as its own project, in a new group when `group` is a name. */
+  'projects:addFolders': {
+    input: z.strictObject({ path: z.string().min(1).max(4096), group: ProjectNameSchema.nullable() }),
+    output: z.array(ProjectSummarySchema),
+  },
   'projects:remove': { input: IdInput, output: z.void() },
   'projects:rename': { input: z.strictObject({ id: Id, name: ProjectNameSchema }), output: ProjectSummarySchema },
   'projects:setPinned': { input: z.strictObject({ id: Id, pinned: z.boolean() }), output: ProjectSummarySchema },

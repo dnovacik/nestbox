@@ -124,15 +124,43 @@ function useInvalidateProjects() {
 export function useAddProject() {
   const invalidate = useInvalidateProjects();
   const select = useUiStore((s) => s.select);
+  const setPendingFolders = useUiStore((s) => s.setPendingFolders);
   return useMutation({
     mutationFn: async () => {
       const path = await api.dialog.pickFolder();
-      return path === null ? null : api.projects.add(path);
+      if (path === null) return null;
+      // A folder of sub-folder projects (app/ + api/) asks first; a failed scan just adds the folder.
+      const scan = await api.projects.scan(path).catch(() => null);
+      if (scan && scan.folders.length >= 2) {
+        setPendingFolders({ path, name: scan.name, folders: scan.folders });
+        return null;
+      }
+      return api.projects.add(path);
     },
     onSuccess: async (added) => {
       if (!added) return;
       select(added.id);
       await invalidate();
+    },
+    onError: showError,
+  });
+}
+
+/** "Add under a group?": each sub-folder of the pending folder becomes its own project. */
+export function useAddFolders() {
+  const queryClient = useQueryClient();
+  const select = useUiStore((s) => s.select);
+  const setPendingFolders = useUiStore((s) => s.setPendingFolders);
+  return useMutation({
+    mutationFn: ({ path, group }: { path: string; group: string | null }) =>
+      api.projects.addFolders(path, group),
+    onSuccess: async (added) => {
+      setPendingFolders(null);
+      if (added[0]) select(added[0].id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups }),
+      ]);
     },
     onError: showError,
   });

@@ -5,6 +5,7 @@ import { useProcessesChangedSubscription, useProjects, useProjectsChangedSubscri
 import { useUiStore } from '@/state/ui-store';
 import { CommandPalette } from './CommandPalette';
 import { EmptyState } from './EmptyState';
+import { AddFoldersDialog } from './AddFoldersDialog';
 import { FirstRunDialog } from './FirstRunDialog';
 import { findProjectNode } from './find-project';
 import { PortsPage } from '@/ports/PortsPage';
@@ -52,6 +53,7 @@ export function App() {
       <StatusBar projectCount={projects.length} />
       <SettingsDialog />
       <FirstRunDialog />
+      <AddFoldersDialog />
       <CommandPalette />
     </div>
   );
