@@ -1,6 +1,7 @@
 // "Ready to deploy": each check's verdict from the other tools' results. The inputs come through the tool
 // host as unknown and are parsed with each tool's own schema; anything unreadable is a skip, never a pass.
 import type { EnvCompare, ReadyCheck } from '@shared/tools/deploy/contract';
+import { CiLatestSchema } from '@shared/tools/ci/contract';
 import { ResultsSchema, summarize } from '@shared/tools/deps/contract';
 import { GitStatusSchema } from '@shared/tools/git/contract';
 import { NodeStatusSchema, SOURCE_LABELS } from '@shared/tools/node/contract';
@@ -83,6 +84,39 @@ export function gitCheck(status: unknown): ReadyCheck {
   return problems.length > 0
     ? check({ tone: 'warn', detail: problems.join(' · ') })
     : check({ tone: 'ok', detail: `Clean and pushed (${s.branch ?? s.detachedAt ?? 'HEAD'})` });
+}
+
+const CI_SKIPS: Record<string, string> = {
+  'no-provider': 'No GitHub or GitLab remote',
+  'cli-missing': "The CI provider's CLI isn't installed",
+  'logged-out': 'Not logged in to the CI CLI',
+  'no-remote': 'The CI CLI found no remote',
+  failed: "Couldn't list CI runs",
+  timeout: 'Listing CI runs timed out',
+};
+
+/** The current branch's newest run, from the CI tool on the package's repository. */
+export function ciCheck(latest: unknown): ReadyCheck {
+  const parsed = CiLatestSchema.safeParse(latest);
+  const check = (v: Verdict): ReadyCheck => ({ kind: 'ci', label: 'CI', ...v });
+  if (!parsed.success) return check({ tone: 'skip', detail: 'CI not set up' });
+  if (parsed.data.state !== 'ok')
+    return check({ tone: 'skip', detail: CI_SKIPS[parsed.data.state] ?? "Couldn't list CI runs" });
+  const { run, branch } = parsed.data;
+  if (run === null)
+    return check({ tone: 'skip', detail: `No CI runs for ${branch ?? 'this branch'} yet` });
+  const where = `on ${run.branch ?? branch ?? 'this branch'}${run.sha ? ` (${run.sha})` : ''}`;
+  switch (run.state) {
+    case 'success':
+      return check({ tone: 'ok', detail: `CI passed ${where}` });
+    case 'failure':
+      return check({ tone: 'fail', detail: `CI failed ${where}` });
+    case 'queued':
+    case 'running':
+      return check({ tone: 'warn', detail: `Still running ${where}` });
+    default:
+      return check({ tone: 'warn', detail: `CI ${run.state} ${where}` });
+  }
 }
 
 export function overall(checks: readonly ReadyCheck[]): 'green' | 'amber' | 'red' {

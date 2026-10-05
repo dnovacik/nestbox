@@ -1,6 +1,7 @@
 import { claudeRendererTool } from './claude';
 import { composeRendererTool } from './compose';
 import { databaseRendererTool } from './database';
+import { ciRendererTool } from './ci';
 import { deployRendererTool } from './deploy';
 import { depsRendererTool } from './deps';
 import { envRendererTool } from './env';
@@ -32,6 +33,7 @@ export const rendererTools: readonly RendererTool[] = [
   nodeRendererTool,
   depsRendererTool,
   deployRendererTool,
+  ciRendererTool,
 ];
 
 export function getRendererTool(id: string): RendererTool | undefined {

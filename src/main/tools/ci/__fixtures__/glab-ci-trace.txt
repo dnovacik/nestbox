@@ -1,0 +1,8 @@
+[0KRunning with gitlab-runner 17.4.0 (b92ee590)[0;m
+section_start:1759642982:prepare_executor[0K[0K[36;1mPreparing the "docker" executor[0;m[0;m
+section_end:1759642990:prepare_executor[0K
+[32;1m$ pnpm test[0;m
+ FAIL  src/cart.test.ts > totals > adds tax
+AssertionError: expected 108 to be 110
+section_end:1759643310:step_script[0Ksection_start:1759643310:cleanup_file_variables[0K[0K[36;1mCleaning up project directory and file based variables[0;m
+[31;1mERROR: Job failed: exit code 1[0;m

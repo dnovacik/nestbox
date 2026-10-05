@@ -10,3 +10,6 @@ e2e/fixtures/fake-npm/npm.cmd text eol=crlf
 e2e/fixtures/fake-npm/npm text eol=lf
 e2e/fixtures/fake-vercel/vercel.cmd text eol=crlf
 e2e/fixtures/fake-vercel/vercel text eol=lf
+e2e/fixtures/fake-gh/gh.cmd text eol=crlf
+e2e/fixtures/fake-gh/gh text eol=lf
+src/main/tools/ci/__fixtures__/* -text

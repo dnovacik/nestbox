@@ -600,6 +600,22 @@ describe('deploy tool: ready to deploy', () => {
         'node.status': NODE_OK,
         'deps.results': { packages: [], checking: false },
         'git.status': GIT_DIRTY,
+        'ci.latest': {
+          state: 'ok',
+          branch: 'main',
+          run: {
+            id: '1',
+            title: null,
+            workflow: 'CI',
+            branch: 'main',
+            sha: 'abc1234',
+            event: 'push',
+            state: 'success',
+            createdAt: 1,
+            updatedAt: 2,
+            url: null,
+          },
+        },
       },
       answers: {
         'env ls production --format json --non-interactive': {
@@ -618,17 +634,19 @@ describe('deploy tool: ready to deploy', () => {
       ['Dependencies', 'warn'],
       ['Env', 'fail'],
       ['Git', 'warn'],
+      ['CI', 'ok'],
       ['build', 'ok'],
       ['test', 'fail'],
     ]);
     expect(ready.checks[2]?.detail).toBe('1 key missing on Vercel (production): LOCAL_ONLY');
-    expect(ready.checks[5]?.detail).toBe('Exited with code 1');
+    expect(ready.checks[6]?.detail).toBe('Exited with code 1');
     expect(ready.overall).toBe('red');
     expect(order).toEqual(['build', 'test']);
     expect(invoke.mock.calls.map(([t, , m]) => `${t}.${m}`)).toEqual([
       'node.status',
       'deps.results',
       'git.status',
+      'ci.latest',
     ]);
     expect(emit.mock.calls.filter(([e]) => e === 'changed').length).toBeGreaterThan(6);
     expect((await call<DeployStatus>('status')).ready).toEqual(ready);
@@ -647,6 +665,7 @@ describe('deploy tool: ready to deploy', () => {
       ['Dependencies', 'warn'],
       ['Env', 'skip'],
       ['Git', 'skip'],
+      ['CI', 'skip'],
     ]);
     expect(ready.overall).toBe('amber');
   });

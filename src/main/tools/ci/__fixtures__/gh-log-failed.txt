@@ -1,0 +1,8 @@
+e2e (macos-latest)	Run pnpm e2e	﻿2026-10-05T04:54:40.1234567Z ##[group]Run pnpm e2e
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:54:40.1240000Z [36;1mpnpm e2e[0m
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:54:40.1250000Z ##[endgroup]
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:56:51.8731360Z   1) e2e/ports.spec.ts:23:5 › lists a script port with its owner
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:56:51.8933810Z     Error: locator.click: Error: strict mode violation
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:56:51.9094340Z   [31m1 failed[39m
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:56:51.9097960Z  ELIFECYCLE  Command failed with exit code 1.
+e2e (macos-latest)	Run pnpm e2e	2026-10-05T04:56:51.9380550Z ##[error]Process completed with exit code 1.

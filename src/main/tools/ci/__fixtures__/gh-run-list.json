@@ -1,0 +1,28 @@
+[
+  {
+    "conclusion": "success",
+    "createdAt": "2026-10-05T04:58:34Z",
+    "databaseId": 37265766370,
+    "displayTitle": "feat: sidebar groups, multi-folder projects and the Deploy tab everywhere (v1.18.0)",
+    "event": "pull_request",
+    "headBranch": "v2-projects-ux",
+    "headSha": "138ef04c2bcc4dc7f5e0e906138921314f96ceee",
+    "status": "completed",
+    "updatedAt": "2026-10-05T05:02:59Z",
+    "url": "https://github.com/dnovacik/nestbox/actions/runs/37265766370",
+    "workflowName": "CI"
+  },
+  {
+    "conclusion": "failure",
+    "createdAt": "2026-10-05T04:54:11Z",
+    "databaseId": 37265470317,
+    "displayTitle": "feat: sidebar groups, multi-folder projects and the Deploy tab everywhere (v1.18.0)",
+    "event": "pull_request",
+    "headBranch": "v2-projects-ux",
+    "headSha": "611e24b87b4416d7f0a8d96de1d31358e2610eb2",
+    "status": "completed",
+    "updatedAt": "2026-10-05T04:57:25Z",
+    "url": "https://github.com/dnovacik/nestbox/actions/runs/37265470317",
+    "workflowName": "CI"
+  }
+]

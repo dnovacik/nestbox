@@ -27,7 +27,7 @@ import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { type Cli, cliCommand, INSTALL, LINK, linkCommand, loginCommand, resolveCli } from './cli';
 import { entries, parseEnv } from '../env/dotenv';
 import type { EnvFileAccess } from '../env/env-files';
-import { depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
+import { ciCheck, depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
 import type { ScriptRunResult } from './run-script';
 import { configVarKeys, type LocalConfig, readLocalConfig, wranglerEnvironments } from './config';
 import {
@@ -633,9 +633,14 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
   const defaultEnvFile = (files: string[]) =>
     DEFAULT_ENV_FILES.find((f) => files.includes(f)) ?? files[0] ?? null;
 
-  async function invokeOrNull(ctx: Ctx, toolId: string, method: string): Promise<unknown> {
+  async function invokeOrNull(
+    ctx: Ctx,
+    toolId: string,
+    method: string,
+    projectId = ctx.project.id,
+  ): Promise<unknown> {
     try {
-      return await deps.tools.invoke(toolId, ctx.project.id, method, {});
+      return await deps.tools.invoke(toolId, projectId, method, {});
     } catch {
       return null;
     }
@@ -710,6 +715,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
       pending('deps', 'Dependencies'),
       pending('env', 'Env'),
       pending('git', 'Git'),
+      pending('ci', 'CI'),
       ...[...new Set(scripts)].map((s) => pending('script', s)),
     ];
     const publish = () => {
@@ -736,7 +742,10 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
           ? { kind: 'git', label: 'Git', tone: 'skip', detail: 'Not a git repository' }
           : gitCheck(await invokeOrNull(ctx, 'git', 'status')),
       );
-      for (let i = 4; i < checks.length; i++) {
+      running(4);
+      // CI belongs to the repository: a workspace package asks its root.
+      set(4, ciCheck(await invokeOrNull(ctx, 'ci', 'latest', ctx.project.rootId)));
+      for (let i = 5; i < checks.length; i++) {
         const script = (checks[i] as ReadyCheck).label;
         running(i);
         set(i, scriptCheck(script, await deps.runScript(ctx.project.id, script)));
