@@ -151,3 +151,19 @@ describe('DeployPanel', () => {
     await waitFor(() => expect(of('cancel')).toEqual([{}]));
   });
 });
+
+describe('DeployPanel without a platform', () => {
+  it('points to the packages that deploy, and offers to link this one', async () => {
+    const { of } = setup(
+      deployStatus([], {
+        elsewhere: [{ projectId: 'p1::app', name: 'app', platforms: ['vercel'] }],
+      }),
+    );
+    const help = await screen.findByRole('region', { name: 'Set up deploys' });
+    expect(within(help).getByRole('button', { name: 'app · Vercel' })).toBeInTheDocument();
+    await userEvent.click(
+      within(help).getByRole('button', { name: 'Link to Netlify in a terminal' }),
+    );
+    await waitFor(() => expect(of('link')).toEqual([{ platform: 'netlify' }]));
+  });
+});

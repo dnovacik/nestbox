@@ -17,6 +17,8 @@ function platformLine(p: PlatformStatus): string {
 export function DeployCard({ projectId }: ToolPanelProps) {
   const { data: status, isError } = useDeployStatus(projectId);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
+  // Every package has the tab now; the overview stays quiet until one deploys somewhere.
+  if (!isError && (!status || status.platforms.length === 0)) return null;
   return (
     <section
       aria-label="Deploy"

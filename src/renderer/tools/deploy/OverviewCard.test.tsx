@@ -60,3 +60,12 @@ describe('DeployCard', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('DeployCard without a platform', () => {
+  it('stays off the overview', async () => {
+    installMockBridge({ 'tools:invoke': (() => deployStatus([])) as never });
+    renderWithProviders(<DeployCard projectId="p1" />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByRole('region', { name: 'Deploy' })).toBeNull();
+  });
+});

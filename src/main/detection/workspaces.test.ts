@@ -10,9 +10,29 @@ afterEach(async () => removeTree(dir));
 const PKG = '{"name":"x"}';
 
 describe('findWorkspaceDirs', () => {
-  it('returns [] when no workspaces are declared', async () => {
-    dir = await makeTree({ 'package.json': PKG });
+  it('returns [] when no workspaces are declared and no sub-folder has a package.json', async () => {
+    dir = await makeTree({ 'package.json': PKG, 'src/index.ts': '' });
     expect(await findWorkspaceDirs(dir, {})).toEqual([]);
+  });
+
+  it('finds sub-folder packages up to two levels down when no workspaces are declared', async () => {
+    dir = await makeTree({
+      'app/package.json': PKG,
+      'api/package.json': PKG,
+      'services/billing/package.json': PKG,
+      'too/deep/here/package.json': PKG,
+      'app/node_modules/dep/package.json': PKG,
+      '.cache/x/package.json': PKG,
+      'dist/package.json': PKG,
+      'test/fixtures/package.json': PKG,
+      'e2e/package.json': PKG,
+    });
+    expect(await findWorkspaceDirs(dir, null)).toEqual(['api', 'app', 'services/billing']);
+  });
+
+  it('does not add sub-folders when workspaces are declared', async () => {
+    dir = await makeTree({ 'packages/a/package.json': PKG, 'tools/b/package.json': PKG });
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual(['packages/a']);
   });
 
   it('reads pnpm-workspace.yaml globs and negations', async () => {
@@ -28,8 +48,13 @@ describe('findWorkspaceDirs', () => {
 
   it('reads package.json workspaces as an array or { packages }', async () => {
     dir = await makeTree({ 'packages/a/package.json': PKG, 'packages/b/package.json': PKG });
-    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual(['packages/a', 'packages/b']);
-    expect(await findWorkspaceDirs(dir, { workspaces: { packages: ['packages/a'] } })).toEqual(['packages/a']);
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual([
+      'packages/a',
+      'packages/b',
+    ]);
+    expect(await findWorkspaceDirs(dir, { workspaces: { packages: ['packages/a'] } })).toEqual([
+      'packages/a',
+    ]);
   });
 
   it('never returns node_modules packages, duplicates or the root', async () => {
@@ -39,7 +64,9 @@ describe('findWorkspaceDirs', () => {
       'packages/a/node_modules/dep/package.json': PKG,
       'node_modules/other/package.json': PKG,
     });
-    const result = await findWorkspaceDirs(dir, { workspaces: ['packages/**', 'packages/*', './packages/a/', '.'] });
+    const result = await findWorkspaceDirs(dir, {
+      workspaces: ['packages/**', 'packages/*', './packages/a/', '.'],
+    });
     expect(result).toEqual(['packages/a']);
   });
 
@@ -53,7 +80,9 @@ describe('findWorkspaceDirs', () => {
 
   it('ignores non-string patterns', async () => {
     dir = await makeTree({ 'packages/a/package.json': PKG });
-    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*', 42, null] })).toEqual(['packages/a']);
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*', 42, null] })).toEqual([
+      'packages/a',
+    ]);
   });
 
   it('ignores patterns that escape the project root', async () => {
@@ -68,7 +97,11 @@ describe('findWorkspaceDirs', () => {
   it('skips a symlinked package that resolves outside the root, with a warning', async (ctx) => {
     const outside = await makeTree({ 'package.json': PKG });
     try {
-      dir = await makeTree({ 'package.json': PKG, 'packages/api/package.json': PKG, packages: null });
+      dir = await makeTree({
+        'package.json': PKG,
+        'packages/api/package.json': PKG,
+        packages: null,
+      });
       try {
         // 'junction' makes a directory link without a privilege on Windows; it is ignored elsewhere.
         await symlink(outside, join(dir, 'packages', 'linked'), 'junction');
@@ -76,7 +109,9 @@ describe('findWorkspaceDirs', () => {
         ctx.skip();
       }
       const onWarning = vi.fn();
-      expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] }, { onWarning })).toEqual(['packages/api']);
+      expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] }, { onWarning })).toEqual([
+        'packages/api',
+      ]);
       expect(onWarning).toHaveBeenCalledWith('packages/linked', 'outside-root');
     } finally {
       await removeTree(outside);
@@ -90,6 +125,8 @@ describe('findWorkspaceDirs', () => {
     } catch {
       ctx.skip();
     }
-    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual(['packages/alias']);
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual([
+      'packages/alias',
+    ]);
   });
 });

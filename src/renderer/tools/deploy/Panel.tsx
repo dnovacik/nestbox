@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { EnvCompareRow } from './EnvCompare';
 import { ReadySection } from './ReadySection';
+import { SetupHelp } from './SetupHelp';
 import { LISTING_TEXT, STATE_CLASS, STATE_LABEL } from './labels';
 import {
   deployLogSource,
@@ -305,6 +306,7 @@ export default function DeployPanel({ projectId }: ToolPanelProps) {
         and deploying reach the platform; rollbacks stay in its dashboard.
       </p>
       <ReadySection projectId={projectId} scripts={status.scripts} ready={status.ready} />
+      {status.platforms.length === 0 && <SetupHelp projectId={projectId} status={status} />}
       {status.platforms.map((p) => (
         <PlatformSection
           key={p.platform}

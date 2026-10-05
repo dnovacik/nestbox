@@ -24,7 +24,7 @@ import type { PlatformAdapter } from '../../platform/adapter';
 import { LineSplitter } from '../../processes/line-splitter';
 import { BatchedLog } from '../batched-log';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
-import { type Cli, cliCommand, INSTALL, linkCommand, loginCommand, resolveCli } from './cli';
+import { type Cli, cliCommand, INSTALL, LINK, linkCommand, loginCommand, resolveCli } from './cli';
 import { entries, parseEnv } from '../env/dotenv';
 import type { EnvFileAccess } from '../env/env-files';
 import { depsCheck, envCheck, gitCheck, nodeCheck, overall } from './ready';
@@ -771,6 +771,9 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
         last: state.last,
         envFiles,
         defaultEnvFile: defaultEnvFile(envFiles),
+        elsewhere: ctx.project.workspaces
+          .filter((w) => w.deploy.length > 0)
+          .map((w) => ({ projectId: w.id, name: w.name, platforms: w.deploy })),
         scripts: Object.keys(ctx.project.packageJson?.scripts ?? {}),
         ready: state.ready,
       };
@@ -794,7 +797,8 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
       await ctx.platform.openTerminal(ctx.project.path, loginCommand(platform, cli));
     },
     async link(ctx: Ctx, { platform }: { platform: DeployPlatform }) {
-      ensurePlatform(ctx, platform);
+      // Linking is also how a package without a config gets one (it writes .vercel / .netlify).
+      if (!ctx.project.deploy.includes(platform) && LINK[platform] === undefined) ensurePlatform(ctx, platform);
       const { cli } = await resolve(ctx, platform);
       const command = cli === null ? null : linkCommand(platform, cli);
       if (command === null)

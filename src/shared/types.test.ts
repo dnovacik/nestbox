@@ -18,10 +18,18 @@ describe('persisted types', () => {
       path: 'C:\\Dev\\Shop',
       tags: [],
       pinned: false,
+      groupId: null,
+      aliases: {},
       runGroups: [],
       envProfiles: [],
       toolSettings: {},
     });
+  });
+
+  it('gives older stores an empty group list', () => {
+    const d = defaultStoreData();
+    const { groups: _groups, ...old } = d;
+    expect(StoreDataSchema.parse(old).groups).toEqual([]);
   });
 
   it('gives stored run groups an empty compose list', () => {

@@ -1,6 +1,6 @@
 import { type DetectedProject, findDetected, type ProjectSummary, splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
-import { type Project, ProjectSchema, type RunGroup, RunGroupSchema } from '@shared/types';
+import { type Project, type ProjectGroup, ProjectSchema, type RunGroup, RunGroupSchema } from '@shared/types';
 import type { DetectInput } from '../detection/detect-project';
 import type { Logger } from '../logger';
 import type { StoreService } from '../store/store-service';
@@ -82,6 +82,17 @@ export class ProjectService {
   }
 
   rename(id: string, name: string): ProjectSummary {
+    const { rootId, relPath } = splitProjectId(id);
+    if (relPath !== '') {
+      // A workspace package's name comes from its package.json: renaming stores an alias on the root.
+      const root = this.requireRoot(rootId);
+      this.getDetected(id);
+      this.deps.store.updateProjects((ps) =>
+        ps.map((p) => (p.id === root.id ? { ...p, aliases: { ...p.aliases, [relPath]: name } } : p)),
+      );
+      this.deps.onChanged();
+      return this.summaryOf(root.id);
+    }
     const project = this.requireRoot(id);
     this.deps.store.updateProjects((ps) => ps.map((p) => (p.id === project.id ? { ...p, name } : p)));
     const cached = this.detected.get(project.id);
@@ -107,6 +118,90 @@ export class ProjectService {
     }
     this.deps.onChanged();
     return this.toSummary(project, detected);
+  }
+
+  listGroups(): ProjectGroup[] {
+    return [...this.deps.store.getGroups()];
+  }
+
+  createGroup(name: string): ProjectGroup {
+    const group: ProjectGroup = { id: this.deps.newId(), name, collapsed: false };
+    this.deps.store.updateLayout(({ projects, groups }) => ({ projects, groups: [...groups, group] }));
+    this.deps.onChanged();
+    return group;
+  }
+
+  renameGroup(id: string, name: string): ProjectGroup {
+    this.requireGroup(id);
+    this.deps.store.updateLayout(({ projects, groups }) => ({
+      projects,
+      groups: groups.map((g) => (g.id === id ? { ...g, name } : g)),
+    }));
+    this.deps.onChanged();
+    return this.requireGroup(id);
+  }
+
+  setGroupCollapsed(id: string, collapsed: boolean): ProjectGroup {
+    this.requireGroup(id);
+    this.deps.store.updateLayout(({ projects, groups }) => ({
+      projects,
+      groups: groups.map((g) => (g.id === id ? { ...g, collapsed } : g)),
+    }));
+    this.deps.onChanged();
+    return this.requireGroup(id);
+  }
+
+  /** Its projects stay, ungrouped. */
+  deleteGroup(id: string): void {
+    this.requireGroup(id);
+    this.deps.store.updateLayout(({ projects, groups }) => ({
+      projects: projects.map((p) => (p.groupId === id ? { ...p, groupId: null } : p)),
+      groups: groups.filter((g) => g.id !== id),
+    }));
+    this.deps.onChanged();
+  }
+
+  /** Puts a group before another one, or last. */
+  moveGroup(id: string, beforeId: string | null): void {
+    const group = this.requireGroup(id);
+    if (beforeId !== null) this.requireGroup(beforeId);
+    if (beforeId === id) return;
+    this.deps.store.updateLayout(({ projects, groups }) => {
+      const rest = groups.filter((g) => g.id !== id);
+      const at = beforeId === null ? rest.length : rest.findIndex((g) => g.id === beforeId);
+      return { projects, groups: [...rest.slice(0, at), group, ...rest.slice(at)] };
+    });
+    this.deps.onChanged();
+  }
+
+  /** Puts a root project into a group (null = ungrouped), before a project of that group, or last in it. */
+  moveProject(id: string, groupId: string | null, beforeId: string | null): void {
+    const project = this.requireRoot(id);
+    if (groupId !== null) this.requireGroup(groupId);
+    if (beforeId === id) return;
+    if (beforeId !== null) {
+      const before = this.requireRoot(beforeId);
+      if (before.groupId !== groupId) throw new NestboxError('VALIDATION', 'That project is in another group');
+    }
+    this.deps.store.updateLayout(({ projects, groups }) => {
+      const moved = { ...project, groupId };
+      const rest = projects.filter((p) => p.id !== id);
+      let at: number;
+      if (beforeId !== null) at = rest.findIndex((p) => p.id === beforeId);
+      else {
+        // Last in its group: after the last project already in it (or at the very end).
+        const last = rest.map((p) => p.groupId).lastIndexOf(groupId);
+        at = last === -1 ? rest.length : last + 1;
+      }
+      return { projects: [...rest.slice(0, at), moved, ...rest.slice(at)], groups };
+    });
+    this.deps.onChanged();
+  }
+
+  private requireGroup(id: string): ProjectGroup {
+    const group = this.deps.store.getGroups().find((g) => g.id === id);
+    if (!group) throw new NestboxError('NOT_FOUND', 'Group not found');
+    return group;
   }
 
   getRunGroups(rootId: string): RunGroup[] {
@@ -202,7 +297,14 @@ export class ProjectService {
       path: project.path,
       pinned: project.pinned,
       tags: project.tags,
-      detected,
+      groupId: project.groupId,
+      detected: {
+        ...detected,
+        workspaces: detected.workspaces.map((w) => {
+          const alias = project.aliases[w.relPath];
+          return alias === undefined ? w : { ...w, name: alias };
+        }),
+      },
     };
   }
 }

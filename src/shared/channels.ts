@@ -6,7 +6,7 @@ import { ProcessSummarySchema } from './processes';
 import { SettingsPatchSchema, SettingsViewSchema } from './settings';
 import { ToolSummarySchema } from './tool';
 import { DepsOverviewSchema } from './tools/deps/contract';
-import { AppInfoSchema, ProjectNameSchema } from './types';
+import { AppInfoSchema, ProjectGroupSchema, ProjectNameSchema } from './types';
 
 const NoInput = z.void();
 const Id = z.string().min(1).max(512);
@@ -30,6 +30,18 @@ export const channels = {
   'projects:refresh': { input: IdInput, output: ProjectSummarySchema },
   'projects:openInEditor': { input: IdInput, output: z.void() },
   'projects:openTerminal': { input: IdInput, output: z.void() },
+  /** Sidebar order (v1.18): into a group (null = ungrouped), before a project of it or last. */
+  'projects:move': {
+    input: z.strictObject({ id: Id, groupId: Id.nullable(), beforeId: Id.nullable() }),
+    output: z.void(),
+  },
+  'groups:list': { input: NoInput, output: z.array(ProjectGroupSchema) },
+  'groups:create': { input: z.strictObject({ name: ProjectNameSchema }), output: ProjectGroupSchema },
+  'groups:rename': { input: z.strictObject({ id: Id, name: ProjectNameSchema }), output: ProjectGroupSchema },
+  /** Its projects stay, ungrouped. */
+  'groups:delete': { input: IdInput, output: z.void() },
+  'groups:setCollapsed': { input: z.strictObject({ id: Id, collapsed: z.boolean() }), output: ProjectGroupSchema },
+  'groups:move': { input: z.strictObject({ id: Id, beforeId: Id.nullable() }), output: z.void() },
   'tools:list': { input: z.strictObject({ projectId: Id }), output: z.array(ToolSummarySchema) },
   /** Tools with something running now (a server, a deploy…): turning one off asks first. */
   'tools:busy': { input: NoInput, output: z.array(z.string()) },

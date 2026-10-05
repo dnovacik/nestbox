@@ -29,7 +29,7 @@ export function makeSummary(over: Partial<ProjectSummary> = {}): ProjectSummary 
     name: detected.name,
     path: detected.path,
     pinned: false,
-    tags: [],
+    tags: [], groupId: null,
     ...over,
     detected,
   };

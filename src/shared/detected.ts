@@ -80,6 +80,8 @@ export const ProjectSummarySchema = z.object({
   path: z.string().min(1),
   pinned: z.boolean(),
   tags: z.array(z.string()),
+  /** The sidebar group (v1.18); null = ungrouped. */
+  groupId: z.string().nullable(),
   detected: DetectedProjectSchema,
 });
 export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;

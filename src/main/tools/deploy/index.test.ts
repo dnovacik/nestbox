@@ -694,3 +694,15 @@ describe('deploy tool: ready to deploy', () => {
     expect((await call<DeployStatus>('status')).scripts).toEqual(['build', 'lint']);
   });
 });
+
+describe('deploy tool: packages without a config', () => {
+  it('points a root to the packages that have one, and links a package to Vercel or Netlify', async () => {
+    const { call, openTerminal, dir } = setup({ files: {}, deploy: [] });
+    const status = await call<DeployStatus>('status');
+    expect(status.platforms).toEqual([]);
+    expect(status.elsewhere).toEqual([]);
+    await call('link', { platform: 'vercel' });
+    expect(openTerminal).toHaveBeenCalledWith(dir, 'vercel link');
+    await expect(call('link', { platform: 'fly' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});

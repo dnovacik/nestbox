@@ -26,8 +26,11 @@ describe('deploy contract', () => {
     ).toBe(false);
   });
 
-  it('applies to packages with a deployment config', () => {
-    expect(deployDefinition.appliesTo(makeDetectedForTest())).toBe(false);
-    expect(deployDefinition.appliesTo(makeDetectedForTest({ deploy: ['fly'] }))).toBe(true);
+  it('applies to every package, and to a folder with only a deployment config', () => {
+    expect(deployDefinition.appliesTo(makeDetectedForTest())).toBe(true);
+    expect(deployDefinition.appliesTo(makeDetectedForTest({ packageJson: null }))).toBe(false);
+    expect(
+      deployDefinition.appliesTo(makeDetectedForTest({ packageJson: null, deploy: ['fly'] })),
+    ).toBe(true);
   });
 });

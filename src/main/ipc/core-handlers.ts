@@ -12,7 +12,23 @@ import type { CoreHandlers } from './router';
 import type { DepsOverview } from '@shared/tools/deps/contract';
 
 export interface CoreHandlerDeps {
-  projects: Pick<ProjectService, 'list' | 'add' | 'remove' | 'rename' | 'setPinned' | 'refresh' | 'getDetected'>;
+  projects: Pick<
+    ProjectService,
+    | 'list'
+    | 'add'
+    | 'remove'
+    | 'rename'
+    | 'setPinned'
+    | 'refresh'
+    | 'getDetected'
+    | 'moveProject'
+    | 'listGroups'
+    | 'createGroup'
+    | 'renameGroup'
+    | 'deleteGroup'
+    | 'setGroupCollapsed'
+    | 'moveGroup'
+  >;
   toolHost: ToolHost;
   platform: Pick<PlatformAdapter, 'openInEditor' | 'openTerminal' | 'commandExists'>;
   appInfo(): AppInfo;
@@ -77,6 +93,13 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'projects:openTerminal': async ({ id }) => {
       await deps.platform.openTerminal(await existingPath(id));
     },
+    'projects:move': async ({ id, groupId, beforeId }) => deps.projects.moveProject(id, groupId, beforeId),
+    'groups:list': async () => deps.projects.listGroups(),
+    'groups:create': async ({ name }) => deps.projects.createGroup(name),
+    'groups:rename': async ({ id, name }) => deps.projects.renameGroup(id, name),
+    'groups:delete': async ({ id }) => deps.projects.deleteGroup(id),
+    'groups:setCollapsed': async ({ id, collapsed }) => deps.projects.setGroupCollapsed(id, collapsed),
+    'groups:move': async ({ id, beforeId }) => deps.projects.moveGroup(id, beforeId),
     'tools:list': async ({ projectId }) => deps.toolHost.list(projectId),
     'tools:busy': async () => deps.toolHost.busyTools(),
     'tools:invoke': ({ toolId, projectId, method, input }) => deps.toolHost.invoke(toolId, projectId, method, input),

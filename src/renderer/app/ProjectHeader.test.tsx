@@ -13,6 +13,7 @@ function node(git: DetectedProject['git']) {
     name: 'shop',
     path: 'C:\\Dev\\Shop',
     pinned: false,
+    groupId: null,
     tags: [],
     detected,
   };

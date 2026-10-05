@@ -30,6 +30,16 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       refresh: (id: string) => call('projects:refresh', { id }),
       openInEditor: (id: string) => call('projects:openInEditor', { id }),
       openTerminal: (id: string) => call('projects:openTerminal', { id }),
+      move: (id: string, groupId: string | null, beforeId: string | null) =>
+        call('projects:move', { id, groupId, beforeId }),
+    },
+    groups: {
+      list: () => call('groups:list'),
+      create: (name: string) => call('groups:create', { name }),
+      rename: (id: string, name: string) => call('groups:rename', { id, name }),
+      delete: (id: string) => call('groups:delete', { id }),
+      setCollapsed: (id: string, collapsed: boolean) => call('groups:setCollapsed', { id, collapsed }),
+      move: (id: string, beforeId: string | null) => call('groups:move', { id, beforeId }),
     },
     processes: {
       list: () => call('processes:list'),
