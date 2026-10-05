@@ -38,7 +38,7 @@ test('lists a script port with its owner and frees it by stopping the script', a
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await expect(row).toHaveCount(0, { timeout: 20_000 });
 
-  await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'nestbox-e2e-app' }).click();
+  await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'nestbox-e2e-app', exact: true }).click();
   await page.getByRole('tab', { name: 'Scripts' }).click();
   await expect(page.getByRole('button', { name: 'Start web' })).toBeVisible();
 });
