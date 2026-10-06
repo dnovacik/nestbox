@@ -198,7 +198,7 @@ The home screen. A sidebar lists projects; the main view shows an overview card 
 
 ### 2. Scripts runner and log viewer
 
-One click starts any `package.json` script; its output streams into a log pane.
+One click starts any `package.json` script (or, since v1.21, a detected Python command or a custom command); its output streams into a log pane.
 
 - Spawn with the detected package manager via the platform adapter, with `FORCE_COLOR=1` so colours survive.
 - Several scripts per project at once, each in its own pane; split view to watch API and frontend side by side.
@@ -321,6 +321,17 @@ Three tools for the step after "it works locally", one release each. They reach 
 **Env vs production (S, v1.15.0).** Compares the keys in the local `.env` files with the platform's variables for an environment picked from a selector (production preselected): missing on either side, key names only, never values.
 
 **Ready to deploy (M, v1.16.0).** "Run checks" runs the scripts the user picks (build, test, lint and typecheck preselected when present) in the log viewer, plus instant checks: the Node version against the platform's runtime, high or critical advisories from the dependency cache, env keys present in production, and git clean and pushed. The result is a green, amber or red summary.
+
+### Next in v2: Python backends (S, v1.21.0)
+
+Many projects pair a React (or other Node) frontend with a Python backend. NestBox finds the backend and starts it next to the frontend.
+
+- A folder is a Python package when it has `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `Pipfile`, `manage.py`, or any `.py` file at its top. Helper folders (`scripts`, `tools`, `bin`, `docs`, `migrations`) don't count through loose `.py` files.
+- Python packages one or two folders down are packages of the project, beside `package.json` ones. "Add project" on a folder holding `frontend/` and `backend/` offers **Add as one project**, so one run group starts both.
+- Detected commands: Django (`runserver`, `migrate`), a module-level FastAPI app (`python -m uvicorn <module>:<app> --reload`), a Flask app (`python -m flask --app <module> run --debug`), else each script with a `__main__` guard.
+- Custom commands for any package: a program and its arguments, run without a shell.
+- A local virtualenv (`.venv`, `venv`, `env`) goes first on PATH with `VIRTUAL_ENV` set; output is unbuffered UTF-8. Without one, `python` is the platform's (`python3` on macOS).
+- Later: uv/poetry runners, `[tool.poe]`/`[tool.pdm]` tasks, `.python-version` checks, pip-audit.
 
 ## Data model and persistence
 
