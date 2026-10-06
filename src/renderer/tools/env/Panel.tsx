@@ -1,4 +1,4 @@
-import { Lock, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
+import { FileText, Lock, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import type { EnvMatrix } from '@shared/tools/env/contract';
 import {
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { AddVariableDialog } from './AddVariableDialog';
 import { EditValueDialog, type EditTarget } from './EditValueDialog';
+import { RawEditDialog } from './RawEditDialog';
 import { useCodeKeys, useCreateEnvFile, useEnvCopy, useEnvEdit, useEnvMatrix } from './use-env';
 import { ValueCell } from './ValueCell';
 
@@ -75,6 +76,7 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
   const code = useCodeKeys(projectId);
   const createFile = useCreateEnvFile(projectId);
   const [adding, setAdding] = useState(false);
+  const [rawFile, setRawFile] = useState<{ name: string; readOnly: boolean } | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -169,6 +171,15 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
                       {f.name}
                       {f.readOnly && <Lock aria-hidden className="size-3" />}
                       {f.duplicates.length > 0 && <TriangleAlert aria-hidden className="size-3 text-warn" />}
+                      <button
+                        type="button"
+                        aria-label={`${f.readOnly ? 'View' : 'Edit'} ${f.name} as text`}
+                        title={f.readOnly ? 'View the file as text' : 'Edit the file as text'}
+                        onClick={() => setRawFile({ name: f.name, readOnly: f.readOnly })}
+                        className="rounded p-0.5 text-fg-faint hover:text-fg"
+                      >
+                        <FileText aria-hidden className="size-3" />
+                      </button>
                     </span>
                   </th>
                 ))}
@@ -220,6 +231,14 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
         </div>
       )}
       <EditValueDialog projectId={projectId} target={editing} onClose={() => setEditing(null)} onSave={save} />
+      {rawFile && (
+        <RawEditDialog
+          projectId={projectId}
+          file={rawFile.name}
+          readOnly={rawFile.readOnly}
+          onClose={() => setRawFile(null)}
+        />
+      )}
       {adding && (
         <AddVariableDialog
           files={matrix.files}

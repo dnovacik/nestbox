@@ -70,7 +70,18 @@ export function useCommandActions(projectId: string) {
     onSuccess: refresh,
     onError: showError,
   });
-  return { save, remove };
+  /** A detected command: hidden, since detection would find it again. */
+  const hide = useMutation({
+    mutationFn: (script: string) => api.tools.invoke('scripts', projectId, 'hideCommand', { script }),
+    onSuccess: refresh,
+    onError: showError,
+  });
+  const show = useMutation({
+    mutationFn: (script: string) => api.tools.invoke('scripts', projectId, 'showCommand', { script }),
+    onSuccess: refresh,
+    onError: showError,
+  });
+  return { save, remove, hide, show };
 }
 
 export function useSetEnvFile(projectId: string) {

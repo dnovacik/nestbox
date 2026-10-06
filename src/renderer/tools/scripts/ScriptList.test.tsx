@@ -122,6 +122,19 @@ describe('ScriptList', () => {
       expect(screen.queryByRole('button', { name: 'Edit dev' })).toBeNull();
     });
 
+    it('removes a detected command without asking, and restores a removed one', async () => {
+      const { callsTo } = installScriptsBridge({
+        scripts: mixed,
+        hidden: [{ name: 'migrate', command: 'python manage.py migrate' }],
+      });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Remove dev' }));
+      await waitFor(() => expect(callsTo('hideCommand')).toEqual([{ script: 'dev' }]));
+      expect(screen.getByText('Removed:').closest('p')).toHaveTextContent('migrate');
+      await userEvent.click(screen.getByRole('button', { name: 'Restore migrate' }));
+      await waitFor(() => expect(callsTo('showCommand')).toEqual([{ script: 'migrate' }]));
+    });
+
     it('opens the editor with the command filled in', async () => {
       installScriptsBridge({ scripts: mixed });
       renderWithProviders(<ScriptList projectId="p1" />);

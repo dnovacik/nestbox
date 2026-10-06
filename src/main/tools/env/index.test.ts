@@ -161,6 +161,20 @@ describe('env tool', () => {
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe('PORT=8080\n');
   });
 
+  it('reads and writes a whole file as text, refusing a stale version and never logging it', async () => {
+    const { call, emit, logger } = setup();
+    const raw = await call<{ text: string; version: string }>('readRaw', { file: '.env' });
+    expect(raw.text).toBe(`# local\nPORT=3000\nDATABASE_URL=postgres://u:${SECRET}@h/db\n`);
+    const edited = `${raw.text.replace('3000', '4000')}NEW_KEY=1\n`;
+    const { version } = await call<{ version: string }>('writeRaw', { file: '.env', text: edited, version: raw.version });
+    expect(await readFile(join(dir, '.env'), 'utf8')).toBe(edited);
+    expect(version).not.toBe(raw.version);
+    expect(emit).toHaveBeenCalledWith('changed', undefined);
+    await expect(call('writeRaw', { file: '.env', text: 'X=1\n', version: raw.version })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(JSON.stringify(logger.entries)).not.toContain(SECRET);
+    expect(JSON.stringify(logger.entries)).not.toContain('NEW_KEY');
+  });
+
   it('lists the env keys the code reads, by name only', async () => {
     const { call, logger } = setup();
     await writeFile(join(dir, 'main.py'), `import os\nDSN = os.getenv("SENTRY_DSN", "${SECRET}")\nPORT = os.environ["PORT"]\n`);

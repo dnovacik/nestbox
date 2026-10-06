@@ -80,6 +80,7 @@ function ScriptRow({
   envFiles,
   onEdit,
   onDelete,
+  onHide,
 }: {
   projectId: string;
   info: ScriptInfo;
@@ -87,6 +88,7 @@ function ScriptRow({
   envFiles: string[];
   onEdit(): void;
   onDelete(): void;
+  onHide(): void;
 }) {
   const action = useScriptAction(projectId);
   const setAutoRestart = useSetAutoRestart(projectId);
@@ -140,6 +142,18 @@ function ScriptRow({
           >
             <Star className={cn(info.main ? 'fill-current text-brand' : 'text-fg-faint')} />
           </Button>
+          {info.kind === 'detected' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Remove ${info.name}`}
+              title="Remove this detected command (you can restore it below)"
+              disabled={live}
+              onClick={onHide}
+            >
+              <Trash2 />
+            </Button>
+          )}
           {info.kind === 'custom' && (
             <>
               <Button variant="ghost" size="icon" aria-label={`Edit ${info.name}`} onClick={onEdit}>
@@ -241,9 +255,30 @@ export function ScriptList({ projectId }: { projectId: string }) {
             envFiles={data.envFiles}
             onEdit={() => setEditing(info)}
             onDelete={() => setDeleting(info.name)}
+            onHide={() => commands.hide.mutate(info.name)}
           />
         ))}
       </ul>
+      {data.hidden.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-fg-muted">
+          <span>Removed:</span>
+          {data.hidden.map((h) => (
+            <span key={h.name} className="inline-flex items-center gap-1" title={h.command}>
+              <span className="font-mono">{h.name}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-[11px]"
+                aria-label={`Restore ${h.name}`}
+                disabled={commands.show.isPending}
+                onClick={() => commands.show.mutate(h.name)}
+              >
+                Restore
+              </Button>
+            </span>
+          ))}
+        </p>
+      )}
       {editing !== null && (
         <CommandDialog
           projectId={projectId}

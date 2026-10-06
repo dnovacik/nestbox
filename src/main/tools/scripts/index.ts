@@ -72,6 +72,11 @@ interface Runnable {
   argv: string[] | null;
 }
 
+const isEntry =
+  (relPath: string, script: string | undefined) =>
+  (e: RunGroupEntry): boolean =>
+    e.relPath === relPath && e.script === script;
+
 /**
  * A package's runnables in display order: package.json scripts, detected commands, custom commands. Names
  * are unique: on a clash package.json wins, then the user's command, then detection.
@@ -89,14 +94,20 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
   const taken = new Set(npm.map((r) => r.name));
   const unique = (r: Runnable): boolean => !taken.has(r.name) && Boolean(taken.add(r.name));
   const custom = settings.commands.filter((c) => c.relPath === project.relPath).map(asRunnable('custom')).filter(unique);
-  const detected = (project.python?.commands ?? []).map(asRunnable('detected')).filter(unique);
+  const detected = (project.python?.commands ?? [])
+    .filter((c) => !settings.hidden.some(isEntry(project.relPath, c.name)))
+    .map(asRunnable('detected'))
+    .filter(unique);
   return [...npm, ...detected, ...custom];
 }
 
-const isEntry =
-  (relPath: string, script: string | undefined) =>
-  (e: RunGroupEntry): boolean =>
-    e.relPath === relPath && e.script === script;
+/** Detected commands the user removed, unless something else now has the name. */
+function hiddenOf(project: DetectedProject, settings: ScriptsSettings): { name: string; command: string }[] {
+  const names = new Set(runnables(project, settings).map((r) => r.name));
+  return (project.python?.commands ?? [])
+    .filter((c) => settings.hidden.some(isEntry(project.relPath, c.name)) && !names.has(c.name))
+    .map((c) => ({ name: c.name, command: formatCommandLine(c.argv) }));
+}
 
 /** A list of per-script settings with one package's `from` renamed to `to`. */
 function renamed<T extends RunGroupEntry>(list: T[], relPath: string, from: string, to: string): T[] {
@@ -312,7 +323,8 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           // The main one first.
           .sort((a, b) => Number(b.main) - Number(a.main));
         const envFiles = await deps.envFiles.list(ctx.project.path).catch(() => []);
-        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles };
+        const hidden = hiddenOf(ctx.project, settings);
+        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles, hidden };
         const packages = [ctx.project, ...ctx.project.workspaces].map((p) => {
           const names = runnables(p, settings).map((r) => r.name);
           const pkgMain = mainOf(settings, p);
@@ -324,7 +336,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             main: pkgMain !== null && names.includes(pkgMain) ? pkgMain : null,
           };
         });
-        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles };
+        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles, hidden };
       },
 
       start: async (ctx: Ctx, { script }) => {
@@ -437,6 +449,20 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           envFiles: s.envFiles.filter(other),
           main: s.main.filter(other),
         }));
+      },
+
+      hideCommand: async (ctx: Ctx, { script }) => {
+        const runnable = requireRunnable(ctx.project, ctx.settings.get(), script);
+        if (runnable.kind !== 'detected') throw new NestboxError('NOT_FOUND', 'Only detected commands can be removed this way');
+        if (isRunning(ctx.project.id, script)) throw new NestboxError('CONFLICT', 'Stop the command before removing it');
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({ ...s, hidden: [...s.hidden.filter((e) => !isEntry(relPath, script)(e)), { relPath, script }] }));
+      },
+
+      showCommand: async (ctx: Ctx, { script }) => {
+        const { relPath } = ctx.project;
+        if (!ctx.settings.get().hidden.some(isEntry(relPath, script))) throw new NestboxError('NOT_FOUND', 'Unknown command');
+        ctx.settings.update((s) => ({ ...s, hidden: s.hidden.filter((e) => !isEntry(relPath, script)(e)) }));
       },
 
       setEnvFile: async (ctx: Ctx, { script, file }) => {

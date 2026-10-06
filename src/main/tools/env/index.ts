@@ -146,6 +146,15 @@ export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
         return {};
       },
 
+      readRaw: async (ctx, { file }) => deps.files.read(ctx.project.path, file),
+
+      writeRaw: async (ctx, { file, text, version }) => {
+        const written = await deps.files.write(ctx.project.path, file, text, version);
+        deps.logger.info('env write', { method: 'writeRaw', file });
+        ctx.emit('changed', undefined);
+        return written;
+      },
+
       codeKeys: async (ctx) => {
         const dir = ctx.project.path;
         const list = await listFiles(dir, {

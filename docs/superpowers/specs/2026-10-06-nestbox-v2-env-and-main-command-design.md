@@ -36,6 +36,14 @@ The owner's answers (2026-10-06), after Python backends (1.21.0):
   (`VIRTUAL_ENV`, `PYTHONUNBUFFERED`, `FORCE_COLOR`). The log says `▸ env: .env (N variables)`, or
   `▸ .env not found: started without it`; values are never logged, stored or sent to the renderer.
 
+## Follow-ups (same release)
+
+- **Remove a detected command**: `hideCommand` adds it to `toolSettings.scripts.hidden` (detection would find it
+  again); the list's `hidden` shows "Removed: … Restore" (`showCommand`). Only detected commands, never while running.
+  The command palette takes commands from the selected root's Scripts list, so a removed one never appears there.
+- **Raw editor**: `readRaw` returns a file's text and version; `writeRaw` replaces it at that version (1 MiB, no NUL).
+  A CONFLICT keeps the user's text in the editor with Reload. Symlinked files open view-only.
+
 ## Main command
 
 - `toolSettings.scripts.main`: `{ relPath, script }[]`, one per package. `ScriptInfo.main`; `setMain`; the main row

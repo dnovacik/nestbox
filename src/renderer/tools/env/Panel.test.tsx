@@ -40,6 +40,8 @@ function setup(over: Partial<Record<string, (input: Record<string, unknown>) => 
       if (method === 'switchProfile') return {};
       if (method === 'codeKeys') return { keys: [], files: 0, truncated: false };
       if (method === 'createFile') return { version: 'v1' };
+      if (method === 'readRaw') return { text: `# local\nPORT=3000\nDATABASE_URL=${SECRET}\n`, version: 'raw-v1' };
+      if (method === 'writeRaw') return { version: 'raw-v2' };
       throw new Error(`unexpected ${method}`);
     }) as never,
   });
@@ -249,6 +251,54 @@ describe('EnvPanel', () => {
       await userEvent.type(within(dialog).getByRole('textbox', { name: 'Value' }), '1');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
       await waitFor(() => expect(of('addKey')).toEqual([{ file: '.env', key: 'DEBUG', value: '1', version: null }]));
+    });
+  });
+
+  describe('raw editor', () => {
+    it('edits a whole file as text with the version it was read at', async () => {
+      const { of } = setup();
+      await table();
+      await userEvent.click(screen.getByRole('button', { name: 'Edit .env as text' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit .env' });
+      const text = within(dialog).getByRole('textbox', { name: 'File contents' });
+      await waitFor(() => expect(text).toHaveValue(`# local\nPORT=3000\nDATABASE_URL=${SECRET}\n`));
+      await userEvent.type(text, 'DEBUG=1');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(of('writeRaw')).toEqual([
+          { file: '.env', text: `# local\nPORT=3000\nDATABASE_URL=${SECRET}\nDEBUG=1`, version: 'raw-v1' },
+        ]),
+      );
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit .env' })).toBeNull());
+    });
+
+    it('keeps the edits when the file changed on disk, and reloads on request', async () => {
+      const { of } = setup({
+        writeRaw: () => {
+          throw new NestboxError('CONFLICT', 'The file changed on disk. Reload and try again.');
+        },
+      });
+      await table();
+      await userEvent.click(screen.getByRole('button', { name: 'Edit .env as text' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit .env' });
+      const text = within(dialog).getByRole<HTMLTextAreaElement>('textbox', { name: 'File contents' });
+      await waitFor(() => expect(text.value).toContain('PORT=3000'));
+      await userEvent.type(text, 'X=1');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+      expect(await within(dialog).findByText(/changed on disk since you opened it/)).toBeInTheDocument();
+      expect(text.value).toContain('X=1');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Reload' }));
+      await waitFor(() => expect(of('readRaw')).toHaveLength(2));
+      await waitFor(() => expect(text.value).not.toContain('X=1'));
+    });
+
+    it('only shows a read-only (symlinked) file', async () => {
+      setup();
+      await table();
+      await userEvent.click(screen.getByRole('button', { name: 'View .env.staging as text' }));
+      const dialog = await screen.findByRole('dialog', { name: '.env.staging' });
+      expect(within(dialog).getByRole('textbox', { name: 'File contents' })).toHaveAttribute('readonly');
+      expect(within(dialog).queryByRole('button', { name: 'Save' })).toBeNull();
     });
   });
 });

@@ -119,6 +119,7 @@ describe('scripts tool: list and lifecycle', () => {
         { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false, main: null },
       ],
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
   });
 
@@ -153,11 +154,11 @@ describe('scripts tool: list and lifecycle', () => {
     const { call, toolSettings, processes } = setup();
     await call(api.id, 'start', { script: 'dev' });
     expect(await call(api.id, 'setAutoRestart', { script: 'dev', enabled: true })).toEqual({ enabled: true });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [], envFiles: [], main: [] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [], envFiles: [], main: [], hidden: [] });
     expect(processes.get(api.id, 'dev')?.autoRestart).toBe(true);
     expect(await call(api.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', autoRestart: true }] });
     await call(api.id, 'setAutoRestart', { script: 'dev', enabled: false });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [], envFiles: [], main: [] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [], envFiles: [], main: [], hidden: [] });
   });
 
   it('starts with auto-restart from settings', async () => {
@@ -508,6 +509,7 @@ describe('scripts tool: Python and custom commands', () => {
       runGroups: null,
       packages: null,
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
     expect(await call('r2', 'list')).toMatchObject({
       scripts: [],
@@ -717,5 +719,37 @@ describe('scripts tool: main command', () => {
     expect(await call(frontend.id, 'pythonFiles')).toEqual({ files: [] });
     // BACKEND doesn't exist on disk: an empty list, not an error.
     expect(await call(backend.id, 'pythonFiles')).toEqual({ files: [] });
+  });
+});
+
+describe('scripts tool: removing detected commands', () => {
+  it('hides a detected command from the list, run groups and starts, and restores it', async () => {
+    const { call, setGroups } = pythonSetup();
+    setGroups([{ name: 'dev', entries: [{ relPath: 'backend', script: 'dev' }], compose: [] }]);
+    await call(backend.id, 'hideCommand', { script: 'dev' });
+    expect(await call(backend.id, 'list')).toMatchObject({
+      scripts: [],
+      hidden: [{ name: 'dev', command: 'python -m uvicorn main:app --reload' }],
+    });
+    expect(await call('r2', 'list')).toMatchObject({ packages: [{ relPath: '' }, { relPath: 'backend', scripts: [] }, { relPath: 'frontend' }] });
+    await expect(call(backend.id, 'start', { script: 'dev' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(await call('r2', 'startRunGroup', { name: 'dev' })).toMatchObject({ skipped: [{ relPath: 'backend', script: 'dev', reason: 'missing' }] });
+    await call(backend.id, 'showCommand', { script: 'dev' });
+    expect(await call(backend.id, 'list')).toMatchObject({ scripts: [{ name: 'dev' }], hidden: [] });
+  });
+
+  it('hides only detected commands, never while they run', async () => {
+    const { call } = pythonSetup();
+    await expect(call(frontend.id, 'hideCommand', { script: 'dev' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await call(backend.id, 'start', { script: 'dev' });
+    await expect(call(backend.id, 'hideCommand', { script: 'dev' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(call(backend.id, 'showCommand', { script: 'nope' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('lets a custom command take the name of a hidden one', async () => {
+    const { call } = pythonSetup();
+    await call(backend.id, 'hideCommand', { script: 'dev' });
+    await call(backend.id, 'saveCommand', { name: 'dev', argv: ['python', 'server.py'] });
+    expect(await call(backend.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', kind: 'custom' }], hidden: [] });
   });
 });

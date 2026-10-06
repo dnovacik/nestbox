@@ -20,6 +20,11 @@ export const EnvValueSchema = z
   .max(64 * 1024)
   .refine((v) => !v.includes('\0'), { message: 'nul' });
 const Version = z.string().min(1).max(100);
+/** A whole env file from the raw editor: the env file size cap (1 MiB), no NUL. */
+const EnvTextSchema = z
+  .string()
+  .max(1024 * 1024)
+  .refine((v) => !v.includes('\0'), { message: 'nul' });
 
 export const CELL_STATES = ['set', 'empty', 'absent'] as const;
 
@@ -77,6 +82,13 @@ export const envContract = defineContract({
   switchProfile: {
     input: z.strictObject({ file: EnvFileNameSchema, envVersion: Version.nullable() }),
     output: z.object({}),
+  },
+  /** The whole file as text, for the raw editor (the user asked to see every value). */
+  readRaw: { input: z.strictObject({ file: EnvFileNameSchema }), output: z.object({ text: z.string(), version: z.string() }) },
+  /** Replaces the whole file, if it is still at version (CONFLICT otherwise). */
+  writeRaw: {
+    input: z.strictObject({ file: EnvFileNameSchema, text: EnvTextSchema, version: Version }),
+    output: z.object({ version: z.string() }),
   },
   /** Env variable names the package's source reads (`os.getenv("X")`, `process.env.X`): names only. */
   codeKeys: {

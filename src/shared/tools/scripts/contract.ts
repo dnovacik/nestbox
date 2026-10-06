@@ -35,6 +35,8 @@ const settingsSchema = z.object({
     .default([]),
   /** The main script or command of a package, at most one per package. */
   main: z.array(RunGroupEntrySchema).max(200).default([]),
+  /** Detected commands the user removed (detection would find them again, so they are hidden). */
+  hidden: z.array(RunGroupEntrySchema).max(500).default([]),
 });
 export type ScriptsSettings = z.infer<typeof settingsSchema>;
 
@@ -98,6 +100,8 @@ export const scriptsContract = defineContract({
       packages: z.array(PackageScriptsSchema).nullable(),
       /** The package's env files right now, for the Env choice of each row. */
       envFiles: z.array(z.string()),
+      /** Detected commands the user removed from this package, to restore. */
+      hidden: z.array(z.object({ name: z.string(), command: z.string() })),
     }),
   },
   start: { input: ScriptInput, output: ProcessSummarySchema },
@@ -136,6 +140,9 @@ export const scriptsContract = defineContract({
     }),
     output: z.void(),
   },
+  /** Removes a detected command from the package (it stays hidden until showCommand). */
+  hideCommand: { input: z.strictObject({ script: ScriptName }), output: z.void() },
+  showCommand: { input: z.strictObject({ script: ScriptName }), output: z.void() },
   /** The env file a script or command gets; null = none. */
   setEnvFile: {
     input: z.strictObject({ script: ScriptName, file: EnvFileNameSchema.nullable() }),
