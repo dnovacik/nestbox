@@ -22,6 +22,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
     missing: false,
     packageJson: null,
     packageManager: 'pnpm',
+    python: null,
     envFiles: [], envSymlinks: [],
     workspaces: [
       { ...emptyDetected(), id: `${input.id}::packages/api`, rootId: input.id, relPath: 'packages/api', name: 'api', path: `${input.path}\\packages\\api` },
@@ -37,7 +38,7 @@ function fakeDetect(input: DetectInput): DetectedProject {
 function emptyDetected(): DetectedProject {
   return {
     id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false, packageJson: null,
-    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],
+    packageManager: null, python: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],
     git: null, buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
   };
@@ -460,6 +461,17 @@ describe('ProjectService.scan and addFolders', () => {
       packageJson: { name: 'mono', scripts: {} },
     }));
     expect(await service.scan('C:\\Dev\\Mono')).toEqual({ name: 'mono', folders: [] });
+  });
+
+  it('offers nothing for a Python package at the root either', async () => {
+    const { service, detect } = setup();
+    detect.mockImplementation(async (input: DetectInput) => ({
+      ...fakeDetect(input),
+      python: { venv: null, framework: null, commands: [] },
+      workspaces: ['app', 'api'].map((rel) => ({ ...emptyDetected(), id: `${input.id}::${rel}`, relPath: rel })),
+    }));
+    expect((await service.scan('C:\\Dev\\Shop')).folders).toEqual([]);
+    await expect(service.addFolders('C:\\Dev\\Shop', null)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
   it('adds each sub-folder as its own project inside a new group', async () => {

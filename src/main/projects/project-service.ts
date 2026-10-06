@@ -25,6 +25,9 @@ export function displayName(detectedName: string, path: string): string {
   return name.slice(0, MAX_NAME_LENGTH);
 }
 
+/** A folder that is a package itself (Node or Python) stays one project; it is never split into sub-folders. */
+const isPackage = (detected: DetectedProject): boolean => detected.packageJson !== null || detected.python !== null;
+
 /** How long a tool call waits for a project that is still being detected. */
 export const DETECTION_WAIT_MS = 15_000;
 
@@ -87,7 +90,7 @@ export class ProjectService {
     }
     const detected = await this.deps.detect({ id: 'scan', path });
     const folders =
-      detected.packageJson === null && detected.workspaces.length >= 2
+      !isPackage(detected) && detected.workspaces.length >= 2
         ? detected.workspaces.map((w) => ({ relPath: w.relPath, name: w.name }))
         : [];
     return { name: displayName(detected.name, path), folders };
@@ -100,7 +103,7 @@ export class ProjectService {
       throw new NestboxError('VALIDATION', 'The selected folder does not exist');
     }
     const scanned = await this.deps.detect({ id: 'scan', path });
-    if (scanned.packageJson !== null || scanned.workspaces.length < 2) {
+    if (isPackage(scanned) || scanned.workspaces.length < 2) {
       throw new NestboxError('VALIDATION', 'This folder has no sub-folders to add separately');
     }
     const isAdded = (p: string) =>

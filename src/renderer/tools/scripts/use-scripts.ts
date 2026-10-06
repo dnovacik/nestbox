@@ -50,6 +50,24 @@ export function useSetAutoRestart(projectId: string) {
   });
 }
 
+/** Custom commands. Every package's list is refreshed: the root's feeds the run group editor. */
+export function useCommandActions(projectId: string) {
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['tool', 'scripts'] });
+  const save = useMutation({
+    mutationFn: (input: { previousName?: string; name: string; argv: string[] }) =>
+      api.tools.invoke('scripts', projectId, 'saveCommand', input),
+    onSuccess: refresh,
+    onError: showError,
+  });
+  const remove = useMutation({
+    mutationFn: (name: string) => api.tools.invoke('scripts', projectId, 'deleteCommand', { name }),
+    onSuccess: refresh,
+    onError: showError,
+  });
+  return { save, remove };
+}
+
 export function useRunGroupActions(projectId: string) {
   const refresh = useRefreshAfter(projectId);
   const save = useMutation({

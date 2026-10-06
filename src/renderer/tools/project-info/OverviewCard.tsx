@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import type { ToolPanelProps } from '../types';
+import { pythonSummary } from './python-summary';
 import { useProjectFacts } from './use-facts';
 
 export function ProjectInfoCard({ projectId }: ToolPanelProps) {
@@ -27,7 +28,7 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
       </section>
     );
   }
-  const scripts = Object.keys(data.packageJson?.scripts ?? {}).length;
+  const scripts = Object.keys(data.packageJson?.scripts ?? {}).length + (data.python?.commands.length ?? 0);
   const claudeFiles = Object.values(data.claude).filter(Boolean).length;
   return (
     <section
@@ -38,6 +39,12 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
         <dt className="text-fg-muted">Package manager</dt>
         <dd className="font-mono text-fg">{data.packageManager ?? 'none'}</dd>
+        {data.python && (
+          <>
+            <dt className="text-fg-muted">Python</dt>
+            <dd className="font-mono text-fg">{pythonSummary(data.python)}</dd>
+          </>
+        )}
         <dt className="text-fg-muted">Scripts</dt>
         <dd className="text-fg">{scripts} scripts</dd>
         <dt className="text-fg-muted">Env files</dt>

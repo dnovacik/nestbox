@@ -35,6 +35,28 @@ describe('detectProject', () => {
     }
   });
 
+  it('detects a React frontend and a Python backend as packages of one project', async () => {
+    dir = await makeTree({
+      'frontend/package.json': JSON.stringify({ name: 'web', scripts: { dev: 'vite' } }),
+      'frontend/pnpm-lock.yaml': '',
+      'backend/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+      'backend/.venv/pyvenv.cfg': '',
+    });
+    const d = await detectProject({ id: 'p', path: dir });
+    expect(d.packageJson).toBeNull();
+    expect(d.python).toBeNull();
+    expect(d.workspaces.map((w) => [w.relPath, w.name])).toEqual([
+      ['backend', 'backend'],
+      ['frontend', 'web'],
+    ]);
+    expect(d.workspaces[0]).toMatchObject({
+      id: 'p::backend',
+      packageJson: null,
+      python: { venv: '.venv', framework: 'fastapi', commands: [{ name: 'dev' }] },
+    });
+    expect(d.workspaces[1]?.python).toBeNull();
+  });
+
   it('parses package.json with a UTF-8 BOM', async () => {
     dir = await makeTree({ 'package.json': '﻿{"name":"bom"}' });
     expect((await detectProject({ id: 'p', path: dir })).packageJson?.name).toBe('bom');

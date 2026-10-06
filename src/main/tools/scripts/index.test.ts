@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolve } from 'node:path';
+import { delimiter, posix, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DetectedProject } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
@@ -7,6 +7,7 @@ import { makeDetectedForTest } from '@shared/test-fixtures';
 import type { RunGroup } from '@shared/types';
 import { createMemoryLogger } from '../../logger';
 import { createDarwinAdapter } from '../../platform/darwin';
+import type { SpawnOpts } from '../../platform/adapter';
 import { noopRunner } from '../../platform/testing';
 import { fakePlatform, flushIo } from '../../processes/fake-child';
 import { ProcessManager } from '../../processes/process-manager';
@@ -33,7 +34,7 @@ const root = makeDetectedForTest({
   workspaces: [api],
 });
 
-function setup() {
+function setup(projects: DetectedProject[] = [root, api]) {
   const platform = fakePlatform();
   const processes = new ProcessManager({
     platform,
@@ -48,7 +49,7 @@ function setup() {
     processes,
     runGroups: { get: vi.fn(() => groups), set: vi.fn((_root: string, next: RunGroup[]) => (groups = next)) },
     getDetected: (id: string): DetectedProject => {
-      const found = [root, api].find((p) => p.id === id);
+      const found = projects.find((p) => p.id === id);
       if (!found) throw new NestboxError('NOT_FOUND', 'Project not found');
       return found;
     },
@@ -103,8 +104,8 @@ describe('scripts tool: list and lifecycle', () => {
     setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }]);
     expect(await call('r1', 'list')).toEqual({
       scripts: [
-        { name: 'dev', command: 'vite', autoRestart: false },
-        { name: 'build', command: 'vite build', autoRestart: false },
+        { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' },
+        { name: 'build', command: 'vite build', autoRestart: false, kind: 'npm' },
       ],
       runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }],
       packages: [
@@ -145,11 +146,11 @@ describe('scripts tool: list and lifecycle', () => {
     const { call, toolSettings, processes } = setup();
     await call(api.id, 'start', { script: 'dev' });
     expect(await call(api.id, 'setAutoRestart', { script: 'dev', enabled: true })).toEqual({ enabled: true });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [] });
     expect(processes.get(api.id, 'dev')?.autoRestart).toBe(true);
     expect(await call(api.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', autoRestart: true }] });
     await call(api.id, 'setAutoRestart', { script: 'dev', enabled: false });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [] });
   });
 
   it('starts with auto-restart from settings', async () => {
@@ -443,5 +444,187 @@ describe('scripts tool: run groups', () => {
     await call('r1', 'stopRunGroup', { name: 'dev' });
     expect(processes.get(api.id, 'dev')?.state).toBe('stopped');
     expect(processes.get('r1', 'dev')?.state).toBe('starting');
+  });
+});
+
+const APP = resolve('/dev/app');
+const BACKEND = resolve(APP, 'backend');
+const backend = makeDetectedForTest({
+  id: 'r2::backend',
+  rootId: 'r2',
+  relPath: 'backend',
+  name: 'backend',
+  path: BACKEND,
+  packageJson: null,
+  packageManager: null,
+  python: {
+    venv: '.venv',
+    framework: 'fastapi',
+    commands: [{ name: 'dev', argv: ['python', '-m', 'uvicorn', 'main:app', '--reload'] }],
+  },
+});
+const frontend = makeDetectedForTest({
+  id: 'r2::frontend',
+  rootId: 'r2',
+  relPath: 'frontend',
+  name: 'web',
+  path: resolve(APP, 'frontend'),
+  packageJson: { name: 'web', scripts: { dev: 'vite' } },
+});
+const app = makeDetectedForTest({
+  id: 'r2',
+  rootId: 'r2',
+  path: APP,
+  name: 'app',
+  packageJson: null,
+  packageManager: null,
+  workspaces: [backend, frontend],
+});
+
+/** What each spawn got (the fake's mock is typed without parameters). */
+const spawnCalls = (platform: ReturnType<typeof fakePlatform>): SpawnOpts[] =>
+  (platform.spawnScript.mock.calls as unknown as [SpawnOpts][]).map(([opts]) => opts);
+
+function pythonSetup(backendProject: DetectedProject = backend) {
+  return setup([{ ...app, workspaces: [backendProject, frontend] }, backendProject, frontend]);
+}
+
+describe('scripts tool: Python and custom commands', () => {
+  it('lists detected and custom commands after package scripts', async () => {
+    const { call } = pythonSetup();
+    await call(backend.id, 'saveCommand', { name: 'seed', argv: ['python', 'seed.py', '--count', '10'] });
+    expect(await call(backend.id, 'list')).toEqual({
+      scripts: [
+        { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' },
+        { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' },
+      ],
+      runGroups: null,
+      packages: null,
+    });
+    expect(await call('r2', 'list')).toMatchObject({
+      scripts: [],
+      packages: [
+        { relPath: '', name: 'app', scripts: [] },
+        { relPath: 'backend', name: 'backend', scripts: ['dev', 'seed'] },
+        { relPath: 'frontend', name: 'web', scripts: ['dev'] },
+      ],
+    });
+  });
+
+  it('runs a Python command in its virtualenv, without asking the Node tool', async () => {
+    const { call, platform, deps } = pythonSetup();
+    await call(backend.id, 'start', { script: 'dev' });
+    const venv = resolve(BACKEND, '.venv');
+    expect(platform.spawnScript).toHaveBeenCalledWith({
+      cwd: BACKEND,
+      command: 'python',
+      args: ['-m', 'uvicorn', 'main:app', '--reload'],
+      env: expect.objectContaining({
+        VIRTUAL_ENV: venv,
+        PYTHONUNBUFFERED: '1',
+        PYTHONIOENCODING: 'utf-8',
+        PATH: `${posix.join(venv, 'bin')}${delimiter}x`,
+      }),
+    });
+    expect(deps.node.advice).not.toHaveBeenCalled();
+  });
+
+  it("uses the platform's python without a virtualenv and says so", async () => {
+    const bare = { ...backend, python: { venv: null, framework: 'script' as const, commands: [{ name: 'main', argv: ['python', 'main.py'] }] } };
+    const { call, platform, processes } = pythonSetup(bare);
+    await call(backend.id, 'start', { script: 'main' });
+    const spawned = spawnCalls(platform)[0];
+    expect(spawned).toMatchObject({ command: 'python3', args: ['main.py'] });
+    expect(spawned?.env['VIRTUAL_ENV']).toBeUndefined();
+    expect(processes.logs(backend.id, 'main').lines.map((l) => l.text)).toEqual([
+      '▸ No virtualenv (.venv) found: using python3 from PATH',
+      '▸ python3 main.py',
+    ]);
+  });
+
+  it('runs a custom command as typed in a package without Python', async () => {
+    const { call, platform } = pythonSetup();
+    await call(frontend.id, 'saveCommand', { name: 'storybook', argv: ['npx', 'storybook', 'dev'] });
+    await call(frontend.id, 'start', { script: 'storybook' });
+    const spawned = spawnCalls(platform)[0];
+    expect(spawned).toMatchObject({ command: 'npx', args: ['storybook', 'dev'] });
+    expect(spawned?.env['PYTHONUNBUFFERED']).toBeUndefined();
+  });
+
+  it('keeps names unique within a package', async () => {
+    const { call } = pythonSetup();
+    await expect(call(frontend.id, 'saveCommand', { name: 'dev', argv: ['x'] })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(call(backend.id, 'saveCommand', { name: 'dev', argv: ['x'] })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await call(backend.id, 'saveCommand', { name: 'a', argv: ['x'] });
+    await call(backend.id, 'saveCommand', { name: 'b', argv: ['x'] });
+    await expect(call(backend.id, 'saveCommand', { previousName: 'a', name: 'b', argv: ['x'] })).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    await expect(call(backend.id, 'saveCommand', { previousName: 'gone', name: 'c', argv: ['x'] })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    // The same name in another package is fine.
+    await call(frontend.id, 'saveCommand', { name: 'a', argv: ['y'] });
+  });
+
+  it('refuses commands that could not run safely', async () => {
+    const { call } = pythonSetup();
+    for (const argv of [[], ['PORT=1', 'x'], ['echo', 'a"b'], ['a\nb']]) {
+      await expect(call(backend.id, 'saveCommand', { name: 'x', argv })).rejects.toMatchObject({ code: 'VALIDATION' });
+    }
+    await expect(call(backend.id, 'saveCommand', { name: 'bad name', argv: ['x'] })).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+  });
+
+  it('carries auto-restart and run groups over a rename, and forgets them on delete', async () => {
+    const { call, setGroups, toolSettings } = pythonSetup();
+    await call(backend.id, 'saveCommand', { name: 'worker', argv: ['python', 'worker.py'] });
+    await call(backend.id, 'setAutoRestart', { script: 'worker', enabled: true });
+    setGroups([{ name: 'all', entries: [{ relPath: 'backend', script: 'worker' }], compose: [] }]);
+    await call(backend.id, 'saveCommand', { previousName: 'worker', name: 'jobs', argv: ['python', 'worker.py', '-v'] });
+    expect(await call('r2', 'list')).toMatchObject({
+      runGroups: [{ name: 'all', entries: [{ relPath: 'backend', script: 'jobs' }] }],
+    });
+    expect(toolSettings.get('r2/scripts')).toMatchObject({ autoRestart: [{ relPath: 'backend', script: 'jobs' }] });
+    await call(backend.id, 'deleteCommand', { name: 'jobs' });
+    expect(toolSettings.get('r2/scripts')).toMatchObject({ autoRestart: [], commands: [] });
+  });
+
+  it('will not rename or delete a running command', async () => {
+    const { call } = pythonSetup();
+    await call(backend.id, 'saveCommand', { name: 'worker', argv: ['python', 'worker.py'] });
+    await call(backend.id, 'start', { script: 'worker' });
+    await expect(call(backend.id, 'deleteCommand', { name: 'worker' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(
+      call(backend.id, 'saveCommand', { previousName: 'worker', name: 'w', argv: ['python', 'worker.py'] }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    // Editing the command line keeps the name: allowed, and used from the next start.
+    await call(backend.id, 'saveCommand', { previousName: 'worker', name: 'worker', argv: ['python', 'w2.py'] });
+    await expect(call(backend.id, 'deleteCommand', { name: 'dev' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('starts the frontend and the Python backend from one run group', async () => {
+    const { call, platform, setGroups } = pythonSetup();
+    setGroups([
+      {
+        name: 'dev',
+        entries: [
+          { relPath: 'backend', script: 'dev' },
+          { relPath: 'frontend', script: 'dev' },
+        ],
+        compose: [],
+      },
+    ]);
+    const result = (await call('r2', 'startRunGroup', { name: 'dev' })) as { started: unknown[]; skipped: unknown[] };
+    expect(result.started).toHaveLength(2);
+    expect(result.skipped).toEqual([]);
+    const commands = spawnCalls(platform).map((o) => [o.cwd, o.command, ...o.args]);
+    expect(commands).toEqual(
+      expect.arrayContaining([
+        [BACKEND, 'python', '-m', 'uvicorn', 'main:app', '--reload'],
+        [resolve(APP, 'frontend'), 'pnpm', 'run', 'dev'],
+      ]),
+    );
   });
 });

@@ -129,4 +129,51 @@ describe('findWorkspaceDirs', () => {
       'packages/alias',
     ]);
   });
+
+  describe('Python packages', () => {
+    it('finds a Python backend next to a frontend, even with only .py files', async () => {
+      dir = await makeTree({ 'frontend/package.json': PKG, 'backend/server.py': '', 'backend/models.py': '' });
+      expect(await findWorkspaceDirs(dir, null)).toEqual(['backend', 'frontend']);
+    });
+
+    it('takes definition files two levels down but .py files only one level down', async () => {
+      dir = await makeTree({
+        'services/api/requirements.txt': '',
+        'services/worker/main.py': '',
+        'ml/pyproject.toml': '',
+      });
+      expect(await findWorkspaceDirs(dir, null)).toEqual(['ml', 'services/api']);
+    });
+
+    it('skips helper, virtualenv and cache folders', async () => {
+      dir = await makeTree({
+        'scripts/release.py': '',
+        'tools/gen.py': '',
+        'docs/conf.py': '',
+        'bin/run.py': '',
+        'migrations/0001.py': '',
+        'venv/activate_this.py': '',
+        'env/x/requirements.txt': '',
+        '.venv/lib/site.py': '',
+        '__pycache__/x.py': '',
+        'tests/test_api.py': '',
+      });
+      expect(await findWorkspaceDirs(dir, null)).toEqual([]);
+    });
+
+    it('drops a Python folder inside another package', async () => {
+      dir = await makeTree({
+        'backend/requirements.txt': '',
+        'backend/app/pyproject.toml': '',
+        'web/package.json': PKG,
+        'web/api/requirements.txt': '',
+      });
+      expect(await findWorkspaceDirs(dir, null)).toEqual(['backend', 'web']);
+    });
+
+    it('adds Python folders to a declared workspace', async () => {
+      dir = await makeTree({ 'packages/a/package.json': PKG, 'api/pyproject.toml': '', 'tools/b/package.json': PKG });
+      expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual(['api', 'packages/a']);
+    });
+  });
 });

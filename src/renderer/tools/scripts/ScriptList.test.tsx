@@ -9,8 +9,8 @@ import { ScriptList } from './ScriptList';
 import { installScriptsBridge } from './test-bridge';
 
 const scripts = [
-  { name: 'dev', command: 'vite', autoRestart: false },
-  { name: 'api', command: 'nest start --watch', autoRestart: true },
+  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const },
+  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const },
 ];
 
 describe('ScriptList', () => {
@@ -104,5 +104,47 @@ describe('ScriptList', () => {
     const badge = await screen.findByLabelText("Version warning: Node v20.11.1 doesn't match 18 (.nvmrc)");
     expect(badge).toHaveTextContent('Node');
     expect(badge).toHaveAttribute('title', "Node v20.11.1 doesn't match 18 (.nvmrc)");
+  });
+
+  describe('commands', () => {
+    const mixed = [
+      { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' as const },
+      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const },
+    ];
+
+    it('marks detected and custom commands; only custom ones can be edited or deleted', async () => {
+      installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByText('python seed.py --count 10')).toBeInTheDocument();
+      expect(screen.getByTitle('Detected from the Python files')).toHaveTextContent('py');
+      expect(screen.getByTitle('Added by you')).toHaveTextContent('custom');
+      expect(screen.getByRole('button', { name: 'Edit seed' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Edit dev' })).toBeNull();
+    });
+
+    it('opens the editor with the command filled in', async () => {
+      installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit seed' }));
+      expect(await screen.findByRole('heading', { name: 'Edit command' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Command' })).toHaveValue('python seed.py --count 10');
+    });
+
+    it('deletes a custom command after asking', async () => {
+      const { callsTo } = installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete seed' }));
+      expect(callsTo('deleteCommand')).toEqual([]);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(callsTo('deleteCommand')).toEqual([{ name: 'seed' }]));
+    });
+
+    it('offers Add command, also when there is nothing to run yet', async () => {
+      installScriptsBridge({ scripts: [] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByText('No scripts or commands yet.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Add command' }));
+      expect(await screen.findByRole('heading', { name: 'Add command' })).toBeInTheDocument();
+    });
   });
 });

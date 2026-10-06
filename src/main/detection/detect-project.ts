@@ -6,6 +6,7 @@ import { isRecord } from '@shared/is-record';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
 import { detectPackageManager } from './package-manager';
+import { detectPython } from './python';
 import { findWorkspaceDirs } from './workspaces';
 
 export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root';
@@ -108,6 +109,7 @@ function missingProject(target: DirTarget): DetectedProject {
     missing: true,
     packageJson: null,
     packageManager: null,
+    python: null,
     envFiles: [],
     envSymlinks: [],
     workspaces: [],
@@ -158,6 +160,7 @@ async function detectDir(
     missing: false,
     packageJson: pkg?.info ?? null,
     packageManager: target.inheritedPackageManager ?? detectPackageManager(files),
+    python: await detectPython(target.path, files, dirs),
     envFiles: envFiles.sort(),
     envSymlinks: envSymlinks.sort(),
     workspaces: [],

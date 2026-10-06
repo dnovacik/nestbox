@@ -3,15 +3,20 @@ import { makeDetectedForTest } from '../../test-fixtures';
 import { MAX_EXPORT_SEQS, scriptsContract, scriptsDefinition } from './contract';
 
 describe('scripts contract', () => {
-  it('applies to projects with scripts or workspaces', () => {
+  it('applies to projects with scripts, Python or workspaces', () => {
     expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: { scripts: { dev: 'vite' } } }))).toBe(true);
     expect(scriptsDefinition.appliesTo(makeDetectedForTest({ workspaces: [makeDetectedForTest()] }))).toBe(true);
     expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: { scripts: {} } }))).toBe(false);
     expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: null }))).toBe(false);
+    expect(
+      scriptsDefinition.appliesTo(
+        makeDetectedForTest({ packageJson: null, python: { venv: null, framework: null, commands: [] } }),
+      ),
+    ).toBe(true);
   });
 
   it('defaults its settings', () => {
-    expect(scriptsDefinition.settingsSchema.parse({})).toEqual({ autoRestart: [] });
+    expect(scriptsDefinition.settingsSchema.parse({})).toEqual({ autoRestart: [], commands: [] });
   });
 
   it('bounds the export selection', () => {
