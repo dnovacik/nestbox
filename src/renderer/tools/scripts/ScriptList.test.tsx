@@ -9,8 +9,8 @@ import { ScriptList } from './ScriptList';
 import { installScriptsBridge } from './test-bridge';
 
 const scripts = [
-  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const },
-  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const },
+  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false },
+  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const, envFile: null, main: false },
 ];
 
 describe('ScriptList', () => {
@@ -108,8 +108,8 @@ describe('ScriptList', () => {
 
   describe('commands', () => {
     const mixed = [
-      { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' as const },
-      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const },
+      { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' as const, envFile: null, main: false },
+      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const, envFile: null, main: false },
     ];
 
     it('marks detected and custom commands; only custom ones can be edited or deleted', async () => {
@@ -120,6 +120,19 @@ describe('ScriptList', () => {
       expect(screen.getByTitle('Added by you')).toHaveTextContent('custom');
       expect(screen.getByRole('button', { name: 'Edit seed' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Edit dev' })).toBeNull();
+    });
+
+    it('removes a detected command without asking, and restores a removed one', async () => {
+      const { callsTo } = installScriptsBridge({
+        scripts: mixed,
+        hidden: [{ name: 'migrate', command: 'python manage.py migrate' }],
+      });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Remove dev' }));
+      await waitFor(() => expect(callsTo('hideCommand')).toEqual([{ script: 'dev' }]));
+      expect(screen.getByText('Removed:').closest('p')).toHaveTextContent('migrate');
+      await userEvent.click(screen.getByRole('button', { name: 'Restore migrate' }));
+      await waitFor(() => expect(callsTo('showCommand')).toEqual([{ script: 'migrate' }]));
     });
 
     it('opens the editor with the command filled in', async () => {
@@ -145,6 +158,83 @@ describe('ScriptList', () => {
       expect(await screen.findByText('No scripts or commands yet.')).toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: 'Add command' }));
       expect(await screen.findByRole('heading', { name: 'Add command' })).toBeInTheDocument();
+    });
+  });
+
+  describe('env file and main', () => {
+    const dev = { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false };
+    const api = { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const, envFile: null, main: false };
+
+    it("chooses the env file a row's process gets", async () => {
+      const { callsTo } = installScriptsBridge({ scripts, envFiles: ['.env', '.env.local'] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Env file for dev' });
+      expect(select).toHaveValue('');
+      await userEvent.selectOptions(select, '.env.local');
+      await waitFor(() => expect(callsTo('setEnvFile')).toEqual([{ script: 'dev', file: '.env.local' }]));
+    });
+
+    it('shows a chosen env file that is missing', async () => {
+      installScriptsBridge({ scripts: [{ ...dev, envFile: '.env' }], envFiles: [] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByRole('option', { name: '.env (missing)' })).toBeInTheDocument();
+    });
+
+    it('makes a row the main one, and clears it', async () => {
+      const { callsTo } = installScriptsBridge({ scripts: [{ ...api, main: true }, dev] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Make dev the main command' }));
+      const main = screen.getByRole('button', { name: 'api is the main command' });
+      expect(main).toHaveAttribute('aria-pressed', 'true');
+      await userEvent.click(main);
+      await waitFor(() =>
+        expect(callsTo('setMain')).toEqual([
+          { script: 'dev', main: true },
+          { script: 'api', main: false },
+        ]),
+      );
+    });
+  });
+
+  describe('Python environment', () => {
+    const python = { choice: 'auto' as const, venv: '.venv', auto: '.venv' };
+
+    it('shows the one in use and picks another found in the project', async () => {
+      const { callsTo } = installScriptsBridge({ scripts, python, pythonEnvs: ['.venv', 'backend/venv'] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Python environment' });
+      expect(select).toHaveValue('auto');
+      expect(await screen.findByRole('option', { name: 'Auto: .venv' })).toBeInTheDocument();
+      await screen.findByRole('option', { name: 'backend/venv' });
+      await userEvent.selectOptions(select, 'backend/venv');
+      await waitFor(() => expect(callsTo('setVenv')).toEqual([{ mode: 'path', path: 'backend/venv' }]));
+    });
+
+    it('chooses system Python, or a folder typed in', async () => {
+      const { callsTo } = installScriptsBridge({ scripts, python: { choice: 'none', venv: null, auto: null } });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Python environment' });
+      expect(select).toHaveValue('none');
+      expect(screen.getByRole('option', { name: 'Auto: none found' })).toBeInTheDocument();
+      await userEvent.selectOptions(select, 'other');
+      await userEvent.type(screen.getByRole('textbox', { name: 'Virtualenv folder' }), '/opt/envs/api');
+      await userEvent.click(screen.getByRole('button', { name: 'Use' }));
+      await waitFor(() => expect(callsTo('setVenv')).toEqual([{ mode: 'path', path: '/opt/envs/api' }]));
+      await userEvent.selectOptions(select, 'auto');
+      await waitFor(() => expect(callsTo('setVenv')).toContainEqual({ mode: 'auto' }));
+    });
+
+    it('lists a chosen folder outside the project as the current choice', async () => {
+      installScriptsBridge({ scripts, python: { choice: 'path', venv: '/opt/envs/api', auto: '.venv' } });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByRole('combobox', { name: 'Python environment' })).toHaveValue('/opt/envs/api');
+    });
+
+    it('is not offered outside Python packages', async () => {
+      installScriptsBridge({ scripts });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await screen.findByText('vite');
+      expect(screen.queryByRole('combobox', { name: 'Python environment' })).toBeNull();
     });
   });
 });

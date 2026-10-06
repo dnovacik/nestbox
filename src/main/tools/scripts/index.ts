@@ -1,4 +1,4 @@
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { formatCommandLine } from '@shared/command-line';
 import { type DetectedProject, workspaceId } from '@shared/detected';
@@ -20,6 +20,8 @@ import type { ProcessManager, StartRequest } from '../../processes/process-manag
 import type { SharedContext } from '../shared-context';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { exportFileName, formatExport } from './export';
+import { findProjectVenvs } from './python-envs';
+import { listPythonFiles } from './python-files';
 import { createLogBatcher } from './log-batcher';
 
 export interface ScriptsToolDeps {
@@ -45,6 +47,11 @@ export interface ScriptsToolDeps {
     up(projectId: string, services: string[], opts: { wait: boolean }): Promise<{ ok: boolean }>;
     stop(projectId: string, services: string[]): Promise<{ ok: boolean }>;
   };
+  /** A package's env files (the env tool's file access): names, and one file's variables (null when missing). */
+  envFiles: {
+    list(dir: string): Promise<string[]>;
+    read(dir: string, file: string): Promise<Record<string, string> | null>;
+  };
 }
 
 /** The shared-context fact the scripts tool publishes per project (read by the M2 port manager). */
@@ -66,6 +73,11 @@ interface Runnable {
   argv: string[] | null;
 }
 
+const isEntry =
+  (relPath: string, script: string | undefined) =>
+  (e: RunGroupEntry): boolean =>
+    e.relPath === relPath && e.script === script;
+
 /**
  * A package's runnables in display order: package.json scripts, detected commands, custom commands. Names
  * are unique: on a clash package.json wins, then the user's command, then detection.
@@ -83,31 +95,80 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
   const taken = new Set(npm.map((r) => r.name));
   const unique = (r: Runnable): boolean => !taken.has(r.name) && Boolean(taken.add(r.name));
   const custom = settings.commands.filter((c) => c.relPath === project.relPath).map(asRunnable('custom')).filter(unique);
-  const detected = (project.python?.commands ?? []).map(asRunnable('detected')).filter(unique);
+  const detected = (project.python?.commands ?? [])
+    .filter((c) => !settings.hidden.some(isEntry(project.relPath, c.name)))
+    .map(asRunnable('detected'))
+    .filter(unique);
   return [...npm, ...detected, ...custom];
 }
 
+/** Detected commands the user removed, unless something else now has the name. */
+function hiddenOf(project: DetectedProject, settings: ScriptsSettings): { name: string; command: string }[] {
+  const names = new Set(runnables(project, settings).map((r) => r.name));
+  return (project.python?.commands ?? [])
+    .filter((c) => settings.hidden.some(isEntry(project.relPath, c.name)) && !names.has(c.name))
+    .map((c) => ({ name: c.name, command: formatCommandLine(c.argv) }));
+}
+
+/** A list of per-script settings with one package's `from` renamed to `to`. */
+function renamed<T extends RunGroupEntry>(list: T[], relPath: string, from: string, to: string): T[] {
+  return list.map((e) => (isEntry(relPath, from)(e) ? { ...e, script: to } : e));
+}
+
+/** The env file a runnable gets: its override, else .env for commands and none for package.json scripts. */
+function envFileOf(settings: ScriptsSettings, project: DetectedProject, runnable: Runnable): string | null {
+  const override = settings.envFiles.find(isEntry(project.relPath, runnable.name));
+  if (override) return override.file;
+  return defaultEnvFile(runnable);
+}
+
+const defaultEnvFile = (runnable: Runnable): string | null => (runnable.kind === 'npm' ? null : '.env');
+
+const mainOf = (settings: ScriptsSettings, project: DetectedProject): string | null =>
+  settings.main.find((e) => e.relPath === project.relPath)?.script ?? null;
+
+/** A path for display and storage: posix from the project folder when inside it, else absolute as is. */
+function fromRoot(rootPath: string, abs: string): string {
+  const rel = relative(rootPath, abs);
+  if (rel === '') return '.';
+  return rel.startsWith('..') || isAbsolute(rel) ? abs : rel.split(sep).join('/');
+}
+
+/** A stored or typed path: from the project folder unless absolute. */
+const resolveFromRoot = (rootPath: string, path: string): string =>
+  isAbsolute(path) ? path : join(rootPath, ...path.split(/[\\/]/));
+
+/** Which virtualenv a Python package's commands use: absolute path or null, and whether the user chose it. */
+type VenvUse = { venv: string | null; chosen: boolean };
+
 /**
  * How a command line runs in a package. With Python: unbuffered UTF-8 output and the virtualenv first on
- * PATH; without a virtualenv, `python` becomes the platform's interpreter (macOS has only python3).
+ * PATH; without one, `python` becomes the platform's interpreter (macOS has only python3).
  */
 function commandRun(
   project: DetectedProject,
   argv: string[],
   platform: Pick<PlatformAdapter, 'pythonCommand' | 'venvBinDir'>,
+  use: VenvUse & { label: string | null },
 ): Pick<StartRequest, 'argv' | 'env' | 'pathPrepend' | 'note'> {
   if (project.python === null) return { argv };
   const env = { PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' };
-  if (project.python.venv !== null) {
-    const venv = join(project.path, project.python.venv);
-    return { argv, env: { ...env, VIRTUAL_ENV: venv }, pathPrepend: platform.venvBinDir(venv) };
+  if (use.venv !== null) {
+    return {
+      argv,
+      env: { ...env, VIRTUAL_ENV: use.venv },
+      pathPrepend: platform.venvBinDir(use.venv),
+      note: `▸ virtualenv: ${use.label ?? use.venv}`,
+    };
   }
   const [program, ...args] = argv;
   if (program !== 'python') return { argv, env };
   return {
     argv: [platform.pythonCommand, ...args],
     env,
-    note: `▸ No virtualenv (.venv) found: using ${platform.pythonCommand} from PATH`,
+    note: use.chosen
+      ? `▸ System Python chosen: using ${platform.pythonCommand} from PATH`
+      : `▸ No virtualenv (.venv) found: using ${platform.pythonCommand} from PATH`,
   };
 }
 
@@ -137,6 +198,19 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     }
     for (const [projectId, facts] of byProject) deps.shared.forProject(projectId).publish(PROCESSES_FACT, facts);
     published = new Set(byProject.keys());
+  }
+
+  /** The project folder (the root package's path). */
+  const rootPathOf = (project: DetectedProject): string =>
+    project.relPath === '' ? project.path : deps.getDetected(project.rootId).path;
+
+  const autoVenv = (project: DetectedProject): string | null =>
+    project.python?.venv ? join(project.path, ...project.python.venv.split('/')) : null;
+
+  function venvUse(settings: ScriptsSettings, project: DetectedProject): VenvUse {
+    const choice = settings.venvs.find((v) => v.relPath === project.relPath);
+    if (!choice) return { venv: autoVenv(project), chosen: false };
+    return { venv: choice.venv === null ? null : resolveFromRoot(rootPathOf(project), choice.venv), chosen: true };
   }
 
   const findRunnable = (project: DetectedProject, settings: ScriptsSettings, name: string): Runnable | null =>
@@ -172,20 +246,43 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     }
   }
 
-  /** The Node tool is asked only about package.json scripts. */
+  function runCommand(ctx: Ctx, settings: ScriptsSettings, project: DetectedProject, argv: string[]) {
+    const use = venvUse(settings, project);
+    const label = use.venv === null || project.python === null ? null : fromRoot(rootPathOf(project), use.venv);
+    return commandRun(project, argv, ctx.platform, { ...use, label });
+  }
+
+  function pythonChoice(settings: ScriptsSettings, project: DetectedProject) {
+    if (project.python === null) return null;
+    const root = rootPathOf(project);
+    const choice = settings.venvs.find((v) => v.relPath === project.relPath);
+    const auto = autoVenv(project);
+    const { venv } = venvUse(settings, project);
+    return {
+      choice: choice === undefined ? ('auto' as const) : choice.venv === null ? ('none' as const) : ('path' as const),
+      venv: venv === null ? null : fromRoot(root, venv),
+      auto: auto === null ? null : fromRoot(root, auto),
+    };
+  }
+
+  /** The Node tool is asked only about package.json scripts. The env file is read at every spawn. */
   const requestFor = async (
     ctx: Ctx,
+    settings: ScriptsSettings,
     project: DetectedProject,
     runnable: Runnable,
-    autoRestart: boolean,
-  ): Promise<StartRequest> => ({
-    projectId: project.id,
-    script: runnable.name,
-    cwd: project.path,
-    packageManager: project.packageManager,
-    autoRestart,
-    ...(runnable.argv === null ? await adviceFor(project.id) : commandRun(project, runnable.argv, ctx.platform)),
-  });
+  ): Promise<StartRequest> => {
+    const envFile = envFileOf(settings, project, runnable);
+    return {
+      projectId: project.id,
+      script: runnable.name,
+      cwd: project.path,
+      packageManager: project.packageManager,
+      autoRestart: isAuto(settings, project, runnable.name),
+      ...(envFile === null ? {} : { loadEnv: { file: envFile, read: () => deps.envFiles.read(project.path, envFile) } }),
+      ...(runnable.argv === null ? await adviceFor(project.id) : runCommand(ctx, settings, project, runnable.argv)),
+    };
+  };
 
   function requireRoot(project: DetectedProject): void {
     if (project.relPath !== '') throw new NestboxError('VALIDATION', 'Run groups belong to the root project');
@@ -267,26 +364,40 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     handlers: {
       list: async (ctx: Ctx) => {
         const settings = ctx.settings.get();
-        const scripts = runnables(ctx.project, settings).map(({ name, command, kind }) => ({
-          name,
-          command,
-          autoRestart: isAuto(settings, ctx.project, name),
-          kind,
-        }));
-        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null };
-        const packages = [ctx.project, ...ctx.project.workspaces].map((p) => ({
-          relPath: p.relPath,
-          name: p.name,
-          scripts: runnables(p, settings).map((r) => r.name),
-          compose: p.dockerCompose !== null,
-        }));
-        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages };
+        const main = mainOf(settings, ctx.project);
+        const scripts = runnables(ctx.project, settings)
+          .map((r) => ({
+            name: r.name,
+            command: r.command,
+            autoRestart: isAuto(settings, ctx.project, r.name),
+            kind: r.kind,
+            envFile: envFileOf(settings, ctx.project, r),
+            main: r.name === main,
+          }))
+          // The main one first.
+          .sort((a, b) => Number(b.main) - Number(a.main));
+        const envFiles = await deps.envFiles.list(ctx.project.path).catch(() => []);
+        const hidden = hiddenOf(ctx.project, settings);
+        const python = pythonChoice(settings, ctx.project);
+        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles, hidden, python };
+        const packages = [ctx.project, ...ctx.project.workspaces].map((p) => {
+          const names = runnables(p, settings).map((r) => r.name);
+          const pkgMain = mainOf(settings, p);
+          return {
+            relPath: p.relPath,
+            name: p.name,
+            scripts: names,
+            compose: p.dockerCompose !== null,
+            main: pkgMain !== null && names.includes(pkgMain) ? pkgMain : null,
+          };
+        });
+        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles, hidden, python };
       },
 
       start: async (ctx: Ctx, { script }) => {
         const settings = ctx.settings.get();
         const runnable = requireRunnable(ctx.project, settings, script);
-        return deps.processes.start(await requestFor(ctx, ctx.project, runnable, isAuto(settings, ctx.project, script)));
+        return deps.processes.start(await requestFor(ctx, settings, ctx.project, runnable));
       },
 
       stop: async (ctx: Ctx, { script }) => deps.processes.stop(ctx.project.id, script),
@@ -294,7 +405,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       restart: async (ctx: Ctx, { script }) => {
         const settings = ctx.settings.get();
         const runnable = requireRunnable(ctx.project, settings, script);
-        return deps.processes.restart(await requestFor(ctx, ctx.project, runnable, isAuto(settings, ctx.project, script)));
+        return deps.processes.restart(await requestFor(ctx, settings, ctx.project, runnable));
       },
 
       setAutoRestart: async (ctx: Ctx, { script, enabled }) => {
@@ -337,7 +448,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         throw new NestboxError('NOT_FOUND', 'File not found');
       },
 
-      saveCommand: async (ctx: Ctx, { previousName, name, argv }) => {
+      saveCommand: async (ctx: Ctx, { previousName, name, argv, main }) => {
         const { relPath, id, rootId } = ctx.project;
         const settings = ctx.settings.get();
         const isOld = (c: { relPath: string; name: string }) => c.relPath === relPath && c.name === previousName;
@@ -351,19 +462,26 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         if (previousName === undefined && settings.commands.length >= MAX_COMMANDS) {
           throw new NestboxError('VALIDATION', `A project can have at most ${MAX_COMMANDS} commands`);
         }
-        const renamed = previousName !== undefined && previousName !== name;
-        if (renamed && isRunning(id, previousName)) {
+        const wasRenamed = previousName !== undefined && previousName !== name;
+        if (wasRenamed && isRunning(id, previousName)) {
           throw new NestboxError('CONFLICT', 'Stop the command before renaming it');
         }
         const saved = { relPath, name, argv };
-        ctx.settings.update((s) => ({
-          ...s,
-          commands: previousName === undefined ? [...s.commands, saved] : s.commands.map((c) => (isOld(c) ? saved : c)),
-          autoRestart: renamed
-            ? s.autoRestart.map((e) => (e.relPath === relPath && e.script === previousName ? { relPath, script: name } : e))
-            : s.autoRestart,
-        }));
-        if (renamed) {
+        ctx.settings.update((s) => {
+          const rename = <T extends RunGroupEntry>(list: T[]): T[] =>
+            wasRenamed && previousName !== undefined ? renamed(list, relPath, previousName, name) : list;
+          let mains = rename(s.main);
+          if (main === true) mains = [...mains.filter((e) => e.relPath !== relPath), { relPath, script: name }];
+          if (main === false) mains = mains.filter((e) => !isEntry(relPath, name)(e));
+          return {
+            ...s,
+            commands: previousName === undefined ? [...s.commands, saved] : s.commands.map((c) => (isOld(c) ? saved : c)),
+            autoRestart: rename(s.autoRestart),
+            envFiles: rename(s.envFiles),
+            main: mains,
+          };
+        });
+        if (wasRenamed) {
           const groups = deps.runGroups.get(rootId);
           const renameEntry = (e: RunGroupEntry): RunGroupEntry =>
             e.relPath === relPath && e.script === previousName ? { relPath, script: name } : e;
@@ -378,12 +496,82 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         const isIt = (c: CustomCommand) => c.relPath === relPath && c.name === name;
         if (!ctx.settings.get().commands.some(isIt)) throw new NestboxError('NOT_FOUND', 'Unknown command');
         if (isRunning(id, name)) throw new NestboxError('CONFLICT', 'Stop the command before deleting it');
+        const other = (e: RunGroupEntry) => !isEntry(relPath, name)(e);
         ctx.settings.update((s) => ({
           ...s,
           commands: s.commands.filter((c) => !isIt(c)),
-          autoRestart: s.autoRestart.filter((e) => !(e.relPath === relPath && e.script === name)),
+          autoRestart: s.autoRestart.filter(other),
+          envFiles: s.envFiles.filter(other),
+          main: s.main.filter(other),
         }));
       },
+
+      hideCommand: async (ctx: Ctx, { script }) => {
+        const runnable = requireRunnable(ctx.project, ctx.settings.get(), script);
+        if (runnable.kind !== 'detected') throw new NestboxError('NOT_FOUND', 'Only detected commands can be removed this way');
+        if (isRunning(ctx.project.id, script)) throw new NestboxError('CONFLICT', 'Stop the command before removing it');
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({ ...s, hidden: [...s.hidden.filter((e) => !isEntry(relPath, script)(e)), { relPath, script }] }));
+      },
+
+      showCommand: async (ctx: Ctx, { script }) => {
+        const { relPath } = ctx.project;
+        if (!ctx.settings.get().hidden.some(isEntry(relPath, script))) throw new NestboxError('NOT_FOUND', 'Unknown command');
+        ctx.settings.update((s) => ({ ...s, hidden: s.hidden.filter((e) => !isEntry(relPath, script)(e)) }));
+      },
+
+      pythonEnvs: async (ctx: Ctx) => ({ envs: await findProjectVenvs(rootPathOf(ctx.project)).catch(() => []) }),
+
+      setVenv: async (ctx: Ctx, { mode, path }) => {
+        if (ctx.project.python === null) throw new NestboxError('VALIDATION', 'Not a Python package');
+        const { relPath } = ctx.project;
+        let venv: string | null = null;
+        if (mode === 'path') {
+          if (path === undefined) throw new NestboxError('VALIDATION', 'Choose a virtualenv folder');
+          const root = rootPathOf(ctx.project);
+          const abs = resolveFromRoot(root, path.trim());
+          if (!(await deps.isFile(join(abs, 'pyvenv.cfg')))) {
+            throw new NestboxError('VALIDATION', 'Not a virtualenv: that folder has no pyvenv.cfg');
+          }
+          venv = fromRoot(root, abs);
+        }
+        ctx.settings.update((s) => ({
+          ...s,
+          venvs: [
+            ...s.venvs.filter((v) => v.relPath !== relPath),
+            ...(mode === 'auto' ? [] : [{ relPath, venv }]),
+          ],
+        }));
+      },
+
+      setEnvFile: async (ctx: Ctx, { script, file }) => {
+        const runnable = requireRunnable(ctx.project, ctx.settings.get(), script);
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({
+          ...s,
+          envFiles: [
+            ...s.envFiles.filter((e) => !isEntry(relPath, script)(e)),
+            // Only a choice that differs from the default is kept.
+            ...(file === defaultEnvFile(runnable) ? [] : [{ relPath, script, file }]),
+          ],
+        }));
+      },
+
+      setMain: async (ctx: Ctx, { script, main }) => {
+        requireRunnable(ctx.project, ctx.settings.get(), script);
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({
+          ...s,
+          main: [
+            ...s.main.filter((e) => (main ? e.relPath !== relPath : !isEntry(relPath, script)(e))),
+            ...(main ? [{ relPath, script }] : []),
+          ],
+        }));
+      },
+
+      pythonFiles: async (ctx: Ctx) => ({
+        files: ctx.project.python === null ? [] : await listPythonFiles(ctx.project.path),
+      }),
 
       saveRunGroup: async (ctx: Ctx, { previousName, group }) => {
         requireRoot(ctx.project);
@@ -426,7 +614,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             const { project, runnable } = resolved;
             try {
               started.push(
-                await deps.processes.start(await requestFor(ctx, project, runnable, isAuto(settings, project, entry.script))),
+                await deps.processes.start(await requestFor(ctx, settings, project, runnable)),
               );
             } catch (error) {
               if (error instanceof NestboxError && error.code === 'CONFLICT') {

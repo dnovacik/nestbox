@@ -1,4 +1,4 @@
-import { Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
+import { Pencil, Play, Plus, RotateCw, Square, Star, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isLive, type ProcessSummary } from '@shared/processes';
 import {
@@ -18,7 +18,15 @@ import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import type { ScriptInfo, ScriptKind } from '@shared/tools/scripts/contract';
 import { CommandDialog } from './CommandDialog';
-import { useCommandActions, useScriptAction, useScriptList, useSetAutoRestart } from './use-scripts';
+import { PythonEnvPicker } from './PythonEnvPicker';
+import {
+  useCommandActions,
+  useScriptAction,
+  useScriptList,
+  useSetAutoRestart,
+  useSetEnvFile,
+  useSetMain,
+} from './use-scripts';
 
 const BADGES: Partial<Record<ProcessSummary['state'], string>> = {
   starting: 'border-warn/30 bg-warn/10 text-warn',
@@ -40,21 +48,52 @@ function crashText(p: ProcessSummary): string | null {
   return p.exit.lastLine ? `${how} · ${p.exit.lastLine}` : how;
 }
 
+/** Which env file the row's process gets: none, or one of the package's env files. */
+function EnvFileSelect({ projectId, info, envFiles }: { projectId: string; info: ScriptInfo; envFiles: string[] }) {
+  const setEnvFile = useSetEnvFile(projectId);
+  const missing = info.envFile !== null && !envFiles.includes(info.envFile) ? info.envFile : null;
+  return (
+    <label className="flex items-center gap-1" title="The env file this process gets (read at every start)">
+      <span>Env</span>
+      <select
+        aria-label={`Env file for ${info.name}`}
+        value={info.envFile ?? ''}
+        disabled={setEnvFile.isPending}
+        onChange={(e) => setEnvFile.mutate({ script: info.name, file: e.target.value === '' ? null : e.target.value })}
+        className="h-5 max-w-32 rounded border border-line bg-app px-1 font-mono text-[11px] text-fg"
+      >
+        <option value="">none</option>
+        {missing && <option value={missing}>{missing} (missing)</option>}
+        {envFiles.map((f) => (
+          <option key={f} value={f}>
+            {f}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function ScriptRow({
   projectId,
   info,
   process,
+  envFiles,
   onEdit,
   onDelete,
+  onHide,
 }: {
   projectId: string;
   info: ScriptInfo;
   process: ProcessSummary | undefined;
+  envFiles: string[];
   onEdit(): void;
   onDelete(): void;
+  onHide(): void;
 }) {
   const action = useScriptAction(projectId);
   const setAutoRestart = useSetAutoRestart(projectId);
+  const setMain = useSetMain(projectId);
   const showScript = useUiStore((s) => s.showScript);
   const live = process !== undefined && isLive(process.state);
   const badge = process ? BADGES[process.state] : undefined;
@@ -93,6 +132,29 @@ function ScriptRow({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-pressed={info.main}
+            aria-label={info.main ? `${info.name} is the main command` : `Make ${info.name} the main command`}
+            title={info.main ? 'The main command of this package (click to clear)' : 'Make it the main command of this package'}
+            disabled={setMain.isPending}
+            onClick={() => setMain.mutate({ script: info.name, main: !info.main })}
+          >
+            <Star className={cn(info.main ? 'fill-current text-brand' : 'text-fg-faint')} />
+          </Button>
+          {info.kind === 'detected' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Remove ${info.name}`}
+              title="Remove this detected command (you can restore it below)"
+              disabled={live}
+              onClick={onHide}
+            >
+              <Trash2 />
+            </Button>
+          )}
           {info.kind === 'custom' && (
             <>
               <Button variant="ghost" size="icon" aria-label={`Edit ${info.name}`} onClick={onEdit}>
@@ -153,6 +215,7 @@ function ScriptRow({
           className="scale-75"
         />
         <span>Auto-restart</span>
+        <EnvFileSelect projectId={projectId} info={info} envFiles={envFiles} />
         {process && process.crashCount > 0 && (
           <span className="text-err">
             {process.crashCount} {process.crashCount === 1 ? 'crash' : 'crashes'}
@@ -182,6 +245,7 @@ export function ScriptList({ projectId }: { projectId: string }) {
           Add command
         </Button>
       </div>
+      {data.python && <PythonEnvPicker projectId={projectId} python={data.python} />}
       {data.scripts.length === 0 && <p className="text-xs text-fg-faint">No scripts or commands yet.</p>}
       <ul className="space-y-1.5">
         {data.scripts.map((info) => (
@@ -190,15 +254,37 @@ export function ScriptList({ projectId }: { projectId: string }) {
             projectId={projectId}
             info={info}
             process={processes.find((p) => p.projectId === projectId && p.script === info.name)}
+            envFiles={data.envFiles}
             onEdit={() => setEditing(info)}
             onDelete={() => setDeleting(info.name)}
+            onHide={() => commands.hide.mutate(info.name)}
           />
         ))}
       </ul>
+      {data.hidden.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-fg-muted">
+          <span>Removed:</span>
+          {data.hidden.map((h) => (
+            <span key={h.name} className="inline-flex items-center gap-1" title={h.command}>
+              <span className="font-mono">{h.name}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-[11px]"
+                aria-label={`Restore ${h.name}`}
+                disabled={commands.show.isPending}
+                onClick={() => commands.show.mutate(h.name)}
+              >
+                Restore
+              </Button>
+            </span>
+          ))}
+        </p>
+      )}
       {editing !== null && (
         <CommandDialog
           projectId={projectId}
-          initial={editing === 'new' ? null : { name: editing.name, command: editing.command }}
+          initial={editing === 'new' ? null : { name: editing.name, command: editing.command, main: editing.main }}
           onOpenChange={(open) => !open && setEditing(null)}
         />
       )}
