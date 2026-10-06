@@ -50,12 +50,17 @@ export function useSetAutoRestart(projectId: string) {
   });
 }
 
-/** Custom commands. Every package's list is refreshed: the root's feeds the run group editor. */
-export function useCommandActions(projectId: string) {
+/** Every package's script list: the root's feeds the run group editor and the overview card. */
+function useRefreshAllLists() {
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['tool', 'scripts'] });
+  return () => queryClient.invalidateQueries({ queryKey: ['tool', 'scripts'] });
+}
+
+/** Custom commands. */
+export function useCommandActions(projectId: string) {
+  const refresh = useRefreshAllLists();
   const save = useMutation({
-    mutationFn: (input: { previousName?: string; name: string; argv: string[] }) =>
+    mutationFn: (input: { previousName?: string; name: string; argv: string[]; main: boolean }) =>
       api.tools.invoke('scripts', projectId, 'saveCommand', input),
     onSuccess: refresh,
     onError: showError,
@@ -66,6 +71,46 @@ export function useCommandActions(projectId: string) {
     onError: showError,
   });
   return { save, remove };
+}
+
+export function useSetEnvFile(projectId: string) {
+  const refresh = useRefreshAfter(projectId);
+  return useMutation({
+    mutationFn: ({ script, file }: { script: string; file: string | null }) =>
+      api.tools.invoke('scripts', projectId, 'setEnvFile', { script, file }),
+    onSettled: refresh,
+    onError: showError,
+  });
+}
+
+export function useSetMain(projectId: string) {
+  const refresh = useRefreshAllLists();
+  return useMutation({
+    mutationFn: ({ script, main }: { script: string; main: boolean }) =>
+      api.tools.invoke('scripts', projectId, 'setMain', { script, main }),
+    onSettled: refresh,
+    onError: showError,
+  });
+}
+
+/** The package's .py files, for "run a Python file" (empty outside Python packages). */
+export function usePythonFiles(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.tool('scripts', projectId, 'pythonFiles'),
+    queryFn: () => api.tools.invoke('scripts', projectId, 'pythonFiles', {}),
+    staleTime: 30_000,
+  });
+}
+
+/** Starts a script in any package (the overview card starts each package's main command). */
+export function useStartIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, script }: { projectId: string; script: string }) =>
+      api.tools.invoke('scripts', projectId, 'start', { script }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.processes }),
+    onError: showError,
+  });
 }
 
 export function useRunGroupActions(projectId: string) {
