@@ -46,6 +46,30 @@ describe('ProcessManager start', () => {
     });
   });
 
+  it('runs a command line with extra env instead of a package script', async () => {
+    const { pm, platform, texts } = setup();
+    await pm.start(
+      req({
+        script: 'api',
+        argv: ['python', '-m', 'uvicorn', 'main:app', '--reload'],
+        env: { VIRTUAL_ENV: '/shop/.venv', PYTHONUNBUFFERED: '1' },
+        pathPrepend: '/shop/.venv/bin',
+      }),
+    );
+    expect(platform.spawnScript).toHaveBeenCalledWith({
+      cwd: 'C:\\shop',
+      command: 'python',
+      args: ['-m', 'uvicorn', 'main:app', '--reload'],
+      env: expect.objectContaining({
+        FORCE_COLOR: '1',
+        VIRTUAL_ENV: '/shop/.venv',
+        PYTHONUNBUFFERED: '1',
+        PATH: `/shop/.venv/bin${delimiter}x`,
+      }),
+    });
+    expect(texts('p1', 'api')).toEqual(['▸ python -m uvicorn main:app --reload']);
+  });
+
   it('logs the version advice first, puts fnm\'s Node first on PATH and keeps the warning', async () => {
     const { pm, platform, texts } = setup();
     const summary = await pm.start(

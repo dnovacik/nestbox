@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { delimiter } from 'node:path';
 import type { PackageManager } from '@shared/detected';
 import { stripAnsi } from '@shared/ansi-strip';
+import { formatCommandLine } from '@shared/command-line';
 import { NestboxError } from '@shared/errors';
 import {
   isLive,
@@ -42,8 +43,12 @@ export interface StartRequest {
   warning?: string | null;
   /** An extra first log line (e.g. which Node fnm provides). */
   note?: string | null;
-  /** A folder put first on the script's PATH (fnm's Node). */
+  /** A folder put first on the script's PATH (fnm's Node, a virtualenv's bin). */
   pathPrepend?: string | null;
+  /** A program and its arguments to run instead of `<pm> run <script>` (Python and custom commands). */
+  argv?: string[];
+  /** Extra variables (VIRTUAL_ENV, PYTHONUNBUFFERED). Paths and flags only, never values from .env. */
+  env?: Record<string, string>;
 }
 
 /** The env with `dir` first on PATH, under whatever casing the env uses for it (Windows: Path). */
@@ -296,18 +301,22 @@ export class ProcessManager {
     entry.lastStderr = null;
     entry.state = 'starting';
     entry.startedAt = this.now();
-    const command = entry.req.packageManager ?? 'npm';
+    const [command = 'npm', ...args] = entry.req.argv ?? [entry.req.packageManager ?? 'npm', 'run', entry.req.script];
     if (entry.req.note) this.system(entry, entry.req.note);
     if (entry.req.warning) this.system(entry, `▲ ${entry.req.warning}`);
-    this.system(entry, `▸ ${command} run ${entry.req.script}`);
+    this.system(entry, `▸ ${formatCommandLine([command, ...args])}`);
     this.changed();
 
     let child: ChildProcess;
     try {
       const shell = await this.deps.platform.resolveShellEnv();
-      const env = { ...(entry.req.pathPrepend ? withPathFirst(shell, entry.req.pathPrepend) : shell), FORCE_COLOR: '1' };
+      const env = {
+        ...(entry.req.pathPrepend ? withPathFirst(shell, entry.req.pathPrepend) : shell),
+        ...entry.req.env,
+        FORCE_COLOR: '1',
+      };
       if (run !== entry.run) return; // a stop pre-empted the spawn
-      child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args: ['run', entry.req.script], env });
+      child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args, env });
     } catch (error) {
       if (run !== entry.run) return;
       entry.state = 'stopped';

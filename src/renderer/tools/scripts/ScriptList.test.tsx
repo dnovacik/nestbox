@@ -9,8 +9,8 @@ import { ScriptList } from './ScriptList';
 import { installScriptsBridge } from './test-bridge';
 
 const scripts = [
-  { name: 'dev', command: 'vite', autoRestart: false },
-  { name: 'api', command: 'nest start --watch', autoRestart: true },
+  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const },
+  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const },
 ];
 
 describe('ScriptList', () => {

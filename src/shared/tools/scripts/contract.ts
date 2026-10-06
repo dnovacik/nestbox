@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { CommandArgvSchema } from '../../command-line';
+import { COMMAND_NAME } from '../../detected';
 import { LogLineSchema, LogSnapshotSchema, MAX_EXPORT_SEQS, ProcessSummarySchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
 import { RunGroupEntrySchema, RunGroupSchema } from '../../types';
@@ -6,10 +8,22 @@ import { RunGroupEntrySchema, RunGroupSchema } from '../../types';
 const ScriptName = z.string().min(1).max(200);
 const ScriptInput = z.strictObject({ script: ScriptName });
 const GroupName = z.string().trim().min(1).max(60);
+const CommandName = z.string().regex(COMMAND_NAME, 'Use letters, digits, ":", ".", "_" or "-" (up to 60)');
+
+/** A command the user added to a package: a program and its arguments, run without a shell. */
+export const CustomCommandSchema = z.object({
+  /** '' = the root package; otherwise the workspace package's posix relPath. */
+  relPath: z.string(),
+  name: CommandName,
+  argv: CommandArgvSchema,
+});
+export type CustomCommand = z.infer<typeof CustomCommandSchema>;
 
 const settingsSchema = z.object({
   /** Scripts with auto-restart on, across the root and its workspace packages. */
   autoRestart: z.array(RunGroupEntrySchema).max(500).default([]),
+  /** Custom commands across the root and its workspace packages. */
+  commands: z.array(CustomCommandSchema).max(100).default([]),
 });
 export type ScriptsSettings = z.infer<typeof settingsSchema>;
 
@@ -17,11 +31,22 @@ export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
   id: 'scripts',
   name: 'Scripts',
   icon: 'terminal',
-  appliesTo: (p) => Object.keys(p.packageJson?.scripts ?? {}).length > 0 || p.workspaces.length > 0,
+  appliesTo: (p) =>
+    Object.keys(p.packageJson?.scripts ?? {}).length > 0 || p.python !== null || p.workspaces.length > 0,
   settingsSchema,
 };
 
-export const ScriptInfoSchema = z.object({ name: z.string(), command: z.string(), autoRestart: z.boolean() });
+/** Where a runnable comes from: package.json, NestBox's detection (Python), or the user. */
+export const SCRIPT_KINDS = ['npm', 'detected', 'custom'] as const;
+export type ScriptKind = (typeof SCRIPT_KINDS)[number];
+
+export const ScriptInfoSchema = z.object({
+  name: z.string(),
+  /** The script's text, or the command line (detected and custom commands). */
+  command: z.string(),
+  autoRestart: z.boolean(),
+  kind: z.enum(SCRIPT_KINDS),
+});
 export type ScriptInfo = z.infer<typeof ScriptInfoSchema>;
 
 export const PackageScriptsSchema = z.object({
@@ -79,6 +104,12 @@ export const scriptsContract = defineContract({
     input: z.strictObject({ path: z.string().min(1).max(4096), line: z.number().int().positive() }),
     output: z.void(),
   },
+  /** Adds a custom command, or replaces `previousName` (a rename keeps auto-restart and run groups). */
+  saveCommand: {
+    input: z.strictObject({ previousName: CommandName.optional(), name: CommandName, argv: CommandArgvSchema }),
+    output: z.void(),
+  },
+  deleteCommand: { input: z.strictObject({ name: CommandName }), output: z.void() },
   saveRunGroup: {
     input: z.strictObject({ previousName: GroupName.optional(), group: RunGroupSchema }),
     output: z.array(RunGroupSchema),
