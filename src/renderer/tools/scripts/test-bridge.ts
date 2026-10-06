@@ -10,6 +10,8 @@ export interface ScriptsFixture {
   runGroups?: RunGroup[] | null;
   packages?: PackageScripts[] | null;
   processes?: ProcessSummary[];
+  envFiles?: string[];
+  pythonFiles?: string[];
   /** Per-method overrides; return a value or throw. */
   methods?: Record<string, (input: never) => unknown>;
 }
@@ -28,10 +30,11 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
       switch (method) {
         case 'list':
           return {
-            scripts: fx.scripts ?? [{ name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' }],
+            scripts: fx.scripts ?? [{ name: 'dev', command: 'vite', autoRestart: false, kind: 'npm', envFile: null, main: false }],
             runGroups: fx.runGroups === undefined ? [] : fx.runGroups,
             packages:
-              fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false }] : fx.packages,
+              fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false, main: null }] : fx.packages,
+            envFiles: fx.envFiles ?? ['.env'],
           };
         case 'getLogs':
           return { lines: [], firstSeq: 1, lastSeq: 0 };
@@ -39,6 +42,8 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
           return { enabled: (input as { enabled: boolean }).enabled };
         case 'startRunGroup':
           return { started: [], skipped: [], compose: [] };
+        case 'pythonFiles':
+          return { files: fx.pythonFiles ?? [] };
         case 'saveRunGroup':
         case 'deleteRunGroup':
           return [];

@@ -9,8 +9,8 @@ import { ScriptList } from './ScriptList';
 import { installScriptsBridge } from './test-bridge';
 
 const scripts = [
-  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const },
-  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const },
+  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false },
+  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const, envFile: null, main: false },
 ];
 
 describe('ScriptList', () => {
@@ -108,8 +108,8 @@ describe('ScriptList', () => {
 
   describe('commands', () => {
     const mixed = [
-      { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' as const },
-      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const },
+      { name: 'dev', command: 'python -m uvicorn main:app --reload', autoRestart: false, kind: 'detected' as const, envFile: null, main: false },
+      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const, envFile: null, main: false },
     ];
 
     it('marks detected and custom commands; only custom ones can be edited or deleted', async () => {

@@ -7,8 +7,8 @@ import { RunGroups } from './RunGroups';
 import { installScriptsBridge } from './test-bridge';
 
 const packages = [
-  { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: true },
-  { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false },
+  { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: true, main: null },
+  { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false, main: null },
 ];
 const composeOk = () => ({
   state: 'ok',
