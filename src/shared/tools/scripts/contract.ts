@@ -37,7 +37,17 @@ const settingsSchema = z.object({
   main: z.array(RunGroupEntrySchema).max(200).default([]),
   /** Detected commands the user removed (detection would find them again, so they are hidden). */
   hidden: z.array(RunGroupEntrySchema).max(500).default([]),
+  /**
+   * The virtualenv a Python package's commands run in, where the user picked one: a posix path from the project
+   * folder, or an absolute path outside it; null = none (system Python). Absent = the detected one.
+   */
+  venvs: z
+    .array(z.object({ relPath: z.string(), venv: z.string().min(1).max(4096).nullable() }))
+    .max(200)
+    .default([]),
 });
+
+export const VENV_MODES = ['auto', 'none', 'path'] as const;
 export type ScriptsSettings = z.infer<typeof settingsSchema>;
 
 export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
@@ -102,6 +112,13 @@ export const scriptsContract = defineContract({
       envFiles: z.array(z.string()),
       /** Detected commands the user removed from this package, to restore. */
       hidden: z.array(z.object({ name: z.string(), command: z.string() })),
+      /**
+       * A Python package's environment (null elsewhere). Paths are from the project folder (posix) or absolute;
+       * null = system Python.
+       */
+      python: z
+        .object({ choice: z.enum(VENV_MODES), venv: z.string().nullable(), auto: z.string().nullable() })
+        .nullable(),
     }),
   },
   start: { input: ScriptInput, output: ProcessSummarySchema },
@@ -143,6 +160,21 @@ export const scriptsContract = defineContract({
   /** Removes a detected command from the package (it stays hidden until showCommand). */
   hideCommand: { input: z.strictObject({ script: ScriptName }), output: z.void() },
   showCommand: { input: z.strictObject({ script: ScriptName }), output: z.void() },
+  /** Virtualenvs inside the project (posix paths from the project folder), for the environment choice. */
+  pythonEnvs: { input: z.strictObject({}), output: z.object({ envs: z.array(z.string()) }) },
+  /** Which virtualenv the package's commands run in: the detected one, none, or a path (VALIDATION without pyvenv.cfg). */
+  setVenv: {
+    input: z.strictObject({
+      mode: z.enum(VENV_MODES),
+      path: z
+        .string()
+        .min(1)
+        .max(4096)
+        .refine((p) => !p.includes('\0'))
+        .optional(),
+    }),
+    output: z.void(),
+  },
   /** The env file a script or command gets; null = none. */
   setEnvFile: {
     input: z.strictObject({ script: ScriptName, file: EnvFileNameSchema.nullable() }),

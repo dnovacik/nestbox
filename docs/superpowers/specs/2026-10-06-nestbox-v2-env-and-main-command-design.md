@@ -44,6 +44,11 @@ The owner's answers (2026-10-06), after Python backends (1.21.0):
 - **Raw editor**: `readRaw` returns a file's text and version; `writeRaw` replaces it at that version (1 MiB, no NUL).
   A CONFLICT keeps the user's text in the editor with Reload. Symlinked files open view-only.
 
+- **Virtualenv choice**: a Python package without its own virtualenv uses the project folder's (`../.venv`).
+  `toolSettings.scripts.venvs` overrides it per package: none (system Python) or a folder with `pyvenv.cfg`, stored
+  as a path from the project folder or absolute outside it. The Scripts tab's **Python environment** picker lists
+  Auto, the virtualenvs in the project (`pythonEnvs`), system Python and "Other folder…". The log names the one used.
+
 ## Main command
 
 - `toolSettings.scripts.main`: `{ relPath, script }[]`, one per package. `ScriptInfo.main`; `setMain`; the main row

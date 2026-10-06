@@ -195,4 +195,46 @@ describe('ScriptList', () => {
       );
     });
   });
+
+  describe('Python environment', () => {
+    const python = { choice: 'auto' as const, venv: '.venv', auto: '.venv' };
+
+    it('shows the one in use and picks another found in the project', async () => {
+      const { callsTo } = installScriptsBridge({ scripts, python, pythonEnvs: ['.venv', 'backend/venv'] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Python environment' });
+      expect(select).toHaveValue('auto');
+      expect(await screen.findByRole('option', { name: 'Auto: .venv' })).toBeInTheDocument();
+      await screen.findByRole('option', { name: 'backend/venv' });
+      await userEvent.selectOptions(select, 'backend/venv');
+      await waitFor(() => expect(callsTo('setVenv')).toEqual([{ mode: 'path', path: 'backend/venv' }]));
+    });
+
+    it('chooses system Python, or a folder typed in', async () => {
+      const { callsTo } = installScriptsBridge({ scripts, python: { choice: 'none', venv: null, auto: null } });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Python environment' });
+      expect(select).toHaveValue('none');
+      expect(screen.getByRole('option', { name: 'Auto: none found' })).toBeInTheDocument();
+      await userEvent.selectOptions(select, 'other');
+      await userEvent.type(screen.getByRole('textbox', { name: 'Virtualenv folder' }), '/opt/envs/api');
+      await userEvent.click(screen.getByRole('button', { name: 'Use' }));
+      await waitFor(() => expect(callsTo('setVenv')).toEqual([{ mode: 'path', path: '/opt/envs/api' }]));
+      await userEvent.selectOptions(select, 'auto');
+      await waitFor(() => expect(callsTo('setVenv')).toContainEqual({ mode: 'auto' }));
+    });
+
+    it('lists a chosen folder outside the project as the current choice', async () => {
+      installScriptsBridge({ scripts, python: { choice: 'path', venv: '/opt/envs/api', auto: '.venv' } });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByRole('combobox', { name: 'Python environment' })).toHaveValue('/opt/envs/api');
+    });
+
+    it('is not offered outside Python packages', async () => {
+      installScriptsBridge({ scripts });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await screen.findByText('vite');
+      expect(screen.queryByRole('combobox', { name: 'Python environment' })).toBeNull();
+    });
+  });
 });

@@ -113,6 +113,26 @@ export function usePythonFiles(projectId: string) {
   });
 }
 
+/** Virtualenvs inside the project, for the Python environment choice. */
+export function usePythonEnvs(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.tool('scripts', projectId, 'pythonEnvs'),
+    queryFn: () => api.tools.invoke('scripts', projectId, 'pythonEnvs', {}),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useSetVenv(projectId: string) {
+  const refresh = useRefreshAfter(projectId);
+  return useMutation({
+    mutationFn: (input: { mode: 'auto' | 'none' | 'path'; path?: string }) =>
+      api.tools.invoke('scripts', projectId, 'setVenv', input),
+    onSettled: refresh,
+    onError: showError,
+  });
+}
+
 /** Starts a script in any package (the overview card starts each package's main command). */
 export function useStartIn() {
   const queryClient = useQueryClient();

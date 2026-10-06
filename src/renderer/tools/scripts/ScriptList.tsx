@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import type { ScriptInfo, ScriptKind } from '@shared/tools/scripts/contract';
 import { CommandDialog } from './CommandDialog';
+import { PythonEnvPicker } from './PythonEnvPicker';
 import {
   useCommandActions,
   useScriptAction,
@@ -244,6 +245,7 @@ export function ScriptList({ projectId }: { projectId: string }) {
           Add command
         </Button>
       </div>
+      {data.python && <PythonEnvPicker projectId={projectId} python={data.python} />}
       {data.scripts.length === 0 && <p className="text-xs text-fg-faint">No scripts or commands yet.</p>}
       <ul className="space-y-1.5">
         {data.scripts.map((info) => (

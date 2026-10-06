@@ -13,6 +13,8 @@ export interface ScriptsFixture {
   envFiles?: string[];
   pythonFiles?: string[];
   hidden?: { name: string; command: string }[];
+  python?: { choice: 'auto' | 'none' | 'path'; venv: string | null; auto: string | null } | null;
+  pythonEnvs?: string[];
   /** Per-method overrides; return a value or throw. */
   methods?: Record<string, (input: never) => unknown>;
 }
@@ -37,6 +39,7 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
               fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false, main: null }] : fx.packages,
             envFiles: fx.envFiles ?? ['.env'],
             hidden: fx.hidden ?? [],
+            python: fx.python ?? null,
           };
         case 'getLogs':
           return { lines: [], firstSeq: 1, lastSeq: 0 };
@@ -44,6 +47,8 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
           return { enabled: (input as { enabled: boolean }).enabled };
         case 'startRunGroup':
           return { started: [], skipped: [], compose: [] };
+        case 'pythonEnvs':
+          return { envs: fx.pythonEnvs ?? [] };
         case 'pythonFiles':
           return { files: fx.pythonFiles ?? [] };
         case 'saveRunGroup':
