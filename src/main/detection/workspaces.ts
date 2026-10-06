@@ -4,6 +4,7 @@ import { glob } from 'tinyglobby';
 import { parse as parseYaml } from 'yaml';
 import { isRecord } from '@shared/is-record';
 import type { DetectOptions } from './detect-project';
+import { PYTHON_DEFINITION_FILES } from './python';
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
@@ -76,7 +77,7 @@ const NOT_PACKAGES = [
  * its packages are the package.json folders one or two levels down.
  */
 async function subFolderPackages(root: string): Promise<string[]> {
-  const ignore = NOT_PACKAGES.flatMap((name) => [`${name}/**`, `*/${name}/**`]);
+  const ignore = ignoreDirs(NOT_PACKAGES);
   return glob(['*/package.json', '*/*/package.json'], {
     cwd: root,
     ignore,
@@ -85,13 +86,65 @@ async function subFolderPackages(root: string): Promise<string[]> {
   });
 }
 
+/** Never Python packages either: virtualenvs and caches. */
+const NOT_PYTHON_PACKAGES = [...NOT_PACKAGES, 'venv', 'env', '__pycache__', 'site-packages'];
+/** Folders whose loose `.py` files are helpers, not a backend (a definition file still counts). */
+const PYTHON_HELPER_DIRS = ['scripts', 'tools', 'bin', 'docs', 'migrations'];
+
+const ignoreDirs = (names: string[]): string[] =>
+  names.flatMap((name) => [`${name}/**`, `*/${name}/**`]);
+
+/**
+ * Python package manifests: a definition file one or two levels down, or loose `.py` files one level down
+ * (`backend/app/main.py` is a module of backend, not a package).
+ */
+async function pythonManifests(root: string): Promise<string[]> {
+  const ignore = ignoreDirs(NOT_PYTHON_PACKAGES);
+  const [definitions, sources] = await Promise.all([
+    glob(
+      PYTHON_DEFINITION_FILES.flatMap((f) => [`*/${f}`, `*/*/${f}`]),
+      { cwd: root, ignore, onlyFiles: true, dot: false },
+    ),
+    glob(['*/*.py'], {
+      cwd: root,
+      ignore: [...ignore, ...ignoreDirs(PYTHON_HELPER_DIRS)],
+      onlyFiles: true,
+      dot: false,
+    }),
+  ]);
+  return [...definitions, ...sources];
+}
+
+const dirOf = (manifest: string): string => posix.dirname(manifest.replace(/\\/g, '/'));
+
+/** Python manifests whose folder isn't inside another found package (Python or not). */
+function outermost(python: string[], js: string[]): string[] {
+  const dirs = new Set([...python, ...js].map(dirOf));
+  return python.filter((manifest) => {
+    const dir = dirOf(manifest);
+    return ![...dirs].some((other) => other !== dir && dir.startsWith(`${other}/`));
+  });
+}
+
 export async function findWorkspaceDirs(
   root: string,
   packageJson: Record<string, unknown> | null,
   options: DetectOptions = {},
 ): Promise<string[]> {
+  const [js, python] = await Promise.all([
+    jsManifests(root, packageJson, options),
+    pythonManifests(root),
+  ]);
+  return keepInside(root, [...js, ...outermost(python, js)], options);
+}
+
+async function jsManifests(
+  root: string,
+  packageJson: Record<string, unknown> | null,
+  options: DetectOptions,
+): Promise<string[]> {
   const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
-  if (patterns.length === 0) return keepInside(root, await subFolderPackages(root), options);
+  if (patterns.length === 0) return subFolderPackages(root);
 
   const include = patterns
     .filter((p) => !p.startsWith('!'))
@@ -103,7 +156,7 @@ export async function findWorkspaceDirs(
     .filter((p) => !escapesRoot(p));
   if (include.length === 0) return [];
 
-  const manifests = await glob(
+  return glob(
     include.map((p) => `${p}/package.json`),
     {
       cwd: root,
@@ -111,7 +164,6 @@ export async function findWorkspaceDirs(
       onlyFiles: true,
     },
   );
-  return keepInside(root, manifests, options);
 }
 
 /** Package folders from manifest paths: sorted, never the root, and only those really inside it. */
@@ -120,7 +172,7 @@ async function keepInside(
   manifests: string[],
   options: DetectOptions,
 ): Promise<string[]> {
-  const dirs = new Set(manifests.map((file) => posix.dirname(file.replace(/\\/g, '/'))));
+  const dirs = new Set(manifests.map(dirOf));
   dirs.delete('.');
   const realRoot = await realpath(root).catch(() => resolve(root));
   const kept: string[] = [];

@@ -11,6 +11,7 @@ function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
     missing: false,
     packageJson: { name: 'shop', scripts: { dev: 'vite' } },
     packageManager: 'pnpm',
+    python: null,
     envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,

@@ -16,18 +16,21 @@ The owner's answers (2026-10-06):
 **Is it a Python package?** The folder has one of:
 
 - a definition file: `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `Pipfile`, `manage.py`;
-- or an entry file: `main.py`, `app.py`, `server.py`, `run.py`, `api.py`, `wsgi.py`, `asgi.py`.
+- or any `.py` file directly in it (a backend is often just `.py` files).
 
-A folder of helper scripts (`scripts/build_icons.py`) is not a backend, so other `.py` names don't count.
+A folder of helper scripts is not a backend: sub-folders named `scripts`, `tools`, `bin`, `docs` or `migrations`
+(besides the existing `NOT_PACKAGES`) never count through `.py` files alone.
 
 **Virtualenv.** The first of `.venv`, `venv`, `env` holding a `pyvenv.cfg`. Only the folder name is kept.
 
 **Framework.** Read from (in order, first hit wins):
 
 1. `manage.py` → Django;
-2. the entry files in the folder and in `app/` (64 KiB cap each): `<var> = FastAPI(` → FastAPI,
-   `<var> = Flask(` → Flask, keeping the module (`main`, `app.main`) and the variable name;
-3. otherwise an entry file with `if __name__ == "__main__"` → a plain script.
+2. the entry files (`main.py`, `app.py`, `server.py`, `api.py`, `asgi.py`, `wsgi.py`, `run.py`) in the folder and
+   in `app/` (64 KiB cap each): a module-level `<var> = FastAPI(` → FastAPI, `<var> = Flask(` → Flask, keeping the
+   module (`main`, `app.main`) and the variable name;
+3. otherwise each top-level `.py` file (at most 20, entry files first) with `if __name__ == "__main__"` → a plain
+   script.
 
 File contents are only matched against these patterns; nothing else is kept, logged or sent.
 
@@ -45,9 +48,9 @@ Module and variable names must match `^[A-Za-z_][A-Za-z0-9_.]*$` before they rea
 
 ## Packages
 
-`findWorkspaceDirs` also returns Python package folders: definition files at `*/` and `*/*/`, entry files at `*/`
+`findWorkspaceDirs` also returns Python package folders: definition files at `*/` and `*/*/`, `.py` files at `*/`
 only (`backend/app/main.py` is a module of `backend`, not a package). A Python folder inside another found
-folder is dropped. Ignored: the existing `NOT_PACKAGES` list plus `venv`, `env`, `__pycache__`, `site-packages`.
+package (Python or not) is dropped. Ignored: the existing `NOT_PACKAGES` list plus `venv`, `env`, `__pycache__`, `site-packages`.
 They are added whether or not the root has a JS workspaces config, so `frontend/` (pnpm workspace) + `backend/`
 both show up. The root itself can be a Python package (`pyproject.toml` at the root and a `frontend/` folder).
 

@@ -6,6 +6,26 @@ export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 export const DEPLOY_PLATFORMS = ['vercel', 'netlify', 'cloudflare', 'fly'] as const;
 export type DeployPlatform = (typeof DEPLOY_PLATFORMS)[number];
 
+export const PYTHON_FRAMEWORKS = ['django', 'fastapi', 'flask', 'script'] as const;
+export type PythonFramework = (typeof PYTHON_FRAMEWORKS)[number];
+
+/** A script or command name as NestBox accepts it (run groups, the tray, log file names). */
+export const COMMAND_NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,59}$/;
+
+/** A command NestBox found in a package: a program and its arguments, run without a shell. */
+export interface DetectedCommand {
+  name: string;
+  argv: string[];
+}
+
+export interface PythonInfo {
+  /** The virtualenv folder ('.venv', 'venv', 'env'), or null when there is none. */
+  venv: string | null;
+  framework: PythonFramework | null;
+  /** The program is the bare 'python'; the scripts tool decides which interpreter that means. */
+  commands: DetectedCommand[];
+}
+
 export interface GitInfo {
   /** Current branch, or null when HEAD is detached or unreadable. */
   branch: string | null;
@@ -30,6 +50,8 @@ export interface DetectedProject {
   missing: boolean;
   packageJson: { name?: string; scripts: Record<string, string> } | null;
   packageManager: PackageManager | null;
+  /** null when the folder has no Python markers. */
+  python: PythonInfo | null;
   /** File names only — env files are never opened. */
   envFiles: string[];
   /** The env files that are symlinks; the env tool treats them as read-only. */
@@ -57,6 +79,13 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
       .object({ name: z.string().optional(), scripts: z.record(z.string(), z.string()) })
       .nullable(),
     packageManager: z.enum(PACKAGE_MANAGERS).nullable(),
+    python: z
+      .object({
+        venv: z.string().nullable(),
+        framework: z.enum(PYTHON_FRAMEWORKS).nullable(),
+        commands: z.array(z.object({ name: z.string().regex(COMMAND_NAME), argv: z.array(z.string()).min(1) })),
+      })
+      .nullable(),
     envFiles: z.array(z.string()),
     envSymlinks: z.array(z.string()),
     workspaces: z.array(DetectedProjectSchema),
