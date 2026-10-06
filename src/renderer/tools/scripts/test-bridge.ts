@@ -28,7 +28,7 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
       switch (method) {
         case 'list':
           return {
-            scripts: fx.scripts ?? [{ name: 'dev', command: 'vite', autoRestart: false }],
+            scripts: fx.scripts ?? [{ name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' }],
             runGroups: fx.runGroups === undefined ? [] : fx.runGroups,
             packages:
               fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false }] : fx.packages,

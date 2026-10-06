@@ -1,12 +1,24 @@
-import { Play, RotateCw, Square } from 'lucide-react';
+import { Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { isLive, type ProcessSummary } from '@shared/processes';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useProcesses } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
-import type { ScriptInfo } from '@shared/tools/scripts/contract';
-import { useScriptAction, useScriptList, useSetAutoRestart } from './use-scripts';
+import type { ScriptInfo, ScriptKind } from '@shared/tools/scripts/contract';
+import { CommandDialog } from './CommandDialog';
+import { useCommandActions, useScriptAction, useScriptList, useSetAutoRestart } from './use-scripts';
 
 const BADGES: Partial<Record<ProcessSummary['state'], string>> = {
   starting: 'border-warn/30 bg-warn/10 text-warn',
@@ -16,13 +28,31 @@ const BADGES: Partial<Record<ProcessSummary['state'], string>> = {
   exited: 'border-line bg-surface text-fg-muted',
 };
 
+/** Where a row comes from, when it isn't package.json. */
+const KIND_CHIPS: Partial<Record<ScriptKind, { label: string; title: string }>> = {
+  detected: { label: 'py', title: 'Detected from the Python files' },
+  custom: { label: 'custom', title: 'Added by you' },
+};
+
 function crashText(p: ProcessSummary): string | null {
   if (p.state !== 'crashed' || !p.exit) return null;
   const how = p.exit.code !== null ? `exit ${p.exit.code}` : p.exit.signal ? `killed by ${p.exit.signal}` : 'could not start';
   return p.exit.lastLine ? `${how} · ${p.exit.lastLine}` : how;
 }
 
-function ScriptRow({ projectId, info, process }: { projectId: string; info: ScriptInfo; process: ProcessSummary | undefined }) {
+function ScriptRow({
+  projectId,
+  info,
+  process,
+  onEdit,
+  onDelete,
+}: {
+  projectId: string;
+  info: ScriptInfo;
+  process: ProcessSummary | undefined;
+  onEdit(): void;
+  onDelete(): void;
+}) {
   const action = useScriptAction(projectId);
   const setAutoRestart = useSetAutoRestart(projectId);
   const showScript = useUiStore((s) => s.showScript);
@@ -30,6 +60,7 @@ function ScriptRow({ projectId, info, process }: { projectId: string; info: Scri
   const badge = process ? BADGES[process.state] : undefined;
   const crash = process ? crashText(process) : null;
   const busy = action.isPending && action.variables?.script === info.name;
+  const chip = KIND_CHIPS[info.kind];
 
   return (
     <li className="rounded-md border border-line bg-card px-3 py-2">
@@ -42,6 +73,11 @@ function ScriptRow({ projectId, info, process }: { projectId: string; info: Scri
         >
           {info.name}
         </button>
+        {chip && (
+          <span title={chip.title} className="rounded border border-line px-1.5 py-px text-[10px] text-fg-muted">
+            {chip.label}
+          </span>
+        )}
         {process && badge && (
           <span className={cn('rounded border px-1.5 py-px text-[10px] font-medium', badge)}>
             {process.state === 'exited' ? `exited ${process.exit?.code ?? ''}`.trim() : process.state}
@@ -57,6 +93,16 @@ function ScriptRow({ projectId, info, process }: { projectId: string; info: Scri
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          {info.kind === 'custom' && (
+            <>
+              <Button variant="ghost" size="icon" aria-label={`Edit ${info.name}`} onClick={onEdit}>
+                <Pencil />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={`Delete ${info.name}`} disabled={live} onClick={onDelete}>
+                <Trash2 />
+              </Button>
+            </>
+          )}
           {live ? (
             <>
               <Button
@@ -122,12 +168,21 @@ function ScriptRow({ projectId, info, process }: { projectId: string; info: Scri
 export function ScriptList({ projectId }: { projectId: string }) {
   const { data, isPending, isError } = useScriptList(projectId);
   const { data: processes = [] } = useProcesses();
+  const commands = useCommandActions(projectId);
+  const [editing, setEditing] = useState<ScriptInfo | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   if (isPending) return <p className="text-xs text-fg-muted">Loading scripts…</p>;
   if (isError || !data) return <p className="text-xs text-err">Couldn't load the scripts.</p>;
-  if (data.scripts.length === 0) return <p className="text-xs text-fg-faint">No scripts in package.json.</p>;
   return (
     <section aria-label="Scripts">
-      <h3 className="mb-2 text-[10px] font-semibold tracking-wider text-fg-muted uppercase">Scripts</h3>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-[10px] font-semibold tracking-wider text-fg-muted uppercase">Scripts</h3>
+        <Button variant="ghost" size="sm" onClick={() => setEditing('new')}>
+          <Plus />
+          Add command
+        </Button>
+      </div>
+      {data.scripts.length === 0 && <p className="text-xs text-fg-faint">No scripts or commands yet.</p>}
       <ul className="space-y-1.5">
         {data.scripts.map((info) => (
           <ScriptRow
@@ -135,9 +190,35 @@ export function ScriptList({ projectId }: { projectId: string }) {
             projectId={projectId}
             info={info}
             process={processes.find((p) => p.projectId === projectId && p.script === info.name)}
+            onEdit={() => setEditing(info)}
+            onDelete={() => setDeleting(info.name)}
           />
         ))}
       </ul>
+      {editing !== null && (
+        <CommandDialog
+          projectId={projectId}
+          initial={editing === 'new' ? null : { name: editing.name, command: editing.command }}
+          onOpenChange={(open) => !open && setEditing(null)}
+        />
+      )}
+      <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete command “{deleting}”?</AlertDialogTitle>
+            <AlertDialogDescription>Run groups that include it will skip it.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-err text-fg hover:bg-err/90"
+              onClick={() => deleting !== null && commands.remove.mutate(deleting)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

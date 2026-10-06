@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { formatCommandLine } from '@shared/command-line';
 import type { ToolPanelProps } from '../types';
+import { pythonSummary } from './python-summary';
 import { useProjectFacts } from './use-facts';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -18,14 +20,17 @@ function Empty({ children }: { children: ReactNode }) {
 export default function ProjectInfoPanel({ projectId }: ToolPanelProps) {
   const { data, isPending } = useProjectFacts(projectId);
   if (isPending || !data) return null;
-  const scripts = Object.entries(data.packageJson?.scripts ?? {});
+  const scripts = [
+    ...Object.entries(data.packageJson?.scripts ?? {}),
+    ...(data.python?.commands ?? []).map((c) => [c.name, formatCommandLine(c.argv)] as const),
+  ];
   const yesNo = (v: boolean) => (v ? 'yes' : 'no');
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title="Scripts">
         {scripts.length === 0 ? (
-          <Empty>No scripts in package.json.</Empty>
+          <Empty>No scripts in package.json, and no Python app found.</Empty>
         ) : (
           <ul className="space-y-1.5 font-mono text-xs">
             {scripts.map(([name, command]) => (
@@ -52,6 +57,8 @@ export default function ProjectInfoPanel({ projectId }: ToolPanelProps) {
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
           <dt className="text-fg-muted">Package manager</dt>
           <dd className="font-mono text-fg">{data.packageManager ?? 'none'}</dd>
+          <dt className="text-fg-muted">Python</dt>
+          <dd className="font-mono text-fg">{data.python ? pythonSummary(data.python) : 'none'}</dd>
           <dt className="text-fg-muted">Prisma schema</dt>
           <dd className="font-mono text-fg">{data.prismaSchema ?? 'none'}</dd>
           <dt className="text-fg-muted">Docker Compose</dt>

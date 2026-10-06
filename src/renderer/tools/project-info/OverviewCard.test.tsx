@@ -29,4 +29,18 @@ describe('ProjectInfoCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('pnpm')).toBeInTheDocument();
   });
+
+  it('shows the Python stack and counts detected commands', async () => {
+    installMockBridge({
+      'tools:invoke': () =>
+        makeDetected({
+          packageJson: null,
+          packageManager: null,
+          python: { venv: '.venv', framework: 'django', commands: [{ name: 'runserver', argv: ['python', 'manage.py', 'runserver'] }] },
+        }),
+    });
+    renderWithProviders(<ProjectInfoCard projectId="p1" />);
+    expect(await screen.findByText('Django · .venv')).toBeInTheDocument();
+    expect(screen.getByText('1 scripts')).toBeInTheDocument();
+  });
 });
