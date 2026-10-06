@@ -12,6 +12,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
@@ -68,6 +74,34 @@ function Profiles({ matrix, onSwitch }: { matrix: EnvMatrix; onSwitch(file: stri
   );
 }
 
+type EnvFile = { name: string; readOnly: boolean };
+
+/** Opens an env file in the raw editor: the only one at once, otherwise picked from a menu. */
+function EditAsText({ files, onPick }: { files: readonly EnvFile[]; onPick(file: EnvFile): void }) {
+  const button = (props: { onClick?: () => void }) => (
+    <Button variant="ghost" size="sm" title="Edit a whole env file as plain text" {...props}>
+      <FileText />
+      Edit as text
+    </Button>
+  );
+  const [only] = files;
+  if (only === undefined) return null;
+  if (files.length === 1) return button({ onClick: () => onPick(only) });
+  return (
+    // modal={false}: opening the editor from a menu item must not leave pointer-events locked.
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>{button({})}</DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {files.map((f) => (
+          <DropdownMenuItem key={f.name} className="font-mono text-xs" onSelect={() => onPick(f)}>
+            {f.readOnly ? `${f.name} (view only)` : f.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** Every .env* file of the package side by side, values masked. */
 export default function EnvPanel({ projectId }: ToolPanelProps) {
   const { data: matrix, isError } = useEnvMatrix(projectId);
@@ -76,7 +110,7 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
   const code = useCodeKeys(projectId);
   const createFile = useCreateEnvFile(projectId);
   const [adding, setAdding] = useState(false);
-  const [rawFile, setRawFile] = useState<{ name: string; readOnly: boolean } | null>(null);
+  const [rawFile, setRawFile] = useState<EnvFile | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -134,6 +168,7 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
             <RefreshCw />
             Rescan code
           </Button>
+          <EditAsText files={matrix.files} onPick={setRawFile} />
           <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
             <Plus />
             Add variable
@@ -171,15 +206,6 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
                       {f.name}
                       {f.readOnly && <Lock aria-hidden className="size-3" />}
                       {f.duplicates.length > 0 && <TriangleAlert aria-hidden className="size-3 text-warn" />}
-                      <button
-                        type="button"
-                        aria-label={`${f.readOnly ? 'View' : 'Edit'} ${f.name} as text`}
-                        title={f.readOnly ? 'View the file as text' : 'Edit the file as text'}
-                        onClick={() => setRawFile({ name: f.name, readOnly: f.readOnly })}
-                        className="rounded p-0.5 text-fg-faint hover:text-fg"
-                      >
-                        <FileText aria-hidden className="size-3" />
-                      </button>
                     </span>
                   </th>
                 ))}

@@ -258,7 +258,8 @@ describe('EnvPanel', () => {
     it('edits a whole file as text with the version it was read at', async () => {
       const { of } = setup();
       await table();
-      await userEvent.click(screen.getByRole('button', { name: 'Edit .env as text' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit as text' }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: '.env' }));
       const dialog = await screen.findByRole('dialog', { name: 'Edit .env' });
       const text = within(dialog).getByRole('textbox', { name: 'File contents' });
       await waitFor(() => expect(text).toHaveValue(`# local\nPORT=3000\nDATABASE_URL=${SECRET}\n`));
@@ -279,7 +280,8 @@ describe('EnvPanel', () => {
         },
       });
       await table();
-      await userEvent.click(screen.getByRole('button', { name: 'Edit .env as text' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit as text' }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: '.env' }));
       const dialog = await screen.findByRole('dialog', { name: 'Edit .env' });
       const text = within(dialog).getByRole<HTMLTextAreaElement>('textbox', { name: 'File contents' });
       await waitFor(() => expect(text.value).toContain('PORT=3000'));
@@ -292,10 +294,25 @@ describe('EnvPanel', () => {
       await waitFor(() => expect(text.value).not.toContain('X=1'));
     });
 
+    it('opens the only env file straight away, and is not offered without one', async () => {
+      setup({}, { ...MATRIX, files: MATRIX.files.filter((f) => f.name === '.env'), profiles: [] });
+      await table();
+      expect(screen.queryByRole('button', { name: 'Edit .env as text' })).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: 'Edit as text' }));
+      expect(await screen.findByRole('dialog', { name: 'Edit .env' })).toBeInTheDocument();
+    });
+
+    it('has no Edit as text button when there is no env file', async () => {
+      setup({}, { files: [], keys: [], example: null, profiles: [] });
+      await screen.findByText('No .env files in this folder.');
+      expect(screen.queryByRole('button', { name: 'Edit as text' })).toBeNull();
+    });
+
     it('only shows a read-only (symlinked) file', async () => {
       setup();
       await table();
-      await userEvent.click(screen.getByRole('button', { name: 'View .env.staging as text' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit as text' }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: '.env.staging (view only)' }));
       const dialog = await screen.findByRole('dialog', { name: '.env.staging' });
       expect(within(dialog).getByRole('textbox', { name: 'File contents' })).toHaveAttribute('readonly');
       expect(within(dialog).queryByRole('button', { name: 'Save' })).toBeNull();
