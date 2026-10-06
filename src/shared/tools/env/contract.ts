@@ -78,6 +78,20 @@ export const envContract = defineContract({
     input: z.strictObject({ file: EnvFileNameSchema, envVersion: Version.nullable() }),
     output: z.object({}),
   },
+  /** Env variable names the package's source reads (`os.getenv("X")`, `process.env.X`): names only. */
+  codeKeys: {
+    input: z.strictObject({}),
+    output: z.object({
+      keys: z.array(z.object({ key: z.string(), files: z.number().int().positive() })),
+      files: z.number().int().nonnegative(),
+      truncated: z.boolean(),
+    }),
+  },
+  /** A new env file with these keys and empty values; CONFLICT when it exists. */
+  createFile: {
+    input: z.strictObject({ file: EnvFileNameSchema, keys: z.array(EnvKeySchema).max(500) }),
+    output: z.object({ version: z.string() }),
+  },
   /** PORT from .env (for the Ports card), never other values. */
   facts: { input: z.strictObject({}), output: z.object({ port: z.number().int().nullable() }) },
 });

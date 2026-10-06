@@ -38,6 +38,8 @@ function setup(over: Partial<Record<string, (input: Record<string, unknown>) => 
       if (method === 'copy') return {};
       if (['setValue', 'addKey', 'removeKey'].includes(method)) return { version: 'v2' };
       if (method === 'switchProfile') return {};
+      if (method === 'codeKeys') return { keys: [], files: 0, truncated: false };
+      if (method === 'createFile') return { version: 'v1' };
       throw new Error(`unexpected ${method}`);
     }) as never,
   });
@@ -179,5 +181,74 @@ describe('EnvPanel', () => {
   it('says when there are no env files', async () => {
     setup({}, { files: [], keys: [], example: null, profiles: [] });
     expect(await screen.findByText('No .env files in this folder.')).toBeInTheDocument();
+  });
+
+  describe('keys from code', () => {
+    const codeKeys = () => ({
+      keys: [
+        { key: 'PORT', files: 2 },
+        { key: 'SENTRY_DSN', files: 1 },
+      ],
+      files: 3,
+      truncated: false,
+    });
+
+    it('marks keys the code reads and adds rows for ones no file has', async () => {
+      setup({ codeKeys });
+      const t = await table();
+      const port = await within(t).findByRole('row', { name: /PORT/ });
+      expect(within(port).getByTitle('Read in 2 files')).toHaveTextContent('in code');
+      const sentry = within(t).getByRole('row', { name: /SENTRY_DSN/ });
+      expect(sentry).toHaveTextContent('not set');
+      expect(within(sentry).getByRole('button', { name: 'Add SENTRY_DSN to .env' })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('switch', { name: 'Flagged only' }));
+      await waitFor(() => expect(within(t).getAllByRole('row')).toHaveLength(3));
+      expect(t).toHaveTextContent('SENTRY_DSN');
+    });
+
+    it('creates .env with the keys from code when there is none', async () => {
+      const { of } = setup({ codeKeys }, { files: [], keys: [], example: null, profiles: [] });
+      expect(await screen.findByText('The code reads 2 variables: PORT, SENTRY_DSN.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Create .env with these keys' }));
+      await waitFor(() => expect(of('createFile')).toEqual([{ file: '.env', keys: ['PORT', 'SENTRY_DSN'] }]));
+    });
+  });
+
+  describe('Add variable', () => {
+    it('adds a new key to the chosen file', async () => {
+      const { of } = setup();
+      await table();
+      await userEvent.click(screen.getByRole('button', { name: 'Add variable' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add variable' });
+      expect(within(dialog).getByRole('combobox', { name: 'File' })).toHaveValue('.env');
+      await userEvent.type(within(dialog).getByRole('combobox', { name: 'Key' }), 'NEW_KEY');
+      await userEvent.type(within(dialog).getByRole('textbox', { name: 'Value' }), 'abc');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+      await waitFor(() => expect(of('addKey')).toEqual([{ file: '.env', key: 'NEW_KEY', value: 'abc', version: 'v-env' }]));
+    });
+
+    it('refuses a key the file already has, or an invalid one', async () => {
+      setup();
+      await table();
+      await userEvent.click(screen.getByRole('button', { name: 'Add variable' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add variable' });
+      await userEvent.type(within(dialog).getByRole('combobox', { name: 'Key' }), 'PORT');
+      expect(within(dialog).getByText('.env already has PORT: edit it in the table.')).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Add' })).toBeDisabled();
+      await userEvent.clear(within(dialog).getByRole('combobox', { name: 'Key' }));
+      await userEvent.type(within(dialog).getByRole('combobox', { name: 'Key' }), '1BAD');
+      expect(within(dialog).getByText(/Letters, digits/)).toBeInTheDocument();
+    });
+
+    it('creates .env when the package has no env file', async () => {
+      const { of } = setup({}, { files: [], keys: [], example: null, profiles: [] });
+      await userEvent.click(await screen.findByRole('button', { name: 'Add variable' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add variable' });
+      expect(within(dialog).getByRole('option', { name: '.env (new file)' })).toBeInTheDocument();
+      await userEvent.type(within(dialog).getByRole('combobox', { name: 'Key' }), 'DEBUG');
+      await userEvent.type(within(dialog).getByRole('textbox', { name: 'Value' }), '1');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+      await waitFor(() => expect(of('addKey')).toEqual([{ file: '.env', key: 'DEBUG', value: '1', version: null }]));
+    });
   });
 });
