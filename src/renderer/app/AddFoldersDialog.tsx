@@ -9,14 +9,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useAddFolders } from '@/lib/queries';
+import { useAddFolderAsOne, useAddFolders } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 
-/** A picked folder of sub-folder projects (app/ + api/): add them under a new group, or straight to the root. */
+/**
+ * A picked folder of sub-folder projects (app/ + api/): add them under a new group, straight to the root, or
+ * keep the folder as one project whose sub-folders are packages (one run group starts them together).
+ */
 export function AddFoldersDialog() {
   const pending = useUiStore((s) => s.pendingFolders);
   const setPending = useUiStore((s) => s.setPendingFolders);
   const addFolders = useAddFolders();
+  const addAsOne = useAddFolderAsOne();
+  const busy = addFolders.isPending || addAsOne.isPending;
   const [group, setGroup] = useState('');
   useEffect(() => {
     if (pending) setGroup(pending.name);
@@ -26,7 +31,7 @@ export function AddFoldersDialog() {
   const add = (asGroup: boolean) =>
     addFolders.mutate({ path: pending.path, group: asGroup ? name.slice(0, 100) : null });
   return (
-    <Dialog open onOpenChange={(open) => !open && !addFolders.isPending && setPending(null)}>
+    <Dialog open onOpenChange={(open) => !open && !busy && setPending(null)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add under a group?</DialogTitle>
@@ -43,6 +48,20 @@ export function AddFoldersDialog() {
             </li>
           ))}
         </ul>
+        <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2">
+          <p className="min-w-0 flex-1 text-xs text-fg-muted">
+            Or keep them together as one project, so one run group can start them all (a frontend
+            and its backend).
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onClick={() => addAsOne.mutate(pending.path)}
+          >
+            Add as one project
+          </Button>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -61,13 +80,13 @@ export function AddFoldersDialog() {
           </label>
         </form>
         <DialogFooter>
-          <Button variant="ghost" disabled={addFolders.isPending} onClick={() => setPending(null)}>
+          <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>
             Cancel
           </Button>
-          <Button variant="secondary" disabled={addFolders.isPending} onClick={() => add(false)}>
+          <Button variant="secondary" disabled={busy} onClick={() => add(false)}>
             No, add without a group
           </Button>
-          <Button disabled={addFolders.isPending || !name} onClick={() => add(true)}>
+          <Button disabled={busy || !name} onClick={() => add(true)}>
             Add under group
           </Button>
         </DialogFooter>

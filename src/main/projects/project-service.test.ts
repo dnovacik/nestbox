@@ -463,6 +463,17 @@ describe('ProjectService.scan and addFolders', () => {
     expect(await service.scan('C:\\Dev\\Mono')).toEqual({ name: 'mono', folders: [] });
   });
 
+  it('offers nothing for a Python package at the root either', async () => {
+    const { service, detect } = setup();
+    detect.mockImplementation(async (input: DetectInput) => ({
+      ...fakeDetect(input),
+      python: { venv: null, framework: null, commands: [] },
+      workspaces: ['app', 'api'].map((rel) => ({ ...emptyDetected(), id: `${input.id}::${rel}`, relPath: rel })),
+    }));
+    expect((await service.scan('C:\\Dev\\Shop')).folders).toEqual([]);
+    await expect(service.addFolders('C:\\Dev\\Shop', null)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
   it('adds each sub-folder as its own project inside a new group', async () => {
     const { service, detect, store, onChanged } = setup();
     withFolders(detect);
