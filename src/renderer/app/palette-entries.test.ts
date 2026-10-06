@@ -51,6 +51,28 @@ describe('paletteEntries', () => {
     expect(entries.find((e) => e.label === 'Run dev in blog')?.detail).toBe('vite');
   });
 
+  it('runs detected Python commands too, unless a package.json script has the name', () => {
+    const backend = makeDetected({
+      id: 'p3::backend',
+      rootId: 'p3',
+      relPath: 'backend',
+      name: 'backend',
+      packageJson: { scripts: { migrate: 'echo' } },
+      python: {
+        venv: null,
+        framework: 'django',
+        commands: [
+          { name: 'runserver', argv: ['python', 'manage.py', 'runserver'] },
+          { name: 'migrate', argv: ['python', 'manage.py', 'migrate'] },
+        ],
+      },
+    });
+    const app = makeSummary({ id: 'p3', name: 'app', detected: makeDetected({ id: 'p3', rootId: 'p3', name: 'app', packageJson: null, workspaces: [backend] }) });
+    const entries = paletteEntries(input({ projects: [app] }));
+    expect(entries.find((e) => e.label === 'Run runserver in app › backend')?.detail).toBe('python manage.py runserver');
+    expect(entries.filter((e) => e.id === 'script:p3::backend:migrate').map((e) => e.detail)).toEqual(['echo']);
+  });
+
   it('starts run groups, and stops one with a live entry in a workspace package', () => {
     expect(labels(paletteEntries(input()), 'Run groups')).toEqual(['Start run group all']);
     const live = paletteEntries(input({ processes: [makeProcess({ projectId: 'p1::packages/api', script: 'start' })] }));

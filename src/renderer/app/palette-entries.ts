@@ -1,5 +1,6 @@
 // The command palette's entries, built from data the renderer already has. Pure: actions are data, run by
 // CommandPalette, so what the palette offers can be tested without rendering it.
+import { formatCommandLine } from '@shared/command-line';
 import { type DetectedProject, type ProjectSummary, workspaceId } from '@shared/detected';
 import type { ProcessSummary } from '@shared/processes';
 import type { ToolSummary } from '@shared/tool';
@@ -83,7 +84,12 @@ export function paletteEntries({ projects, selected, processes, runGroups, tools
   }
 
   for (const { detected, title } of all) {
-    for (const [script, command] of Object.entries(detected.packageJson?.scripts ?? {})) {
+    // package.json scripts, then detected Python commands (a script with the same name wins, as in the tool).
+    const npm = Object.entries(detected.packageJson?.scripts ?? {});
+    const python = (detected.python?.commands ?? [])
+      .filter((c) => !npm.some(([name]) => name === c.name))
+      .map((c) => [c.name, formatCommandLine(c.argv)] as const);
+    for (const [script, command] of [...npm, ...python]) {
       const state = stateOf(detected.id, script);
       const live = state !== undefined && LIVE.has(state);
       out.push({
