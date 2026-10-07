@@ -15,7 +15,7 @@ import { readGitInfo } from './git-head';
 import { detectPackageManager } from './package-manager';
 import { findWorkspaceDirs } from './workspaces';
 
-export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root' | 'read-error' | 'invalid-sln';
+export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root';
 
 /** `.env`, `.env.local`, `.env.production.local`, … but not `.envrc`. */
 export const ENV_FILE_PATTERN = /^\.env(\..+)?$/;
