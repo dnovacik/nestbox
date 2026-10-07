@@ -31,6 +31,7 @@ export const INVOKE_CHANNELS = [
   'ports:waitFree',
   'deps:overview',
   'deps:checkAll',
+  'system:getStats',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 
