@@ -1,8 +1,15 @@
 import type { Dirent } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { type DeployPlatform, type DetectedProject, type PackageManager, workspaceId } from '@shared/detected';
+import {
+  type DeployPlatform,
+  type DetectedProject,
+  type EcosystemEntry,
+  type PackageManager,
+  workspaceId,
+} from '@shared/detected';
 import { isRecord } from '@shared/is-record';
+import { ECOSYSTEM_MODULES } from '../ecosystems';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
 import { detectPackageManager } from './package-manager';
@@ -117,6 +124,7 @@ function missingProject(target: DirTarget): DetectedProject {
     git: null,
     buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
+    ecosystems: [],
   };
 }
 
@@ -149,6 +157,20 @@ async function detectDir(
     ? await readPackageJson(join(target.path, 'package.json'), label(target, 'package.json'), options)
     : null;
 
+  // Detect ecosystem modules
+  const ecosystems: EcosystemEntry[] = [];
+  for (const module of ECOSYSTEM_MODULES) {
+    const info = await module.detect(target.path, files, dirs);
+    if (info !== null) {
+      try {
+        const validated = module.infoSchema.parse(info);
+        ecosystems.push({ id: module.id, info: validated });
+      } catch {
+        // Invalid info from detect() — skip this module
+      }
+    }
+  }
+
   const detected: DetectedProject = {
     id: target.id,
     rootId: target.rootId,
@@ -172,6 +194,7 @@ async function detectDir(
       claudeDir: dirs.has('.claude'),
       mcpJson: files.has('.mcp.json'),
     },
+    ecosystems,
   };
   return { detected, rawPackageJson: pkg?.raw ?? null };
 }
