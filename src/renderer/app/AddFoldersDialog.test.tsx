@@ -19,6 +19,7 @@ const PENDING = {
 function setup() {
   const bridge = installMockBridge({
     'projects:addFolders': () => [makeSummary({ id: 'a1' }), makeSummary({ id: 'a2' })],
+    'projects:add': () => makeSummary({ id: 'one' }),
     'projects:list': () => [],
     'groups:list': () => [],
   });
@@ -55,6 +56,17 @@ describe('AddFoldersDialog', () => {
         { path: 'C:\\Dev\\Shop', group: null },
       ]),
     );
+  });
+
+  it('adds the folder as one project, so a run group can start its sub-folders together', async () => {
+    const bridge = setup();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add as one project' }));
+    await waitFor(() =>
+      expect(bridge.callsTo('projects:add')).toEqual([{ path: 'C:\\Dev\\Shop' }]),
+    );
+    await waitFor(() => expect(useUiStore.getState().pendingFolders).toBeNull());
+    expect(useUiStore.getState().selectedProjectId).toBe('one');
+    expect(bridge.callsTo('projects:addFolders')).toEqual([]);
   });
 
   it('adds nothing on Cancel', async () => {

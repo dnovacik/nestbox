@@ -166,6 +166,22 @@ export function useAddFolders() {
   });
 }
 
+/** The pending folder as one project: its sub-folders become packages that one run group can start. */
+export function useAddFolderAsOne() {
+  const invalidate = useInvalidateProjects();
+  const select = useUiStore((s) => s.select);
+  const setPendingFolders = useUiStore((s) => s.setPendingFolders);
+  return useMutation({
+    mutationFn: (path: string) => api.projects.add(path),
+    onSuccess: async (added) => {
+      setPendingFolders(null);
+      select(added.id);
+      await invalidate();
+    },
+    onError: showError,
+  });
+}
+
 export function useRemoveProject() {
   const invalidate = useInvalidateProjects();
   return useMutation({

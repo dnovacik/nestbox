@@ -9,8 +9,8 @@ import { ScriptList } from './ScriptList';
 import { installScriptsBridge } from './test-bridge';
 
 const scripts = [
-  { name: 'dev', command: 'vite', autoRestart: false },
-  { name: 'api', command: 'nest start --watch', autoRestart: true },
+  { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false },
+  { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const, envFile: null, main: false },
 ];
 
 describe('ScriptList', () => {
@@ -104,5 +104,82 @@ describe('ScriptList', () => {
     const badge = await screen.findByLabelText("Version warning: Node v20.11.1 doesn't match 18 (.nvmrc)");
     expect(badge).toHaveTextContent('Node');
     expect(badge).toHaveAttribute('title', "Node v20.11.1 doesn't match 18 (.nvmrc)");
+  });
+
+  describe('commands', () => {
+    const mixed = [
+      { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false },
+      { name: 'seed', command: 'python seed.py --count 10', autoRestart: false, kind: 'custom' as const, envFile: null, main: false },
+    ];
+
+    it('marks custom commands; only they can be edited or deleted', async () => {
+      installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByText('python seed.py --count 10')).toBeInTheDocument();
+      expect(screen.getByTitle('Added by you')).toHaveTextContent('custom');
+      expect(screen.getByRole('button', { name: 'Edit seed' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Edit dev' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Delete dev' })).toBeNull();
+    });
+
+    it('opens the editor with the command filled in', async () => {
+      installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit seed' }));
+      expect(await screen.findByRole('heading', { name: 'Edit command' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Command' })).toHaveValue('python seed.py --count 10');
+    });
+
+    it('deletes a custom command after asking', async () => {
+      const { callsTo } = installScriptsBridge({ scripts: mixed });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete seed' }));
+      expect(callsTo('deleteCommand')).toEqual([]);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(callsTo('deleteCommand')).toEqual([{ name: 'seed' }]));
+    });
+
+    it('offers Add command, also when there is nothing to run yet', async () => {
+      installScriptsBridge({ scripts: [] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByText('No scripts or commands yet.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Add command' }));
+      expect(await screen.findByRole('heading', { name: 'Add command' })).toBeInTheDocument();
+    });
+  });
+
+  describe('env file and main', () => {
+    const dev = { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false };
+    const api = { name: 'api', command: 'nest start --watch', autoRestart: true, kind: 'npm' as const, envFile: null, main: false };
+
+    it("chooses the env file a row's process gets", async () => {
+      const { callsTo } = installScriptsBridge({ scripts, envFiles: ['.env', '.env.local'] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      const select = await screen.findByRole('combobox', { name: 'Env file for dev' });
+      expect(select).toHaveValue('');
+      await userEvent.selectOptions(select, '.env.local');
+      await waitFor(() => expect(callsTo('setEnvFile')).toEqual([{ script: 'dev', file: '.env.local' }]));
+    });
+
+    it('shows a chosen env file that is missing', async () => {
+      installScriptsBridge({ scripts: [{ ...dev, envFile: '.env' }], envFiles: [] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      expect(await screen.findByRole('option', { name: '.env (missing)' })).toBeInTheDocument();
+    });
+
+    it('makes a row the main one, and clears it', async () => {
+      const { callsTo } = installScriptsBridge({ scripts: [{ ...api, main: true }, dev] });
+      renderWithProviders(<ScriptList projectId="p1" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Make dev the main command' }));
+      const main = screen.getByRole('button', { name: 'api is the main command' });
+      expect(main).toHaveAttribute('aria-pressed', 'true');
+      await userEvent.click(main);
+      await waitFor(() =>
+        expect(callsTo('setMain')).toEqual([
+          { script: 'dev', main: true },
+          { script: 'api', main: false },
+        ]),
+      );
+    });
   });
 });

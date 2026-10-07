@@ -1,10 +1,13 @@
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { formatCommandLine } from '@shared/command-line';
 import { type DetectedProject, workspaceId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { isLive, type LogLine, type ProcessState, type ProcessSummary } from '@shared/processes';
 import {
   type ComposeStep,
+  type CustomCommand,
+  type ScriptKind,
   scriptsContract,
   scriptsDefinition,
   type ScriptsSettings,
@@ -41,14 +44,74 @@ export interface ScriptsToolDeps {
     up(projectId: string, services: string[], opts: { wait: boolean }): Promise<{ ok: boolean }>;
     stop(projectId: string, services: string[]): Promise<{ ok: boolean }>;
   };
+  /** A package's env files (the env tool's file access): names, and one file's variables (null when missing). */
+  envFiles: {
+    list(dir: string): Promise<string[]>;
+    read(dir: string, file: string): Promise<Record<string, string> | null>;
+  };
 }
 
 /** The shared-context fact the scripts tool publishes per project (read by the M2 port manager). */
 export const PROCESSES_FACT = 'scripts.processes';
 
 const ADVICE_TIMEOUT_MS = 3_000;
+/** At most this many custom commands per root project (the settings schema's cap). */
+const MAX_COMMANDS = 100;
 
 type Ctx = ToolContext<ScriptsSettings>;
+
+/** Something a package can run: a package.json script, or a custom command line. */
+interface Runnable {
+  name: string;
+  kind: ScriptKind;
+  /** The script's text, or the command line for display. */
+  command: string;
+  /** null for a package.json script (`<pm> run <name>`). */
+  argv: string[] | null;
+}
+
+const isEntry =
+  (relPath: string, script: string | undefined) =>
+  (e: RunGroupEntry): boolean =>
+    e.relPath === relPath && e.script === script;
+
+/**
+ * A package's runnables in display order: package.json scripts, then custom commands. Names are unique: on a
+ * clash package.json wins. (Ecosystems add detected commands between the two: see the ecosystems plan.)
+ */
+function runnables(project: DetectedProject, settings: ScriptsSettings): Runnable[] {
+  const npm: Runnable[] = Object.entries(project.packageJson?.scripts ?? {}).map(([name, command]) => ({
+    name,
+    kind: 'npm',
+    command,
+    argv: null,
+  }));
+  const asRunnable =
+    (kind: ScriptKind) =>
+    ({ name, argv }: { name: string; argv: string[] }): Runnable => ({ name, kind, command: formatCommandLine(argv), argv });
+  const taken = new Set(npm.map((r) => r.name));
+  const unique = (r: Runnable): boolean => !taken.has(r.name) && Boolean(taken.add(r.name));
+  const custom = settings.commands.filter((c) => c.relPath === project.relPath).map(asRunnable('custom')).filter(unique);
+  return [...npm, ...custom];
+}
+
+/** A list of per-script settings with one package's `from` renamed to `to`. */
+function renamed<T extends RunGroupEntry>(list: T[], relPath: string, from: string, to: string): T[] {
+  return list.map((e) => (isEntry(relPath, from)(e) ? { ...e, script: to } : e));
+}
+
+/** The env file a runnable gets: its override, else .env for commands and none for package.json scripts. */
+function envFileOf(settings: ScriptsSettings, project: DetectedProject, runnable: Runnable): string | null {
+  const override = settings.envFiles.find(isEntry(project.relPath, runnable.name));
+  if (override) return override.file;
+  return defaultEnvFile(runnable);
+}
+
+/** Custom commands get .env; package.json scripts none (Vite, Next and friends load it themselves). */
+const defaultEnvFile = (runnable: Runnable): string | null => (runnable.kind === 'npm' ? null : '.env');
+
+const mainOf = (settings: ScriptsSettings, project: DetectedProject): string | null =>
+  settings.main.find((e) => e.relPath === project.relPath)?.script ?? null;
 
 export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
   const batcher = createLogBatcher({
@@ -78,12 +141,19 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     published = new Set(byProject.keys());
   }
 
-  const hasScript = (project: DetectedProject, script: string): boolean =>
-    Object.hasOwn(project.packageJson?.scripts ?? {}, script);
+  const findRunnable = (project: DetectedProject, settings: ScriptsSettings, name: string): Runnable | null =>
+    runnables(project, settings).find((r) => r.name === name) ?? null;
 
-  function requireScript(project: DetectedProject, script: string): void {
-    if (!hasScript(project, script)) throw new NestboxError('NOT_FOUND', 'Unknown script');
+  function requireRunnable(project: DetectedProject, settings: ScriptsSettings, name: string): Runnable {
+    const found = findRunnable(project, settings, name);
+    if (!found) throw new NestboxError('NOT_FOUND', 'Unknown script');
+    return found;
   }
+
+  const isRunning = (projectId: string, name: string): boolean => {
+    const state = deps.processes.get(projectId, name)?.state;
+    return state !== undefined && isLive(state);
+  };
 
   const isAuto = (settings: ScriptsSettings, project: DetectedProject, script: string): boolean =>
     settings.autoRestart.some((e) => e.relPath === project.relPath && e.script === script);
@@ -104,14 +174,23 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     }
   }
 
-  const requestFor = async (project: DetectedProject, script: string, autoRestart: boolean): Promise<StartRequest> => ({
-    projectId: project.id,
-    script,
-    cwd: project.path,
-    packageManager: project.packageManager,
-    autoRestart,
-    ...(await adviceFor(project.id)),
-  });
+  /** The Node tool is asked only about package.json scripts. The env file is read at every spawn. */
+  const requestFor = async (
+    settings: ScriptsSettings,
+    project: DetectedProject,
+    runnable: Runnable,
+  ): Promise<StartRequest> => {
+    const envFile = envFileOf(settings, project, runnable);
+    return {
+      projectId: project.id,
+      script: runnable.name,
+      cwd: project.path,
+      packageManager: project.packageManager,
+      autoRestart: isAuto(settings, project, runnable.name),
+      ...(envFile === null ? {} : { loadEnv: { file: envFile, read: () => deps.envFiles.read(project.path, envFile) } }),
+      ...(runnable.argv === null ? await adviceFor(project.id) : { argv: runnable.argv }),
+    };
+  };
 
   function requireRoot(project: DetectedProject): void {
     if (project.relPath !== '') throw new NestboxError('VALIDATION', 'Run groups belong to the root project');
@@ -123,12 +202,17 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     return group;
   }
 
-  /** The package an entry names, or null when it no longer exists or lacks the script. */
-  function resolveEntry(rootId: string, entry: RunGroupEntry): DetectedProject | null {
+  /** The package an entry names and what it runs, or null when either is gone. */
+  function resolveEntry(
+    rootId: string,
+    settings: ScriptsSettings,
+    entry: RunGroupEntry,
+  ): { project: DetectedProject; runnable: Runnable } | null {
     const id = entry.relPath === '' ? rootId : workspaceId(rootId, entry.relPath);
     try {
       const project = deps.getDetected(id);
-      return hasScript(project, entry.script) ? project : null;
+      const runnable = findRunnable(project, settings, entry.script);
+      return runnable ? { project, runnable } : null;
     } catch {
       return null;
     }
@@ -188,37 +272,53 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     handlers: {
       list: async (ctx: Ctx) => {
         const settings = ctx.settings.get();
-        const scripts = Object.entries(ctx.project.packageJson?.scripts ?? {}).map(([name, command]) => ({
-          name,
-          command,
-          autoRestart: isAuto(settings, ctx.project, name),
-        }));
-        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null };
-        const packages = [ctx.project, ...ctx.project.workspaces].map((p) => ({
-          relPath: p.relPath,
-          name: p.name,
-          scripts: Object.keys(p.packageJson?.scripts ?? {}),
-          compose: p.dockerCompose !== null,
-        }));
-        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages };
+        const main = mainOf(settings, ctx.project);
+        const scripts = runnables(ctx.project, settings)
+          .map((r) => ({
+            name: r.name,
+            command: r.command,
+            autoRestart: isAuto(settings, ctx.project, r.name),
+            kind: r.kind,
+            envFile: envFileOf(settings, ctx.project, r),
+            main: r.name === main,
+          }))
+          // The main one first.
+          .sort((a, b) => Number(b.main) - Number(a.main));
+        const envFiles = await deps.envFiles.list(ctx.project.path).catch(() => []);
+        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles };
+        const packages = [ctx.project, ...ctx.project.workspaces].map((p) => {
+          const names = runnables(p, settings).map((r) => r.name);
+          const pkgMain = mainOf(settings, p);
+          return {
+            relPath: p.relPath,
+            name: p.name,
+            scripts: names,
+            compose: p.dockerCompose !== null,
+            main: pkgMain !== null && names.includes(pkgMain) ? pkgMain : null,
+          };
+        });
+        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles };
       },
 
       start: async (ctx: Ctx, { script }) => {
-        requireScript(ctx.project, script);
-        return deps.processes.start(await requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
+        const settings = ctx.settings.get();
+        const runnable = requireRunnable(ctx.project, settings, script);
+        return deps.processes.start(await requestFor(settings, ctx.project, runnable));
       },
 
       stop: async (ctx: Ctx, { script }) => deps.processes.stop(ctx.project.id, script),
 
       restart: async (ctx: Ctx, { script }) => {
-        requireScript(ctx.project, script);
-        return deps.processes.restart(await requestFor(ctx.project, script, isAuto(ctx.settings.get(), ctx.project, script)));
+        const settings = ctx.settings.get();
+        const runnable = requireRunnable(ctx.project, settings, script);
+        return deps.processes.restart(await requestFor(settings, ctx.project, runnable));
       },
 
       setAutoRestart: async (ctx: Ctx, { script, enabled }) => {
-        requireScript(ctx.project, script);
+        requireRunnable(ctx.project, ctx.settings.get(), script);
         const { relPath } = ctx.project;
         ctx.settings.update((s) => ({
+          ...s,
           autoRestart: [
             ...s.autoRestart.filter((e) => !(e.relPath === relPath && e.script === script)),
             ...(enabled ? [{ relPath, script }] : []),
@@ -254,6 +354,89 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         throw new NestboxError('NOT_FOUND', 'File not found');
       },
 
+      saveCommand: async (ctx: Ctx, { previousName, name, argv, main }) => {
+        const { relPath, id, rootId } = ctx.project;
+        const settings = ctx.settings.get();
+        const isOld = (c: { relPath: string; name: string }) => c.relPath === relPath && c.name === previousName;
+        if (previousName !== undefined && !settings.commands.some(isOld)) {
+          throw new NestboxError('NOT_FOUND', 'Unknown command');
+        }
+        const others = runnables(ctx.project, { ...settings, commands: settings.commands.filter((c) => !isOld(c)) });
+        if (others.some((r) => r.name === name)) {
+          throw new NestboxError('CONFLICT', 'This package already has a script or command with this name');
+        }
+        if (previousName === undefined && settings.commands.length >= MAX_COMMANDS) {
+          throw new NestboxError('VALIDATION', `A project can have at most ${MAX_COMMANDS} commands`);
+        }
+        const wasRenamed = previousName !== undefined && previousName !== name;
+        if (wasRenamed && isRunning(id, previousName)) {
+          throw new NestboxError('CONFLICT', 'Stop the command before renaming it');
+        }
+        const saved = { relPath, name, argv };
+        ctx.settings.update((s) => {
+          const rename = <T extends RunGroupEntry>(list: T[]): T[] =>
+            wasRenamed && previousName !== undefined ? renamed(list, relPath, previousName, name) : list;
+          let mains = rename(s.main);
+          if (main === true) mains = [...mains.filter((e) => e.relPath !== relPath), { relPath, script: name }];
+          if (main === false) mains = mains.filter((e) => !isEntry(relPath, name)(e));
+          return {
+            ...s,
+            commands: previousName === undefined ? [...s.commands, saved] : s.commands.map((c) => (isOld(c) ? saved : c)),
+            autoRestart: rename(s.autoRestart),
+            envFiles: rename(s.envFiles),
+            main: mains,
+          };
+        });
+        if (wasRenamed) {
+          const groups = deps.runGroups.get(rootId);
+          const renameEntry = (e: RunGroupEntry): RunGroupEntry =>
+            e.relPath === relPath && e.script === previousName ? { relPath, script: name } : e;
+          if (groups.some((g) => g.entries.some((e) => renameEntry(e) !== e))) {
+            deps.runGroups.set(rootId, groups.map((g) => ({ ...g, entries: g.entries.map(renameEntry) })));
+          }
+        }
+      },
+
+      deleteCommand: async (ctx: Ctx, { name }) => {
+        const { relPath, id } = ctx.project;
+        const isIt = (c: CustomCommand) => c.relPath === relPath && c.name === name;
+        if (!ctx.settings.get().commands.some(isIt)) throw new NestboxError('NOT_FOUND', 'Unknown command');
+        if (isRunning(id, name)) throw new NestboxError('CONFLICT', 'Stop the command before deleting it');
+        const other = (e: RunGroupEntry) => !isEntry(relPath, name)(e);
+        ctx.settings.update((s) => ({
+          ...s,
+          commands: s.commands.filter((c) => !isIt(c)),
+          autoRestart: s.autoRestart.filter(other),
+          envFiles: s.envFiles.filter(other),
+          main: s.main.filter(other),
+        }));
+      },
+
+      setEnvFile: async (ctx: Ctx, { script, file }) => {
+        const runnable = requireRunnable(ctx.project, ctx.settings.get(), script);
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({
+          ...s,
+          envFiles: [
+            ...s.envFiles.filter((e) => !isEntry(relPath, script)(e)),
+            // Only a choice that differs from the default is kept.
+            ...(file === defaultEnvFile(runnable) ? [] : [{ relPath, script, file }]),
+          ],
+        }));
+      },
+
+      setMain: async (ctx: Ctx, { script, main }) => {
+        requireRunnable(ctx.project, ctx.settings.get(), script);
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({
+          ...s,
+          main: [
+            ...s.main.filter((e) => (main ? e.relPath !== relPath : !isEntry(relPath, script)(e))),
+            ...(main ? [{ relPath, script }] : []),
+          ],
+        }));
+      },
+
       saveRunGroup: async (ctx: Ctx, { previousName, group }) => {
         requireRoot(ctx.project);
         const groups = deps.runGroups.get(ctx.project.rootId);
@@ -287,14 +470,15 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
         const started: ProcessSummary[] = [];
         const results = await Promise.allSettled(
           group.entries.map(async (entry) => {
-            const project = resolveEntry(ctx.project.rootId, entry);
-            if (!project) {
+            const resolved = resolveEntry(ctx.project.rootId, settings, entry);
+            if (!resolved) {
               skipped.push({ ...entry, reason: 'missing' });
               return;
             }
+            const { project, runnable } = resolved;
             try {
               started.push(
-                await deps.processes.start(await requestFor(project, entry.script, isAuto(settings, project, entry.script))),
+                await deps.processes.start(await requestFor(settings, project, runnable)),
               );
             } catch (error) {
               if (error instanceof NestboxError && error.code === 'CONFLICT') {

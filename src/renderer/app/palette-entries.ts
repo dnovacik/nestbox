@@ -36,6 +36,11 @@ export interface PaletteInput {
   processes: readonly ProcessSummary[];
   /** The selected root project's run groups. */
   runGroups: readonly RunGroup[];
+  /**
+   * What each package of the selected root project can run, from the Scripts tool (package.json scripts,
+   * detected commands the user hasn't removed, custom commands). Commands come only from here.
+   */
+  runnables?: readonly { relPath: string; scripts: readonly string[] }[];
   /** The selected project's tools. */
   tools: readonly ToolSummary[];
   /** Whether the Claude Code tool is on (its entries need it). */
@@ -52,7 +57,15 @@ function packages(projects: readonly ProjectSummary[]): { detected: DetectedProj
   ]);
 }
 
-export function paletteEntries({ projects, selected, processes, runGroups, tools, claudeOn = true }: PaletteInput): PaletteEntry[] {
+export function paletteEntries({
+  projects,
+  selected,
+  processes,
+  runGroups,
+  runnables = [],
+  tools,
+  claudeOn = true,
+}: PaletteInput): PaletteEntry[] {
   const out: PaletteEntry[] = [];
   const all = packages(projects);
   const stateOf = (projectId: string, script: string) => processes.find((p) => p.projectId === projectId && p.script === script)?.state;
@@ -83,7 +96,12 @@ export function paletteEntries({ projects, selected, processes, runGroups, tools
   }
 
   for (const { detected, title } of all) {
-    for (const [script, command] of Object.entries(detected.packageJson?.scripts ?? {})) {
+    // package.json scripts everywhere; commands (detected, custom) in the selected root, where the list is known.
+    const npm = Object.entries(detected.packageJson?.scripts ?? {});
+    const listed =
+      detected.rootId === selected?.summary.id ? runnables.find((r) => r.relPath === detected.relPath)?.scripts ?? [] : [];
+    const commands = listed.filter((name) => !npm.some(([script]) => script === name)).map((name) => [name, 'command'] as const);
+    for (const [script, command] of [...npm, ...commands]) {
       const state = stateOf(detected.id, script);
       const live = state !== undefined && LIVE.has(state);
       out.push({
