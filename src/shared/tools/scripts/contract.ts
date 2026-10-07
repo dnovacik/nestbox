@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { CommandArgvSchema } from '../../command-line';
+import { COMMAND_NAME } from '../../detected';
+import { EnvFileNameSchema } from '../env/contract';
 import { LogLineSchema, LogSnapshotSchema, MAX_EXPORT_SEQS, ProcessSummarySchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
 import { RunGroupEntrySchema, RunGroupSchema } from '../../types';
@@ -6,10 +9,32 @@ import { RunGroupEntrySchema, RunGroupSchema } from '../../types';
 const ScriptName = z.string().min(1).max(200);
 const ScriptInput = z.strictObject({ script: ScriptName });
 const GroupName = z.string().trim().min(1).max(60);
+const CommandName = z.string().regex(COMMAND_NAME, 'Use letters, digits, ":", ".", "_" or "-" (up to 60)');
+
+/** A command the user added to a package: a program and its arguments, run without a shell. */
+export const CustomCommandSchema = z.object({
+  /** '' = the root package; otherwise the workspace package's posix relPath. */
+  relPath: z.string(),
+  name: CommandName,
+  argv: CommandArgvSchema,
+});
+export type CustomCommand = z.infer<typeof CustomCommandSchema>;
 
 const settingsSchema = z.object({
   /** Scripts with auto-restart on, across the root and its workspace packages. */
   autoRestart: z.array(RunGroupEntrySchema).max(500).default([]),
+  /** Custom commands across the root and its workspace packages. */
+  commands: z.array(CustomCommandSchema).max(100).default([]),
+  /**
+   * Which env file a script or command gets, where it differs from the default (.env for custom commands,
+   * none for package.json scripts). null = none.
+   */
+  envFiles: z
+    .array(RunGroupEntrySchema.extend({ file: EnvFileNameSchema.nullable() }))
+    .max(500)
+    .default([]),
+  /** The main script or command of a package, at most one per package. */
+  main: z.array(RunGroupEntrySchema).max(200).default([]),
 });
 export type ScriptsSettings = z.infer<typeof settingsSchema>;
 
@@ -17,11 +42,26 @@ export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
   id: 'scripts',
   name: 'Scripts',
   icon: 'terminal',
-  appliesTo: (p) => Object.keys(p.packageJson?.scripts ?? {}).length > 0 || p.workspaces.length > 0,
+  // Every package: one without scripts can still run custom commands (the tab's empty state offers Add command).
+  appliesTo: (p) => p.packageJson !== null || p.workspaces.length > 0,
   settingsSchema,
 };
 
-export const ScriptInfoSchema = z.object({ name: z.string(), command: z.string(), autoRestart: z.boolean() });
+/** Where a runnable comes from: package.json or the user (ecosystems add 'detected', see the ecosystems plan). */
+export const SCRIPT_KINDS = ['npm', 'custom'] as const;
+export type ScriptKind = (typeof SCRIPT_KINDS)[number];
+
+export const ScriptInfoSchema = z.object({
+  name: z.string(),
+  /** The script's text, or the command line (custom commands). */
+  command: z.string(),
+  autoRestart: z.boolean(),
+  kind: z.enum(SCRIPT_KINDS),
+  /** The env file its process gets, or null. */
+  envFile: z.string().nullable(),
+  /** The package's main script or command. */
+  main: z.boolean(),
+});
 export type ScriptInfo = z.infer<typeof ScriptInfoSchema>;
 
 export const PackageScriptsSchema = z.object({
@@ -30,6 +70,8 @@ export const PackageScriptsSchema = z.object({
   scripts: z.array(z.string()),
   /** Has a compose file, so the run group editor offers its services. */
   compose: z.boolean(),
+  /** The package's main script or command; a new run group starts with it ticked. */
+  main: z.string().nullable(),
 });
 export type PackageScripts = z.infer<typeof PackageScriptsSchema>;
 
@@ -54,6 +96,8 @@ export const scriptsContract = defineContract({
       runGroups: z.array(RunGroupSchema).nullable(),
       /** Root projects only: every package's scripts, for the run group editor. */
       packages: z.array(PackageScriptsSchema).nullable(),
+      /** The package's env files right now, for the Env choice of each row. */
+      envFiles: z.array(z.string()),
     }),
   },
   start: { input: ScriptInput, output: ProcessSummarySchema },
@@ -79,6 +123,27 @@ export const scriptsContract = defineContract({
     input: z.strictObject({ path: z.string().min(1).max(4096), line: z.number().int().positive() }),
     output: z.void(),
   },
+  /**
+   * Adds a custom command, or replaces `previousName` (a rename keeps auto-restart, run groups, the env file
+   * and main). `main: true` also makes it the package's main command.
+   */
+  saveCommand: {
+    input: z.strictObject({
+      previousName: CommandName.optional(),
+      name: CommandName,
+      argv: CommandArgvSchema,
+      main: z.boolean().optional(),
+    }),
+    output: z.void(),
+  },
+  /** The env file a script or command gets; null = none. */
+  setEnvFile: {
+    input: z.strictObject({ script: ScriptName, file: EnvFileNameSchema.nullable() }),
+    output: z.void(),
+  },
+  /** Makes a script or command the package's main one (`main: false` clears it). */
+  setMain: { input: z.strictObject({ script: ScriptName, main: z.boolean() }), output: z.void() },
+  deleteCommand: { input: z.strictObject({ name: CommandName }), output: z.void() },
   saveRunGroup: {
     input: z.strictObject({ previousName: GroupName.optional(), group: RunGroupSchema }),
     output: z.array(RunGroupSchema),

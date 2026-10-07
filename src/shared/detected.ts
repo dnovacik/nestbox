@@ -6,6 +6,9 @@ export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 export const DEPLOY_PLATFORMS = ['vercel', 'netlify', 'cloudflare', 'fly'] as const;
 export type DeployPlatform = (typeof DEPLOY_PLATFORMS)[number];
 
+/** A script or command name as NestBox accepts it (run groups, the tray, log file names). */
+export const COMMAND_NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,59}$/;
+
 export interface GitInfo {
   /** Current branch, or null when HEAD is detached or unreadable. */
   branch: string | null;
