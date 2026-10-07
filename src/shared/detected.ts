@@ -116,3 +116,8 @@ export function findDetected(root: DetectedProject, id: string): DetectedProject
   if (root.id === id) return root;
   return root.workspaces.find((w) => w.id === id) ?? null;
 }
+
+/** A package is a folder with package.json or ecosystem modules. */
+export function isPackage(project: DetectedProject): boolean {
+  return project.packageJson !== null || project.ecosystems.length > 0;
+}

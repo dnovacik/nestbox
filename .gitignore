@@ -16,3 +16,5 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+NestBox-Setup-1.0.0.exe
+cloud_handoff.md
