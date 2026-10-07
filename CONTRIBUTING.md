@@ -40,6 +40,17 @@ Most features are tools: a contract in `src/shared/tools/<id>/`, a main half in 
 
 Larger tools get a short design note in `docs/superpowers/specs/` first, listing the decisions and what is out of scope.
 
+## Adding an ecosystem module
+
+To add support for a new programming language (Python, Go, Rust, etc.):
+
+1. Create `src/main/ecosystems/<language>.ts` with detection and task logic
+2. Add tests in `src/main/ecosystems/<language>.test.ts`
+3. Register in `src/main/ecosystems/index.ts`
+4. Update the `EcosystemId` type in `src/main/ecosystems/types.ts`
+
+See [docs/adding-ecosystems.md](docs/adding-ecosystems.md) for the complete guide with examples and patterns. The `.NET` module (`src/main/ecosystems/dotnet.ts`) is a reference implementation.
+
 ## Reporting bugs
 
 Open an issue with your OS, the NestBox version (the title bar shows it), and the steps. NestBox's own log goes to the console: run the app with `pnpm dev`, or start the installed app from a terminal, to see it. It holds ids and error codes only, never env values or file contents.
