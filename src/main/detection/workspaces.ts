@@ -4,6 +4,7 @@ import { glob } from 'tinyglobby';
 import { parse as parseYaml } from 'yaml';
 import { isRecord } from '@shared/is-record';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
+import { parseSln } from './parse-sln';
 import type { DetectOptions } from './detect-project';
 
 function strings(value: unknown): string[] {
@@ -32,6 +33,48 @@ function packageJsonPatterns(pkg: Record<string, unknown> | null): string[] {
   if (Array.isArray(ws)) return strings(ws);
   if (isRecord(ws)) return strings(ws['packages']);
   return [];
+}
+
+/**
+ * Find .sln files and parse them to get workspace packages.
+ * Each .csproj referenced by the .sln becomes a workspace package.
+ */
+async function slnPatterns(root: string, options: DetectOptions): Promise<string[]> {
+  // Find all .sln files in the root (not nested)
+  const slnFiles = await glob('*.sln', {
+    cwd: root,
+    onlyFiles: true,
+    dot: false,
+  });
+
+  if (slnFiles.length === 0) return [];
+
+  const packages: string[] = [];
+
+  for (const slnFile of slnFiles) {
+    let content: string;
+    try {
+      content = await readFile(join(root, slnFile), 'utf8');
+    } catch {
+      options.onWarning?.(slnFile, 'read-error');
+      continue;
+    }
+
+    const projects = parseSln(content);
+    if (!projects) {
+      options.onWarning?.(slnFile, 'invalid-sln');
+      continue;
+    }
+
+    // Convert .csproj paths to package.json-style paths
+    // "src\WebApi\WebApi.csproj" -> "src/WebApi"
+    for (const project of projects) {
+      const projectDir = posix.dirname(project.path.replace(/\\/g, '/'));
+      packages.push(projectDir);
+    }
+  }
+
+  return packages;
 }
 
 function clean(pattern: string): string {
@@ -112,7 +155,11 @@ export async function findWorkspaceDirs(
   packageJson: Record<string, unknown> | null,
   options: DetectOptions = {},
 ): Promise<string[]> {
-  const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
+  const patterns = [
+    ...(await pnpmPatterns(root, options)),
+    ...packageJsonPatterns(packageJson),
+    ...(await slnPatterns(root, options)),
+  ];
   if (patterns.length === 0) return keepInside(root, await subFolderPackages(root), options);
 
   const include = patterns
