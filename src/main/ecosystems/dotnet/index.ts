@@ -1,93 +1,124 @@
-import { z } from 'zod';
-import type { EcosystemModule } from './types';
+// The .NET ecosystem: solutions and C#/F#/VB projects. Detection reads small files only (detect.ts); a
+// root solution lists its projects as packages (solution.ts); every command runs `dotnet` with its
+// telemetry and banners off, and warns when no installed SDK satisfies global.json (sdk.ts).
+import { readdir, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import type { PlatformAdapter } from '../../platform/adapter';
+import type { EcosystemModule, RunEnv } from '../types';
+import { detectDotnet, type DotnetInfo, DotnetInfoSchema, readSmall } from './detect';
+import { sdkWarning, parseListSdks } from './sdk';
+import { isTestName, parseSolution, SOLUTION_FILE } from './solution';
+import { dotnetTasks } from './tasks';
 
-/**
- * .NET project info: the solution/project file, target framework, and whether it's
- * a web project (has Microsoft.NET.Sdk.Web or known web NuGet packages).
- */
-const DotnetInfoSchema = z.object({
-  /** Path to .sln or .csproj/.fsproj file, relative to project root */
-  projectFile: z.string(),
-  /** Target framework (e.g., "net8.0", "net6.0") or null if not detected */
-  targetFramework: z.string().nullable(),
-  /** Whether this is a web project (ASP.NET Core, etc.) */
-  isWeb: z.boolean(),
-});
-export type DotnetInfo = z.infer<typeof DotnetInfoSchema>;
+export type { DotnetInfo } from './detect';
 
-/**
- * .NET ecosystem module: detects .NET projects via .sln, .csproj, or .fsproj files
- * and provides standard dotnet commands (restore, build, run, test, etc.).
- */
-export const dotnetModule: EcosystemModule<DotnetInfo> = {
-  id: 'dotnet',
-  infoSchema: DotnetInfoSchema,
+const SOLUTION_MAX = 1024 * 1024;
+const SDK_CACHE_MS = 30_000;
+const SDK_TIMEOUT_MS = 3_000;
 
-  /**
-   * Detect .NET projects by looking for solution or project files.
-   * Solution files (.sln) take precedence over project files.
-   */
-  async detect(_dir: string, files: ReadonlySet<string>, _dirs: ReadonlySet<string>): Promise<DotnetInfo | null> {
-    // Look for .sln files first
-    const slnFile = Array.from(files).find(f => f.endsWith('.sln'));
-    if (slnFile) {
-      return {
-        projectFile: slnFile,
-        targetFramework: null, // We can't easily parse without file I/O
-        isWeb: false, // Solutions don't have this metadata
-      };
-    }
-
-    // Look for .csproj or .fsproj files
-    const projectFile = Array.from(files).find(f => f.endsWith('.csproj') || f.endsWith('.fsproj'));
-    if (projectFile) {
-      return {
-        projectFile,
-        targetFramework: null, // Would need file I/O to parse
-        isWeb: false, // Would need file I/O to detect
-      };
-    }
-
-    return null;
-  },
-
-  /**
-   * Glob patterns for finding workspace packages in a .NET solution.
-   * .NET projects can be in subdirectories.
-   */
-  packageGlobs: ['**/*.csproj', '**/*.fsproj', '**/*.sln'],
-
-  /**
-   * Provide standard .NET tasks based on the project type.
-   * All projects get 'restore', 'build', 'test', 'clean', and 'run'.
-   */
-  tasks(info: DotnetInfo) {
-    const tasks = [
-      { name: 'run', argv: ['dotnet', 'run', '--project', info.projectFile], title: 'Run' },
-      { name: 'build', argv: ['dotnet', 'build', info.projectFile], title: 'Build' },
-      { name: 'test', argv: ['dotnet', 'test', info.projectFile], title: 'Test' },
-      { name: 'restore', argv: ['dotnet', 'restore', info.projectFile], title: 'Restore packages' },
-      { name: 'clean', argv: ['dotnet', 'clean', info.projectFile], title: 'Clean' },
-    ];
-
-    return tasks;
-  },
-
-  /**
-   * Provide run environment for .NET tasks.
-   * No special environment needed - dotnet CLI is expected to be in PATH.
-   */
-  async runEnv(_ctx, _info: DotnetInfo) {
-    return {};
-  },
-
-  /**
-   * One-line summary for project-info display.
-   */
-  summary(info: DotnetInfo): string | null {
-    const parts = ['.NET'];
-    if (info.targetFramework) parts.push(info.targetFramework);
-    if (info.isWeb) parts.push('Web');
-    return parts.join(' · ');
-  },
+export const DOTNET_ENV: Record<string, string> = {
+  DOTNET_NOLOGO: '1',
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1',
 };
+
+const PROJECT_GLOBS = ['cs', 'fs', 'vb'].flatMap((x) => [`*/*.${x}proj`, `*/*/*.${x}proj`]);
+
+const isFile = (path: string): Promise<boolean> =>
+  stat(path).then(
+    (s) => s.isFile(),
+    () => false,
+  );
+
+/** The projects of the root's solutions (.sln, .slnx), minus test projects. */
+async function solutionProjects(root: string): Promise<string[]> {
+  const names = await readdir(root).catch(() => [] as string[]);
+  const dirs: string[] = [];
+  for (const name of names.filter((n) => SOLUTION_FILE.test(n)).sort()) {
+    const text = await readSmall(join(root, name), SOLUTION_MAX);
+    if (text === null) continue;
+    for (const path of parseSolution(name, text)) {
+      const parts = path.split('/');
+      const file = parts.pop() ?? '';
+      if (parts.length === 0) continue; // a project next to the solution is the root itself
+      if ([...parts, file.replace(/\.\w+proj$/i, '')].some(isTestName)) continue;
+      dirs.push(parts.join('/'));
+    }
+  }
+  return dirs;
+}
+
+export interface DotnetModuleDeps {
+  now(): number;
+  /** The user's home folder, for an SDK installed by dotnet-install into ~/.dotnet. */
+  home: string;
+}
+
+export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, home: homedir() }) {
+  let sdkCache: { command: string; at: number; versions: string[] | null } | null = null;
+
+  /** `dotnet`, or the ~/.dotnet copy when dotnet isn't on PATH; null when neither is found. */
+  async function locate(platform: PlatformAdapter): Promise<{ command: string; dir: string | null } | null> {
+    if ((await platform.commandExists('dotnet')) !== false) return { command: 'dotnet', dir: null };
+    const dir = join(deps.home, '.dotnet');
+    for (const exe of ['dotnet', 'dotnet.exe']) {
+      if (await isFile(join(dir, exe))) return { command: join(dir, exe), dir };
+    }
+    return null;
+  }
+
+  /** Installed SDK versions (30 s cache); null when `dotnet --list-sdks` fails. */
+  async function installedSdks(platform: PlatformAdapter, command: string, cwd: string): Promise<string[] | null> {
+    const now = deps.now();
+    if (sdkCache && sdkCache.command === command && now - sdkCache.at < SDK_CACHE_MS) return sdkCache.versions;
+    const result = await platform
+      .execCommand(command, ['--list-sdks'], { cwd, timeoutMs: SDK_TIMEOUT_MS, env: DOTNET_ENV })
+      .catch(() => null);
+    const versions = result && result.code === 0 ? parseListSdks(result.stdout) : null;
+    sdkCache = { command, at: now, versions };
+    return versions;
+  }
+
+  const module: EcosystemModule<DotnetInfo> = {
+    id: 'dotnet',
+    infoSchema: DotnetInfoSchema,
+
+    detect: (dir, files) => detectDotnet(dir, files),
+
+    packageGlobs: PROJECT_GLOBS,
+
+    skipDir: (name) => name === 'bin' || name === 'obj' || isTestName(name),
+
+    workspaceDirs: solutionProjects,
+
+    tasks: dotnetTasks,
+
+    async runEnv(ctx, info): Promise<RunEnv> {
+      const found = await locate(ctx.platform);
+      if (found === null) return { env: DOTNET_ENV, warning: "dotnet isn't on PATH: install the .NET SDK" };
+      const versions = info.sdk === null ? null : await installedSdks(ctx.platform, found.command, ctx.dir);
+      const warning = versions === null ? null : sdkWarning(info.sdk, versions);
+      return {
+        env: DOTNET_ENV,
+        ...(found.dir === null ? {} : { pathPrepend: found.dir, note: `Using the .NET SDK in ${found.dir}` }),
+        ...(warning === null ? {} : { warning }),
+      };
+    },
+
+    ports: (info) => info.launchProfiles.flatMap((p) => p.ports).filter((p, i, all) => all.indexOf(p) === i),
+
+    summary(info) {
+      const parts = ['.NET'];
+      if (info.targetFrameworks.length > 0) parts.push(info.targetFrameworks.join(', '));
+      if (info.isWeb) parts.push('web');
+      if (info.isTest) parts.push('tests');
+      if (info.solution !== null && info.project === null) parts.push('solution');
+      if (info.sdk !== null) parts.push(`SDK ${info.sdk.version}`);
+      return parts.join(' · ');
+    },
+  };
+  return module;
+}
+
+export const dotnetModule = createDotnetModule();

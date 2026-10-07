@@ -14,7 +14,7 @@ import {
   type SkippedEntry,
 } from '@shared/tools/scripts/contract';
 import type { RunGroup, RunGroupCompose, RunGroupEntry } from '@shared/types';
-import { ECOSYSTEM_MODULES } from '../../ecosystems';
+import { ECOSYSTEM_MODULES, type RunEnv } from '../../ecosystems';
 import type { Logger } from '../../logger';
 import type { ProcessManager, StartRequest } from '../../processes/process-manager';
 import type { SharedContext } from '../shared-context';
@@ -225,34 +225,47 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       return { ...base, ...(await adviceFor(project.id)) };
     }
 
-    // Custom or detected commands: use argv directly
+    // Custom or detected commands: argv as is, in the environment of the ecosystem that offers the task
+    // (detected) or of the package's first ecosystem (custom).
     const withArgv: StartRequest = { ...base, argv: runnable.argv };
-
-    // Detected commands: apply ecosystem's runEnv
-    if (runnable.kind === 'detected') {
-      // Find which ecosystem module provides this task
-      for (const entry of project.ecosystems) {
-        const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
-        if (!module) continue;
-        const tasks = module.tasks(entry.info);
-        const task = tasks.find((t) => t.name === runnable.name);
-        if (task) {
-          const runEnv = await module.runEnv(
-            { dir: project.path, platform: deps.platform, settings: {} },
-            entry.info,
-          );
-          return {
-            ...withArgv,
-            ...(runEnv.pathPrepend ? { pathPrepend: runEnv.pathPrepend } : {}),
-            ...(runEnv.env ? { env: runEnv.env } : {}),
-            ...(runEnv.note ? { note: runEnv.note } : {}),
-          };
-        }
-      }
-    }
-
-    return withArgv;
+    const entry =
+      runnable.kind === 'detected'
+        ? project.ecosystems.find((e) => e.id === runnable.ecosystemId)
+        : project.ecosystems[0];
+    const module = ECOSYSTEM_MODULES.find((m) => m.id === entry?.id);
+    if (!entry || !module) return withArgv;
+    const runEnv = await runEnvFor(module, project, entry.info);
+    return {
+      ...withArgv,
+      ...(runEnv.pathPrepend ? { pathPrepend: runEnv.pathPrepend } : {}),
+      ...(runEnv.env ? { env: runEnv.env } : {}),
+      ...(runEnv.note ? { note: runEnv.note } : {}),
+      ...(runEnv.warning ? { warning: runEnv.warning } : {}),
+    };
   };
+
+  /** A module's run environment, or none when it fails or is slow (like the Node tool's advice). */
+  async function runEnvFor(
+    module: (typeof ECOSYSTEM_MODULES)[number],
+    project: DetectedProject,
+    info: unknown,
+  ): Promise<RunEnv> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<RunEnv>((resolve) => {
+      timer = setTimeout(() => resolve({}), ADVICE_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([
+        module.runEnv({ dir: project.path, platform: deps.platform, settings: {} }, info),
+        timeout,
+      ]);
+    } catch {
+      deps.logger.warn('ecosystem run env failed', { projectId: project.id, ecosystem: module.id });
+      return {};
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   function requireRoot(project: DetectedProject): void {
     if (project.relPath !== '') throw new NestboxError('VALIDATION', 'Run groups belong to the root project');

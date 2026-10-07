@@ -1,147 +1,120 @@
-import { describe, expect, it } from 'vitest';
-import type { PlatformAdapter } from '../platform/adapter';
-import { dotnetModule } from './dotnet';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { makeTree, removeTree } from '../../detection/test-fixtures';
+import type { PlatformAdapter } from '../../platform/adapter';
+import { createDotnetModule, DOTNET_ENV, type DotnetInfo } from './index';
 
-describe('dotnetModule', () => {
-  describe('detect', () => {
-    it('detects .sln files', async () => {
-      const files = new Set(['MySolution.sln', 'README.md']);
-      const dirs = new Set(['src']);
+let dir = '';
+afterEach(async () => removeTree(dir));
 
-      const result = await dotnetModule.detect('/test/dir', files, dirs);
+const info = (over: Partial<DotnetInfo> = {}): DotnetInfo => ({
+  solution: null,
+  project: 'Api.csproj',
+  targetFrameworks: ['net8.0'],
+  isWeb: true,
+  isTest: false,
+  sdk: null,
+  launchProfiles: [],
+  ...over,
+});
 
-      expect(result).toEqual({
-        projectFile: 'MySolution.sln',
-        targetFramework: null,
-        isWeb: false,
-      });
-    });
+function platform(opts: { onPath?: boolean | null; sdks?: string; code?: number } = {}) {
+  const execCommand = vi.fn(async () => ({ code: opts.code ?? 0, stdout: opts.sdks ?? '8.0.414 [C:\\dotnet\\sdk]\r\n' }));
+  const commandExists = vi.fn(async () => opts.onPath ?? true);
+  return { platform: { execCommand, commandExists } as unknown as PlatformAdapter, execCommand, commandExists };
+}
 
-    it('detects .csproj files', async () => {
-      const files = new Set(['MyApp.csproj', 'Program.cs']);
-      const dirs = new Set(['src']);
+describe('dotnet tasks', () => {
+  const module = createDotnetModule();
 
-      const result = await dotnetModule.detect('/test/dir', files, dirs);
-
-      expect(result).toEqual({
-        projectFile: 'MyApp.csproj',
-        targetFramework: null,
-        isWeb: false,
-      });
-    });
-
-    it('detects .fsproj files', async () => {
-      const files = new Set(['MyApp.fsproj', 'Program.fs']);
-      const dirs = new Set(['src']);
-
-      const result = await dotnetModule.detect('/test/dir', files, dirs);
-
-      expect(result).toEqual({
-        projectFile: 'MyApp.fsproj',
-        targetFramework: null,
-        isWeb: false,
-      });
-    });
-
-    it('prefers .sln over .csproj', async () => {
-      const files = new Set(['MySolution.sln', 'MyApp.csproj', 'README.md']);
-      const dirs = new Set(['src']);
-
-      const result = await dotnetModule.detect('/test/dir', files, dirs);
-
-      expect(result?.projectFile).toBe('MySolution.sln');
-    });
-
-    it('returns null when no .NET files exist', async () => {
-      const files = new Set(['package.json', 'README.md']);
-      const dirs = new Set(['src']);
-
-      const result = await dotnetModule.detect('/test/dir', files, dirs);
-
-      expect(result).toBeNull();
-    });
+  it('runs, watches, builds, restores and cleans a project, plus one run per launch profile', () => {
+    const tasks = module.tasks(info({ launchProfiles: [{ name: 'http', ports: [5283] }, { name: 'IIS Profile 2', ports: [] }] }));
+    expect(tasks.map((t) => [t.name, t.argv.join(' ')])).toEqual([
+      ['run', 'dotnet run --project Api.csproj'],
+      ['watch', 'dotnet watch --project Api.csproj'],
+      ['run:http', 'dotnet run --project Api.csproj --launch-profile http'],
+      ['run:IIS-Profile-2', 'dotnet run --project Api.csproj --launch-profile IIS Profile 2'],
+      ['build', 'dotnet build Api.csproj'],
+      ['restore', 'dotnet restore Api.csproj'],
+      ['clean', 'dotnet clean Api.csproj'],
+    ]);
   });
 
-  describe('tasks', () => {
-    it('returns standard .NET tasks', () => {
-      const info = {
-        projectFile: 'MyApp.csproj',
-        targetFramework: 'net8.0',
-        isWeb: false,
-      };
-
-      const tasks = dotnetModule.tasks(info);
-
-      expect(tasks).toEqual([
-        { name: 'run', argv: ['dotnet', 'run', '--project', 'MyApp.csproj'], title: 'Run' },
-        { name: 'build', argv: ['dotnet', 'build', 'MyApp.csproj'], title: 'Build' },
-        { name: 'test', argv: ['dotnet', 'test', 'MyApp.csproj'], title: 'Test' },
-        { name: 'restore', argv: ['dotnet', 'restore', 'MyApp.csproj'], title: 'Restore packages' },
-        { name: 'clean', argv: ['dotnet', 'clean', 'MyApp.csproj'], title: 'Clean' },
-      ]);
-    });
+  it('tests a test project instead of running it', () => {
+    const names = module.tasks(info({ project: 'Api.Tests.csproj', isTest: true, isWeb: false })).map((t) => t.name);
+    expect(names).toEqual(['build', 'test', 'restore', 'clean']);
   });
 
-  describe('runEnv', () => {
-    it('returns empty environment', async () => {
-      const info = {
-        projectFile: 'MyApp.csproj',
-        targetFramework: 'net8.0',
-        isWeb: false,
-      };
-      const ctx = {
-        dir: '/test/dir',
-        platform: {} as PlatformAdapter,
-        settings: {},
-      };
-
-      const env = await dotnetModule.runEnv(ctx, info);
-
-      expect(env).toEqual({});
-    });
+  it('builds and tests the solution of a solution-only folder', () => {
+    const tasks = module.tasks(info({ solution: 'Shop.slnx', project: null }));
+    expect(tasks.map((t) => t.argv.join(' '))).toEqual([
+      'dotnet build Shop.slnx',
+      'dotnet test Shop.slnx',
+      'dotnet restore Shop.slnx',
+      'dotnet clean Shop.slnx',
+    ]);
   });
 
-  describe('summary', () => {
-    it('returns .NET for basic projects', () => {
-      const info = {
-        projectFile: 'MyApp.csproj',
-        targetFramework: null,
-        isWeb: false,
-      };
+  it('runs the project but builds the solution when a folder has both', () => {
+    const tasks = module.tasks(info({ solution: 'Shop.sln' }));
+    expect(tasks.find((t) => t.name === 'run')?.argv).toEqual(['dotnet', 'run', '--project', 'Api.csproj']);
+    expect(tasks.find((t) => t.name === 'build')?.argv).toEqual(['dotnet', 'build', 'Shop.sln']);
+  });
+});
 
-      const summary = dotnetModule.summary?.(info);
-
-      expect(summary).toBe('.NET');
-    });
-
-    it('includes target framework when available', () => {
-      const info = {
-        projectFile: 'MyApp.csproj',
-        targetFramework: 'net8.0',
-        isWeb: false,
-      };
-
-      const summary = dotnetModule.summary?.(info);
-
-      expect(summary).toBe('.NET · net8.0');
-    });
-
-    it('includes Web indicator for web projects', () => {
-      const info = {
-        projectFile: 'MyApp.csproj',
-        targetFramework: 'net8.0',
-        isWeb: true,
-      };
-
-      const summary = dotnetModule.summary?.(info);
-
-      expect(summary).toBe('.NET · net8.0 · Web');
-    });
+describe('dotnet runEnv', () => {
+  it('turns off telemetry and banners', async () => {
+    const { platform: p, execCommand } = platform();
+    expect(await createDotnetModule().runEnv({ dir: '/x', platform: p, settings: {} }, info())).toEqual({ env: DOTNET_ENV });
+    expect(execCommand).not.toHaveBeenCalled();
   });
 
-  describe('packageGlobs', () => {
-    it('includes .NET project file patterns', () => {
-      expect(dotnetModule.packageGlobs).toEqual(['**/*.csproj', '**/*.fsproj', '**/*.sln']);
-    });
+  it('warns when no installed SDK satisfies global.json, and caches the SDK list for 30 s', async () => {
+    let now = 1_000;
+    const module = createDotnetModule({ now: () => now, home: '/home/u' });
+    const { platform: p, execCommand } = platform({ sdks: '8.0.414 [C:\\dotnet\\sdk]\r\n10.0.401 [C:\\dotnet\\sdk]\r\n' });
+    const pinned = info({ sdk: { version: '9.0.100', rollForward: 'latestFeature' } });
+    const env = await module.runEnv({ dir: '/x', platform: p, settings: {} }, pinned);
+    expect(env.warning).toBe('global.json asks for .NET SDK 9.0.100 (rollForward latestFeature); installed: 8.0.414, 10.0.401');
+    expect(execCommand).toHaveBeenCalledWith('dotnet', ['--list-sdks'], expect.objectContaining({ cwd: '/x', env: DOTNET_ENV }));
+    now += 29_000;
+    await module.runEnv({ dir: '/x', platform: p, settings: {} }, pinned);
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    now += 2_000;
+    await module.runEnv({ dir: '/x', platform: p, settings: {} }, pinned);
+    expect(execCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('says nothing about the SDK when --list-sdks fails', async () => {
+    const { platform: p } = platform({ code: 1 });
+    const env = await createDotnetModule().runEnv({ dir: '/x', platform: p, settings: {} }, info({ sdk: { version: '9.0.100', rollForward: 'disable' } }));
+    expect(env.warning).toBeUndefined();
+  });
+
+  it('uses ~/.dotnet when dotnet is not on PATH', async () => {
+    dir = await makeTree({ '.dotnet/dotnet': '' });
+    const { platform: p } = platform({ onPath: false });
+    const env = await createDotnetModule({ now: Date.now, home: dir }).runEnv({ dir: '/x', platform: p, settings: {} }, info());
+    expect(env).toEqual({ env: DOTNET_ENV, pathPrepend: join(dir, '.dotnet'), note: `Using the .NET SDK in ${join(dir, '.dotnet')}` });
+  });
+
+  it('warns when dotnet is nowhere', async () => {
+    dir = await makeTree({ 'x.txt': '' });
+    const { platform: p } = platform({ onPath: false });
+    const env = await createDotnetModule({ now: Date.now, home: dir }).runEnv({ dir: '/x', platform: p, settings: {} }, info());
+    expect(env.warning).toBe("dotnet isn't on PATH: install the .NET SDK");
+  });
+});
+
+describe('dotnet ports and summary', () => {
+  const module = createDotnetModule();
+
+  it('lists the launch profiles http ports once', () => {
+    expect(module.ports?.(info({ launchProfiles: [{ name: 'http', ports: [5283] }, { name: 'https', ports: [5283, 5000] }] }))).toEqual([5283, 5000]);
+  });
+
+  it('summarises frameworks, kind and SDK', () => {
+    expect(module.summary?.(info({ sdk: { version: '8.0.100', rollForward: 'latestPatch' } }))).toBe('.NET · net8.0 · web · SDK 8.0.100');
+    expect(module.summary?.(info({ solution: 'Shop.sln', project: null, targetFrameworks: [], isWeb: false }))).toBe('.NET · solution');
   });
 });
