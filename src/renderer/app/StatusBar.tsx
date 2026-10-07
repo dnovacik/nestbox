@@ -1,5 +1,5 @@
 import { Cpu, MemoryStick, TriangleAlert } from 'lucide-react';
-import { useProcesses, useSettings, useSystemStats } from '@/lib/queries';
+import { useProcesses, useProcessStats, useSettings, useSystemStats } from '@/lib/queries';
 
 function formatBytes(bytes: number): string {
   const gb = bytes / (1024 ** 3);
@@ -12,6 +12,7 @@ export function StatusBar({ projectCount }: { projectCount: number }) {
   const { data: processes = [] } = useProcesses();
   const { data: settings } = useSettings();
   const { data: stats } = useSystemStats();
+  const { data: processStats } = useProcessStats();
   const running = processes.filter((p) => p.state === 'starting' || p.state === 'running').length;
 
   return (
@@ -23,15 +24,28 @@ export function StatusBar({ projectCount }: { projectCount: number }) {
         {running > 0 && <span>{running} running</span>}
       </div>
       <div className="flex items-center gap-4">
+        {processStats && running > 0 && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <Cpu className="size-3" aria-hidden />
+              <span>{processStats.cpuPercent.toFixed(1)}%</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <MemoryStick className="size-3" aria-hidden />
+              <span>{formatBytes(processStats.memoryUsed)}</span>
+            </span>
+            <div className="h-4 w-px bg-line" aria-hidden />
+          </>
+        )}
         {stats && (
           <>
             <span className="flex items-center gap-1.5">
               <Cpu className="size-3" aria-hidden />
-              <span>CPU: {stats.cpuPercent.toFixed(1)}%</span>
+              <span>{stats.cpuPercent.toFixed(1)}%</span>
             </span>
             <span className="flex items-center gap-1.5">
               <MemoryStick className="size-3" aria-hidden />
-              <span>RAM: {formatBytes(stats.memoryUsed)} / {formatBytes(stats.memoryTotal)}</span>
+              <span>{formatBytes(stats.memoryUsed)} / {formatBytes(stats.memoryTotal)}</span>
             </span>
           </>
         )}

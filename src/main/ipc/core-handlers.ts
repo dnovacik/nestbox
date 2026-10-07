@@ -1,7 +1,7 @@
 import { splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
-import type { SystemStats } from '@shared/system-stats';
+import type { ProcessStats, SystemStats } from '@shared/system-stats';
 import type { AppInfo, AppSettings } from '@shared/types';
 import type { PlatformAdapter } from '../platform/adapter';
 import type { PortService } from '../ports/port-service';
@@ -44,6 +44,7 @@ export interface CoreHandlerDeps {
   ports: Pick<PortService, 'list' | 'kill' | 'waitUntilFree'>;
   deps: { overview(): Promise<DepsOverview>; checkAll(): void };
   getSystemStats(): Promise<SystemStats>;
+  getProcessStats(pids: readonly number[]): Promise<ProcessStats>;
   /** Called after a successful settings:update (tray theme and friends react here). */
   onSettingsChanged(settings: AppSettings): void;
 }
@@ -121,6 +122,14 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
       deps.deps.checkAll();
     },
     'system:getStats': () => deps.getSystemStats(),
+    'system:getProcessStats': async () => {
+      const processes = await deps.processes.list();
+      const runningPids = processes
+        .filter(p => p.state === 'starting' || p.state === 'running')
+        .map(p => p.pid)
+        .filter((pid): pid is number => pid !== null);
+      return deps.getProcessStats(runningPids);
+    },
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {
       const editor = patch.editorCommand;

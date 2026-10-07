@@ -4,7 +4,7 @@ import type { InvokeChannel } from './ipc-names';
 import { PortKillInputSchema, PortKillResultSchema, PortListSchema, PortWaitInputSchema } from './ports';
 import { ProcessSummarySchema } from './processes';
 import { SettingsPatchSchema, SettingsViewSchema } from './settings';
-import { SystemStatsSchema } from './system-stats';
+import { ProcessStatsSchema, SystemStatsSchema } from './system-stats';
 import { ToolSummarySchema } from './tool';
 import { DepsOverviewSchema } from './tools/deps/contract';
 import { AppInfoSchema, ProjectGroupSchema, ProjectNameSchema } from './types';
@@ -82,6 +82,8 @@ export const channels = {
   'deps:checkAll': { input: NoInput, output: z.void() },
   /** Current system resource usage (CPU, memory). */
   'system:getStats': { input: NoInput, output: SystemStatsSchema },
+  /** Resource usage for Nestbox-managed processes. */
+  'system:getProcessStats': { input: NoInput, output: ProcessStatsSchema },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;
 
 type Spec<C extends InvokeChannel> = (typeof channels)[C];

@@ -70,6 +70,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       checkAll: vi.fn(),
     },
     getSystemStats: vi.fn(async () => ({ cpuPercent: 10, memoryUsed: 1024 * 1024 * 1024, memoryTotal: 8 * 1024 * 1024 * 1024 })),
+    getProcessStats: vi.fn(async () => ({ cpuPercent: 5, memoryUsed: 512 * 1024 * 1024 })),
     ...over,
   };
 }

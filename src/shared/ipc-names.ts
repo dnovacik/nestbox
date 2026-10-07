@@ -32,6 +32,7 @@ export const INVOKE_CHANNELS = [
   'deps:overview',
   'deps:checkAll',
   'system:getStats',
+  'system:getProcessStats',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 

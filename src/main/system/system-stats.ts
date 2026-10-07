@@ -1,5 +1,9 @@
+import { exec } from 'node:child_process';
 import * as os from 'node:os';
-import type { SystemStats } from '@shared/system-stats';
+import { promisify } from 'node:util';
+import type { ProcessStats, SystemStats } from '@shared/system-stats';
+
+const execAsync = promisify(exec);
 
 /**
  * Get current system resource usage statistics.
@@ -17,6 +21,104 @@ export async function getSystemStats(): Promise<SystemStats> {
     cpuPercent: Math.round(cpuPercent * 10) / 10, // Round to 1 decimal
     memoryUsed: usedMemory,
     memoryTotal: totalMemory,
+  };
+}
+
+/**
+ * Get resource usage for specific PIDs (Nestbox-managed processes).
+ */
+export async function getProcessStats(pids: readonly number[]): Promise<ProcessStats> {
+  if (pids.length === 0) {
+    return { cpuPercent: 0, memoryUsed: 0 };
+  }
+
+  const platform = os.platform();
+
+  try {
+    if (platform === 'win32') {
+      return await getProcessStatsWindows(pids);
+    } else if (platform === 'darwin' || platform === 'linux') {
+      return await getProcessStatsUnix(pids);
+    }
+  } catch (error) {
+    // Silently fail and return zeros if we can't get process stats
+    console.error('Failed to get process stats:', error);
+  }
+
+  return { cpuPercent: 0, memoryUsed: 0 };
+}
+
+/**
+ * Get process stats on Windows using WMIC.
+ */
+async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessStats> {
+  const pidList = pids.join(',');
+  // Get WorkingSetSize (memory in bytes) and PercentProcessorTime
+  const { stdout } = await execAsync(
+    `wmic process where "ProcessId in (${pidList})" get ProcessId,WorkingSetSize,PercentProcessorTime /format:csv`,
+    { timeout: 5000 }
+  );
+
+  let totalMemory = 0;
+  let totalCpu = 0;
+
+  const lines = stdout.trim().split('\n').slice(1); // Skip header
+  for (const line of lines) {
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length >= 4) {
+      const memoryStr = parts[3];
+      const cpuStr = parts[2];
+      if (memoryStr) {
+        const memory = parseInt(memoryStr, 10);
+        if (!isNaN(memory)) totalMemory += memory;
+      }
+      if (cpuStr) {
+        const cpu = parseFloat(cpuStr);
+        if (!isNaN(cpu)) totalCpu += cpu;
+      }
+    }
+  }
+
+  return {
+    cpuPercent: Math.round(totalCpu * 10) / 10,
+    memoryUsed: totalMemory,
+  };
+}
+
+/**
+ * Get process stats on Unix (macOS/Linux) using ps.
+ */
+async function getProcessStatsUnix(pids: readonly number[]): Promise<ProcessStats> {
+  const pidList = pids.join(',');
+  // Get %CPU and RSS (memory in KB)
+  const { stdout } = await execAsync(
+    `ps -p ${pidList} -o %cpu=,rss= 2>/dev/null || true`,
+    { timeout: 5000 }
+  );
+
+  let totalMemory = 0;
+  let totalCpu = 0;
+
+  const lines = stdout.trim().split('\n');
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const cpuStr = parts[0];
+      const memKbStr = parts[1];
+      if (cpuStr) {
+        const cpu = parseFloat(cpuStr);
+        if (!isNaN(cpu)) totalCpu += cpu;
+      }
+      if (memKbStr) {
+        const memoryKb = parseInt(memKbStr, 10);
+        if (!isNaN(memoryKb)) totalMemory += memoryKb * 1024; // Convert KB to bytes
+      }
+    }
+  }
+
+  return {
+    cpuPercent: Math.round(totalCpu * 10) / 10,
+    memoryUsed: totalMemory,
   };
 }
 

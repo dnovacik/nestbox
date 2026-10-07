@@ -58,6 +58,7 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
     },
     system: {
       getStats: () => call('system:getStats'),
+      getProcessStats: () => call('system:getProcessStats'),
     },
     settings: {
       get: () => call('settings:get'),
