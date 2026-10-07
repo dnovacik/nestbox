@@ -4,7 +4,7 @@ import type { EcosystemId } from '@shared/detected';
 // Import devicon SVGs as React components (renderer side only)
 import DotNetSvg from 'devicon/icons/dot-net/dot-net-plain.svg?react';
 import PythonSvg from 'devicon/icons/python/python-plain.svg?react';
-import NodeJsSvg from 'devicon/icons/nodejs/nodejs-plain.svg?react';
+import NodeJsSvg from 'devicon/icons/nodejs/nodejs-plain-wordmark.svg?react';
 
 /**
  * Get the icon component for an ecosystem.

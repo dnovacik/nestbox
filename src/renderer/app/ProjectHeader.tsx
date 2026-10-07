@@ -20,6 +20,7 @@ import {
   useSetPinned,
 } from '@/lib/queries';
 import { useGitStatus } from '@/tools/git/use-git';
+import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import type { ProjectNode } from './find-project';
 import { RemoveProjectDialog } from './RemoveProjectDialog';
 import { RenameInput } from './RenameInput';
@@ -91,6 +92,11 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
                 {detected.packageManager}
               </span>
             )}
+            {detected.ecosystems.map((ecosystem) => (
+              <span key={ecosystem.id} className="flex items-center gap-1" title={`${ecosystem.id} ecosystem`}>
+                <EcosystemIconBadge id={ecosystem.id} className="size-6 shrink-0" />
+              </span>
+            ))}
             {ref && (
               <span className="flex items-center gap-1 text-brand">
                 <GitBranch aria-hidden className="size-3.5" />

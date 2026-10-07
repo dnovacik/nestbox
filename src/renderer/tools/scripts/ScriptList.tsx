@@ -111,7 +111,7 @@ function ScriptRow({
         >
           {info.name}
         </button>
-        {info.kind === 'detected' && info.ecosystemId && (
+        {info.ecosystemId && (
           <EcosystemIconBadge id={info.ecosystemId as EcosystemId} className="size-3.5 flex-shrink-0" />
         )}
         {chip && (
