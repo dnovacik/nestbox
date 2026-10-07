@@ -4,6 +4,7 @@ import { aggregateState, belongsTo, type AggregateState } from '@shared/processe
 import type { DetectedProject, ProjectSummary } from '@shared/detected';
 import type { ProjectGroup } from '@shared/types';
 import { StateDot } from '@/components/StateDot';
+import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -617,6 +618,9 @@ function ProjectRow({
       )}
     >
       <StateDot state={state} />
+      {detected.ecosystems[0] && (
+        <EcosystemIconBadge id={detected.ecosystems[0].id} className="size-5 flex-shrink-0" />
+      )}
       <span className="truncate">{label}</span>
       {detected.missing && <span className="ml-auto text-[10px] text-err">missing</span>}
     </button>

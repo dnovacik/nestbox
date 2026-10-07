@@ -63,6 +63,8 @@ export const ScriptInfoSchema = z.object({
   envFile: z.string().nullable(),
   /** The package's main script or command. */
   main: z.boolean(),
+  /** The ecosystem ID for detected tasks. */
+  ecosystemId: z.string().optional(),
 });
 export type ScriptInfo = z.infer<typeof ScriptInfoSchema>;
 

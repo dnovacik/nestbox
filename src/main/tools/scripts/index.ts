@@ -71,6 +71,8 @@ interface Runnable {
   command: string;
   /** null for a package.json script (`<pm> run <name>`). */
   argv: string[] | null;
+  /** The ecosystem ID for detected tasks. */
+  ecosystemId?: string;
 }
 
 const isEntry =
@@ -83,11 +85,16 @@ const isEntry =
  * then custom commands. Names are unique: on a clash package.json wins, then detected, then custom.
  */
 function runnables(project: DetectedProject, settings: ScriptsSettings): Runnable[] {
+  // The package's ecosystem, shown on every row of it (npm scripts included), so the
+  // Scripts list says what kind of package these belong to.
+  const primaryEcosystem = project.ecosystems[0]?.id;
+
   const npm: Runnable[] = Object.entries(project.packageJson?.scripts ?? {}).map(([name, command]) => ({
     name,
     kind: 'npm',
     command,
     argv: null,
+    ...(primaryEcosystem === undefined ? {} : { ecosystemId: primaryEcosystem }),
   }));
 
   const asRunnable =
@@ -106,11 +113,15 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
     const tasks = module.tasks(entry.info);
     for (const task of tasks) {
       if (hiddenForPackage.includes(task.name)) continue;
-      detected.push(asRunnable('detected')(task));
+      detected.push({ ...asRunnable('detected')(task), ecosystemId: entry.id });
     }
   }
 
-  const custom = settings.commands.filter((c) => c.relPath === project.relPath).map(asRunnable('custom')).filter(unique);
+  const custom = settings.commands
+    .filter((c) => c.relPath === project.relPath)
+    .map(asRunnable('custom'))
+    .map((r) => (primaryEcosystem === undefined ? r : { ...r, ecosystemId: primaryEcosystem }))
+    .filter(unique);
   return [...npm, ...detected.filter(unique), ...custom];
 }
 
@@ -332,6 +343,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             kind: r.kind,
             envFile: envFileOf(settings, ctx.project, r),
             main: r.name === main,
+            ecosystemId: r.ecosystemId,
           }))
           // The main one first.
           .sort((a, b) => Number(b.main) - Number(a.main));

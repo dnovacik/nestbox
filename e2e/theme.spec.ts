@@ -1,6 +1,8 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { copyFixture, launch } from './helpers';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 let app: ElectronApplication;
 let page: Page;
 
@@ -15,7 +17,7 @@ test.afterEach(async () => {
 const background = () =>
   page
     .locator('body')
-    .evaluate((body) => body.ownerDocument.defaultView?.getComputedStyle(body).backgroundColor);
+    .evaluate((body) => (body as any).ownerDocument.defaultView?.getComputedStyle(body).backgroundColor);
 
 async function pickTheme(name: 'Light' | 'Dark' | 'System') {
   await page.getByRole('button', { name: 'Settings' }).click();

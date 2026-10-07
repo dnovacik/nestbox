@@ -1,6 +1,7 @@
 import { Pencil, Play, Plus, RotateCw, Square, Star, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isLive, type ProcessSummary } from '@shared/processes';
+import type { EcosystemId } from '@shared/detected';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +18,7 @@ import { useProcesses } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/state/ui-store';
 import type { ScriptInfo, ScriptKind } from '@shared/tools/scripts/contract';
+import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import { CommandDialog } from './CommandDialog';
 import {
   useCommandActions,
@@ -38,6 +40,7 @@ const BADGES: Partial<Record<ProcessSummary['state'], string>> = {
 /** Where a row comes from, when it isn't package.json. */
 const KIND_CHIPS: Partial<Record<ScriptKind, { label: string; title: string }>> = {
   custom: { label: 'custom', title: 'Added by you' },
+  detected: { label: 'detected', title: 'Detected by ecosystem module' },
 };
 
 function crashText(p: ProcessSummary): string | null {
@@ -108,6 +111,9 @@ function ScriptRow({
         >
           {info.name}
         </button>
+        {info.ecosystemId && (
+          <EcosystemIconBadge id={info.ecosystemId as EcosystemId} className="size-3.5 flex-shrink-0" />
+        )}
         {chip && (
           <span title={chip.title} className="rounded border border-line px-1.5 py-px text-[10px] text-fg-muted">
             {chip.label}
