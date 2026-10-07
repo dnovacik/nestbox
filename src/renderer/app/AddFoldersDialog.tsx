@@ -32,7 +32,7 @@ export function AddFoldersDialog() {
     addFolders.mutate({ path: pending.path, group: asGroup ? name.slice(0, 100) : null });
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && setPending(null)}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add under a group?</DialogTitle>
           <DialogDescription>
@@ -40,15 +40,15 @@ export function AddFoldersDialog() {
             group keeps them together in the sidebar.
           </DialogDescription>
         </DialogHeader>
-        <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs text-fg-muted">
+        <ul className="max-h-40 min-w-0 space-y-0.5 overflow-y-auto text-xs text-fg-muted">
           {pending.folders.map((f) => (
-            <li key={f.relPath} className="truncate">
+            <li key={f.relPath} className="min-w-0 truncate">
               <span className="text-fg">{f.name}</span>{' '}
               <span className="font-mono">{f.relPath}</span>
             </li>
           ))}
         </ul>
-        <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2">
+        <div className="flex min-w-0 flex-col gap-2 rounded-md border border-line px-3 py-2 sm:flex-row sm:items-center sm:gap-3">
           <p className="min-w-0 flex-1 text-xs text-fg-muted">
             Or keep them together as one project, so one run group can start them all (a frontend
             and its backend).
@@ -58,6 +58,7 @@ export function AddFoldersDialog() {
             size="sm"
             disabled={busy}
             onClick={() => addAsOne.mutate(pending.path)}
+            className="shrink-0"
           >
             Add as one project
           </Button>
@@ -79,7 +80,7 @@ export function AddFoldersDialog() {
             />
           </label>
         </form>
-        <DialogFooter>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>
             Cancel
           </Button>
