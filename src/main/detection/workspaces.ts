@@ -3,6 +3,7 @@ import { isAbsolute, join, posix, relative, resolve } from 'node:path';
 import { glob } from 'tinyglobby';
 import { parse as parseYaml } from 'yaml';
 import { isRecord } from '@shared/is-record';
+import { ECOSYSTEM_MODULES } from '../ecosystems';
 import type { DetectOptions } from './detect-project';
 
 function strings(value: unknown): string[] {
@@ -73,16 +74,37 @@ const NOT_PACKAGES = [
 
 /**
  * A folder like shop/ holding app/ and api/ (each with its own package.json) but no workspaces config:
- * its packages are the package.json folders one or two levels down.
+ * its packages are the package.json folders one or two levels down, plus ecosystem packages.
  */
 async function subFolderPackages(root: string): Promise<string[]> {
   const ignore = NOT_PACKAGES.flatMap((name) => [`${name}/**`, `*/${name}/**`]);
-  return glob(['*/package.json', '*/*/package.json'], {
+
+  // Node packages
+  const nodePackages = await glob(['*/package.json', '*/*/package.json'], {
     cwd: root,
     ignore,
     onlyFiles: true,
     dot: false,
   });
+
+  // Ecosystem packages (e.g. Python, .NET)
+  const ecosystemGlobs = ECOSYSTEM_MODULES.flatMap((m) => m.packageGlobs);
+  const ecosystemPackages = ecosystemGlobs.length > 0
+    ? await glob(ecosystemGlobs, {
+        cwd: root,
+        ignore,
+        onlyDirectories: true,
+        dot: false,
+      })
+    : [];
+
+  // Combine and deduplicate
+  const allPackages = new Set([
+    ...nodePackages,
+    ...ecosystemPackages.map((dir) => `${dir}/package.json`), // normalize to manifest path
+  ]);
+
+  return [...allPackages];
 }
 
 export async function findWorkspaceDirs(

@@ -6,6 +6,14 @@ export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 export const DEPLOY_PLATFORMS = ['vercel', 'netlify', 'cloudflare', 'fly'] as const;
 export type DeployPlatform = (typeof DEPLOY_PLATFORMS)[number];
 
+export const ECOSYSTEM_IDS = ['python', 'dotnet', 'node'] as const;
+export type EcosystemId = (typeof ECOSYSTEM_IDS)[number];
+
+export interface EcosystemEntry {
+  id: EcosystemId;
+  info: unknown;
+}
+
 /** A script or command name as NestBox accepts it (run groups, the tray, log file names). */
 export const COMMAND_NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,59}$/;
 
@@ -46,6 +54,8 @@ export interface DetectedProject {
   git: GitInfo | null;
   buildOutput: 'dist' | 'build' | null;
   claude: ClaudeFiles;
+  /** Detected ecosystem modules (e.g. Python, .NET). Each info is validated by its module's schema. */
+  ecosystems: EcosystemEntry[];
 }
 
 export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
@@ -74,6 +84,7 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
       claudeDir: z.boolean(),
       mcpJson: z.boolean(),
     }),
+    ecosystems: z.array(z.object({ id: z.enum(ECOSYSTEM_IDS), info: z.unknown() })),
   }),
 );
 
@@ -104,4 +115,9 @@ export function splitProjectId(id: string): { rootId: string; relPath: string } 
 export function findDetected(root: DetectedProject, id: string): DetectedProject | null {
   if (root.id === id) return root;
   return root.workspaces.find((w) => w.id === id) ?? null;
+}
+
+/** A package is a folder with package.json or ecosystem modules. */
+export function isPackage(project: DetectedProject): boolean {
+  return project.packageJson !== null || project.ecosystems.length > 0;
 }

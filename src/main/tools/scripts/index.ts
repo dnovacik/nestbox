@@ -14,12 +14,14 @@ import {
   type SkippedEntry,
 } from '@shared/tools/scripts/contract';
 import type { RunGroup, RunGroupCompose, RunGroupEntry } from '@shared/types';
+import { ECOSYSTEM_MODULES } from '../../ecosystems';
 import type { Logger } from '../../logger';
 import type { ProcessManager, StartRequest } from '../../processes/process-manager';
 import type { SharedContext } from '../shared-context';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { exportFileName, formatExport } from './export';
 import { createLogBatcher } from './log-batcher';
+import type { PlatformAdapter } from '../../platform/adapter';
 
 export interface ScriptsToolDeps {
   processes: ProcessManager;
@@ -30,6 +32,7 @@ export interface ScriptsToolDeps {
   /** Throws NOT_FOUND for unknown ids (used to resolve run-group entries in other packages). */
   getDetected(projectId: string): DetectedProject;
   shared: SharedContext;
+  platform: PlatformAdapter;
   saveFile(defaultName: string): Promise<string | null>;
   writeFile(path: string, text: string): Promise<void>;
   isFile(path: string): Promise<boolean>;
@@ -76,8 +79,8 @@ const isEntry =
     e.relPath === relPath && e.script === script;
 
 /**
- * A package's runnables in display order: package.json scripts, then custom commands. Names are unique: on a
- * clash package.json wins. (Ecosystems add detected commands between the two: see the ecosystems plan.)
+ * A package's runnables in display order: package.json scripts, then detected tasks (ecosystem),
+ * then custom commands. Names are unique: on a clash package.json wins, then detected, then custom.
  */
 function runnables(project: DetectedProject, settings: ScriptsSettings): Runnable[] {
   const npm: Runnable[] = Object.entries(project.packageJson?.scripts ?? {}).map(([name, command]) => ({
@@ -86,13 +89,29 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
     command,
     argv: null,
   }));
+
   const asRunnable =
     (kind: ScriptKind) =>
     ({ name, argv }: { name: string; argv: string[] }): Runnable => ({ name, kind, command: formatCommandLine(argv), argv });
+
   const taken = new Set(npm.map((r) => r.name));
   const unique = (r: Runnable): boolean => !taken.has(r.name) && Boolean(taken.add(r.name));
+
+  // Detected tasks from ecosystem modules (not hidden)
+  const hiddenForPackage = settings.hidden[project.relPath] ?? [];
+  const detected: Runnable[] = [];
+  for (const entry of project.ecosystems) {
+    const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
+    if (!module) continue;
+    const tasks = module.tasks(entry.info);
+    for (const task of tasks) {
+      if (hiddenForPackage.includes(task.name)) continue;
+      detected.push(asRunnable('detected')(task));
+    }
+  }
+
   const custom = settings.commands.filter((c) => c.relPath === project.relPath).map(asRunnable('custom')).filter(unique);
-  return [...npm, ...custom];
+  return [...npm, ...detected.filter(unique), ...custom];
 }
 
 /** A list of per-script settings with one package's `from` renamed to `to`. */
@@ -181,15 +200,47 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     runnable: Runnable,
   ): Promise<StartRequest> => {
     const envFile = envFileOf(settings, project, runnable);
-    return {
+    const base: StartRequest = {
       projectId: project.id,
       script: runnable.name,
       cwd: project.path,
       packageManager: project.packageManager,
       autoRestart: isAuto(settings, project, runnable.name),
       ...(envFile === null ? {} : { loadEnv: { file: envFile, read: () => deps.envFiles.read(project.path, envFile) } }),
-      ...(runnable.argv === null ? await adviceFor(project.id) : { argv: runnable.argv }),
     };
+
+    // npm scripts: use package manager with Node advice
+    if (runnable.argv === null) {
+      return { ...base, ...(await adviceFor(project.id)) };
+    }
+
+    // Custom or detected commands: use argv directly
+    const withArgv: StartRequest = { ...base, argv: runnable.argv };
+
+    // Detected commands: apply ecosystem's runEnv
+    if (runnable.kind === 'detected') {
+      // Find which ecosystem module provides this task
+      for (const entry of project.ecosystems) {
+        const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
+        if (!module) continue;
+        const tasks = module.tasks(entry.info);
+        const task = tasks.find((t) => t.name === runnable.name);
+        if (task) {
+          const runEnv = await module.runEnv(
+            { dir: project.path, platform: deps.platform, settings: {} },
+            entry.info,
+          );
+          return {
+            ...withArgv,
+            ...(runEnv.pathPrepend ? { pathPrepend: runEnv.pathPrepend } : {}),
+            ...(runEnv.env ? { env: runEnv.env } : {}),
+            ...(runEnv.note ? { note: runEnv.note } : {}),
+          };
+        }
+      }
+    }
+
+    return withArgv;
   };
 
   function requireRoot(project: DetectedProject): void {
@@ -521,6 +572,39 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             }),
           ),
         ]);
+      },
+
+      hideCommand: async (ctx: Ctx, { name }) => {
+        const runnable = requireRunnable(ctx.project, ctx.settings.get(), name);
+        if (runnable.kind !== 'detected') {
+          throw new NestboxError('VALIDATION', 'Only detected commands can be hidden');
+        }
+        if (isRunning(ctx.project.id, name)) {
+          throw new NestboxError('CONFLICT', 'Stop the command before hiding it');
+        }
+        const { relPath } = ctx.project;
+        ctx.settings.update((s) => ({
+          ...s,
+          hidden: {
+            ...s.hidden,
+            [relPath]: [...(s.hidden[relPath] ?? []), name].filter((n, i, a) => a.indexOf(n) === i),
+          },
+        }));
+      },
+
+      showCommand: async (ctx: Ctx, { name }) => {
+        const { relPath } = ctx.project;
+        const hiddenForPackage = ctx.settings.get().hidden[relPath] ?? [];
+        if (!hiddenForPackage.includes(name)) {
+          throw new NestboxError('NOT_FOUND', 'Command is not hidden');
+        }
+        ctx.settings.update((s) => ({
+          ...s,
+          hidden: {
+            ...s.hidden,
+            [relPath]: hiddenForPackage.filter((n) => n !== name),
+          },
+        }));
       },
     },
   });

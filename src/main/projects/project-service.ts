@@ -1,4 +1,4 @@
-import { type DetectedProject, findDetected, type ProjectSummary, splitProjectId } from '@shared/detected';
+import { type DetectedProject, findDetected, isPackage, type ProjectSummary, splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { type Project, type ProjectGroup, ProjectSchema, type RunGroup, RunGroupSchema } from '@shared/types';
 import type { DetectInput } from '../detection/detect-project';
@@ -87,7 +87,7 @@ export class ProjectService {
     }
     const detected = await this.deps.detect({ id: 'scan', path });
     const folders =
-      detected.packageJson === null && detected.workspaces.length >= 2
+      !isPackage(detected) && detected.workspaces.length >= 2
         ? detected.workspaces.map((w) => ({ relPath: w.relPath, name: w.name }))
         : [];
     return { name: displayName(detected.name, path), folders };
@@ -100,7 +100,7 @@ export class ProjectService {
       throw new NestboxError('VALIDATION', 'The selected folder does not exist');
     }
     const scanned = await this.deps.detect({ id: 'scan', path });
-    if (scanned.packageJson !== null || scanned.workspaces.length < 2) {
+    if (isPackage(scanned) || scanned.workspaces.length < 2) {
       throw new NestboxError('VALIDATION', 'This folder has no sub-folders to add separately');
     }
     const isAdded = (p: string) =>

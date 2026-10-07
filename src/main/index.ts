@@ -173,6 +173,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         getDetected: (id) => projects.getDetected(id),
         shared,
+        platform,
         saveFile: async (defaultName) => {
           const options = {
             defaultPath: join(app.getPath('downloads'), defaultName),

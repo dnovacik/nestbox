@@ -35,6 +35,8 @@ const settingsSchema = z.object({
     .default([]),
   /** The main script or command of a package, at most one per package. */
   main: z.array(RunGroupEntrySchema).max(200).default([]),
+  /** Hidden detected commands (ecosystem tasks), can be restored. */
+  hidden: z.record(z.string(), z.array(z.string())).optional().default({}),
 });
 export type ScriptsSettings = z.infer<typeof settingsSchema>;
 
@@ -42,13 +44,13 @@ export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
   id: 'scripts',
   name: 'Scripts',
   icon: 'terminal',
-  // Every package: one without scripts can still run custom commands (the tab's empty state offers Add command).
-  appliesTo: (p) => p.packageJson !== null || p.workspaces.length > 0,
+  // Every package: one without scripts can still run custom commands, and ecosystems provide detected tasks.
+  appliesTo: (p) => p.packageJson !== null || p.ecosystems.length > 0 || p.workspaces.length > 0,
   settingsSchema,
 };
 
-/** Where a runnable comes from: package.json or the user (ecosystems add 'detected', see the ecosystems plan). */
-export const SCRIPT_KINDS = ['npm', 'custom'] as const;
+/** Where a runnable comes from: package.json, detected by an ecosystem module, or the user. */
+export const SCRIPT_KINDS = ['npm', 'detected', 'custom'] as const;
 export type ScriptKind = (typeof SCRIPT_KINDS)[number];
 
 export const ScriptInfoSchema = z.object({
@@ -159,6 +161,10 @@ export const scriptsContract = defineContract({
     }),
   },
   stopRunGroup: { input: z.strictObject({ name: GroupName }), output: z.void() },
+  /** Hides a detected command (ecosystem task). */
+  hideCommand: { input: z.strictObject({ name: CommandName }), output: z.void() },
+  /** Shows a hidden detected command. */
+  showCommand: { input: z.strictObject({ name: CommandName }), output: z.void() },
 });
 
 export const scriptsEvents = defineEvents({

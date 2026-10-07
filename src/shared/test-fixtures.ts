@@ -18,6 +18,7 @@ export function makeDetectedForTest(over: Partial<DetectedProject> = {}): Detect
     git: null,
     buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
+    ecosystems: [],
     ...over,
   };
 }

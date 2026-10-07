@@ -18,6 +18,7 @@ function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
     git: { branch: 'main', head: null },
     buildOutput: null,
     claude: { claudeMd: true, claudeLocalMd: false, claudeDir: false, mcpJson: false },
+    ecosystems: [],
     ...overrides,
   };
 }
