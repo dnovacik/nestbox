@@ -183,3 +183,29 @@ describe('ScriptList', () => {
     });
   });
 });
+
+describe('ScriptList: detected commands', () => {
+  const detected = [
+    { name: 'run', command: 'dotnet run --project Api.csproj', autoRestart: false, kind: 'detected' as const, envFile: '.env', main: false, ecosystemId: 'dotnet' },
+  ];
+
+  it('hides a detected command and restores a hidden one below the list', async () => {
+    const { callsTo } = installScriptsBridge({ scripts: detected, hidden: ['clean'] });
+    renderWithProviders(<ScriptList projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Hide run' }));
+    await waitFor(() => expect(callsTo('hideCommand')).toEqual([{ name: 'run' }]));
+    expect(screen.getByText('Hidden:')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore clean' }));
+    await waitFor(() => expect(callsTo('showCommand')).toEqual([{ name: 'clean' }]));
+  });
+
+  it('offers no Hide while the command runs, and labels a .NET version warning', async () => {
+    installScriptsBridge({
+      scripts: detected,
+      processes: [makeProcess({ script: 'run', state: 'running', warning: 'global.json asks for .NET SDK 9.0.100' })],
+    });
+    renderWithProviders(<ScriptList projectId="p1" />);
+    expect(await screen.findByRole('button', { name: 'Hide run' })).toBeDisabled();
+    expect(screen.getByLabelText('Version warning: global.json asks for .NET SDK 9.0.100')).toHaveTextContent('.NET');
+  });
+});

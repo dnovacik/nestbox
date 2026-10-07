@@ -130,3 +130,69 @@ describe('findWorkspaceDirs', () => {
     ]);
   });
 });
+
+describe('findWorkspaceDirs with .NET projects', () => {
+  const CSPROJ = '<Project Sdk="Microsoft.NET.Sdk"></Project>';
+  const slnProject = (name: string, path: string) =>
+    `Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "${name}", "${path}", "{12345678-1234-1234-1234-123456789ABC}"\r\nEndProject\r\n`;
+
+  it('finds project folders without a package.json, skipping build output and test folders', async () => {
+    dir = await makeTree({
+      'api/Api.csproj': CSPROJ,
+      'src/Worker/Worker.fsproj': CSPROJ,
+      'web/package.json': PKG,
+      'api/bin/Debug/Copy.csproj': CSPROJ,
+      'Api.Tests/Api.Tests.csproj': CSPROJ,
+      'src/Api.IntegrationTests/Api.IntegrationTests.csproj': CSPROJ,
+      'tests/Unit/Unit.csproj': CSPROJ,
+      'too/deep/here/Deep.csproj': CSPROJ,
+    });
+    expect(await findWorkspaceDirs(dir, null)).toEqual(['api', 'src/Worker', 'web']);
+  });
+
+  it("adds a root solution's projects at any depth, next to Node sub-folders", async () => {
+    dir = await makeTree({
+      'Shop.sln':
+        'Microsoft Visual Studio Solution File, Format Version 12.00\r\n' +
+        slnProject('Api', 'src\\Services\\Api\\Api.csproj') +
+        slnProject('Tests', 'tests\\Shop.Tests\\Shop.Tests.csproj') +
+        slnProject('Elsewhere', '..\\Other\\Other.csproj') +
+        slnProject('Gone', 'src\\Gone\\Gone.csproj'),
+      'src/Services/Api/Api.csproj': CSPROJ,
+      'tests/Shop.Tests/Shop.Tests.csproj': CSPROJ,
+      'web/package.json': PKG,
+    });
+    expect(await findWorkspaceDirs(dir, null)).toEqual(['src/Services/Api', 'web']);
+  });
+
+  it('reads .slnx solutions (with a BOM)', async () => {
+    dir = await makeTree({
+      'Shop.slnx':
+        '\uFEFF<Solution>\n  <Folder Name="/src/">\n    <Project Path="src/Deep/Shop.Api/Shop.Api.csproj" />\n  </Folder>\n' +
+        '  <Folder Name="/tests/">\n    <Project Path="tests/Shop.Tests/Shop.Tests.csproj" />\n  </Folder>\n</Solution>\n',
+      'src/Deep/Shop.Api/Shop.Api.csproj': CSPROJ,
+      'tests/Shop.Tests/Shop.Tests.csproj': CSPROJ,
+    });
+    expect(await findWorkspaceDirs(dir, null)).toEqual(['src/Deep/Shop.Api']);
+  });
+
+  it('adds solution projects to declared workspaces', async () => {
+    dir = await makeTree({
+      'Shop.sln': slnProject('Api', 'backend/Core/Api/Api.csproj'),
+      'backend/Core/Api/Api.csproj': CSPROJ,
+      'packages/a/package.json': PKG,
+    });
+    expect(await findWorkspaceDirs(dir, { workspaces: ['packages/*'] })).toEqual([
+      'backend/Core/Api',
+      'packages/a',
+    ]);
+  });
+
+  it('ignores a solution file over the size cap', async () => {
+    dir = await makeTree({
+      'Big.sln': slnProject('Api', 'x/y/Api/Api.csproj') + ' '.repeat(1024 * 1024 + 1),
+      'x/y/Api/Api.csproj': CSPROJ,
+    });
+    expect(await findWorkspaceDirs(dir, null)).toEqual([]);
+  });
+});

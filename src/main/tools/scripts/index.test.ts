@@ -120,6 +120,7 @@ describe('scripts tool: list and lifecycle', () => {
         { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false, main: null },
       ],
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
   });
 
@@ -495,6 +496,78 @@ async function appSetup() {
   return ctx;
 }
 
+describe('scripts tool: ecosystem commands', () => {
+  const SVC = resolve('/dev/svc');
+  const dotnetInfo = {
+    solution: null,
+    project: 'Svc.csproj',
+    targetFrameworks: ['net8.0'],
+    isWeb: true,
+    isTest: false,
+    sdk: { version: '9.0.100', rollForward: 'latestPatch' },
+    launchProfiles: [{ name: 'http', ports: [5283] }],
+  };
+  const svc = makeDetectedForTest({
+    id: 'r3',
+    rootId: 'r3',
+    path: SVC,
+    name: 'svc',
+    packageJson: null,
+    packageManager: null,
+    ecosystems: [{ id: 'dotnet', info: dotnetInfo }],
+  });
+
+  function dotnetSetup() {
+    const ctx = setup([svc]);
+    ctx.deps.platform = {
+      ...ctx.deps.platform,
+      commandExists: vi.fn(async () => true),
+      execCommand: vi.fn(async () => ({ code: 0, stdout: '8.0.414 [C:\\dotnet\\sdk]\n' })),
+    };
+    return ctx;
+  }
+
+  it("lists the module's tasks as detected rows", async () => {
+    const { call } = dotnetSetup();
+    const { scripts } = (await call(svc.id, 'list')) as { scripts: { name: string; kind: string; command: string }[] };
+    expect(scripts.map((s) => [s.name, s.kind, s.command])).toEqual([
+      ['run', 'detected', 'dotnet run --project Svc.csproj'],
+      ['watch', 'detected', 'dotnet watch --project Svc.csproj'],
+      ['run:http', 'detected', 'dotnet run --project Svc.csproj --launch-profile http'],
+      ['build', 'detected', 'dotnet build Svc.csproj'],
+      ['restore', 'detected', 'dotnet restore Svc.csproj'],
+      ['clean', 'detected', 'dotnet clean Svc.csproj'],
+    ]);
+  });
+
+  it("starts a detected task with the module's env and SDK warning, without the Node tool", async () => {
+    const { call, platform, deps } = dotnetSetup();
+    expect(await call(svc.id, 'start', { script: 'run' })).toMatchObject({
+      warning: 'global.json asks for .NET SDK 9.0.100 (rollForward latestPatch); installed: 8.0.414',
+    });
+    expect(spawnCalls(platform)[0]).toMatchObject({ cwd: SVC, command: 'dotnet', args: ['run', '--project', 'Svc.csproj'] });
+    expect(spawnCalls(platform)[0]?.env).toMatchObject({ DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' });
+    expect(deps.node.advice).not.toHaveBeenCalled();
+  });
+
+  it('hides a detected task until it is restored', async () => {
+    const { call } = dotnetSetup();
+    await call(svc.id, 'hideCommand', { name: 'clean' });
+    const listed = (await call(svc.id, 'list')) as { scripts: { name: string }[]; hidden: string[] };
+    expect(listed.scripts.map((s) => s.name)).not.toContain('clean');
+    expect(listed.hidden).toEqual(['clean']);
+    await call(svc.id, 'showCommand', { name: 'clean' });
+    expect(((await call(svc.id, 'list')) as { hidden: string[] }).hidden).toEqual([]);
+  });
+
+  it("runs a custom command in the package's ecosystem environment too", async () => {
+    const { call, platform } = dotnetSetup();
+    await call(svc.id, 'saveCommand', { name: 'ef', argv: ['dotnet', 'ef', 'database', 'update'] });
+    expect(await call(svc.id, 'start', { script: 'ef' })).toMatchObject({ warning: expect.stringContaining('9.0.100') });
+    expect(spawnCalls(platform)[0]?.env).toMatchObject({ DOTNET_NOLOGO: '1' });
+  });
+});
+
 describe('scripts tool: custom commands', () => {
   it('lists custom commands after package scripts', async () => {
     const { call } = await appSetup();
@@ -507,6 +580,7 @@ describe('scripts tool: custom commands', () => {
       runGroups: null,
       packages: null,
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
     expect(await call('r2', 'list')).toMatchObject({
       scripts: [],

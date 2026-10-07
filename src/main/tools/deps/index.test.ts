@@ -12,7 +12,7 @@ import type { ToolContext } from '../types';
 import { createDepsCache } from './cache';
 import { createDepsTool } from './index';
 
-type SpawnArgs = { cwd: string; command: string; args: string[] };
+type SpawnArgs = { cwd: string; command: string; args: string[]; env?: Record<string, string | undefined> };
 const fixture = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
 
 function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
@@ -157,6 +157,68 @@ describe('deps tool', () => {
     await expect(
       call('copyUpdateCommand', { relPath: '../other', name: 'semver' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('checks .NET projects through dotnet and skips a solution-only root', async () => {
+    const dotnetFixture = (name: string) =>
+      readFileSync(join(__dirname, '..', '..', 'ecosystems', 'dotnet', '__fixtures__', name), 'utf8');
+    const { tool, spawnCommand, clipboard } = setup({
+      'dotnet list Shop.Core.csproj package --outdated --format json': {
+        code: 0,
+        stdout: dotnetFixture('list-outdated.json'),
+      },
+      'dotnet list Shop.Core.csproj package --vulnerable --include-transitive --format json': {
+        code: 0,
+        stdout: dotnetFixture('list-vulnerable.json'),
+      },
+    });
+    const info = {
+      solution: null,
+      project: 'Shop.Core.csproj',
+      targetFrameworks: ['net8.0'],
+      isWeb: false,
+      isTest: false,
+      sdk: null,
+      launchProfiles: [],
+    };
+    const core = makeDetectedForTest({
+      id: 'r2::src/Shop.Core',
+      rootId: 'r2',
+      relPath: 'src/Shop.Core',
+      name: 'Shop.Core',
+      path: join(tmpdir(), 'Shop', 'src', 'Shop.Core'),
+      packageJson: null,
+      packageManager: null,
+      ecosystems: [{ id: 'dotnet', info }],
+    });
+    const solution = makeDetectedForTest({
+      id: 'r2',
+      rootId: 'r2',
+      path: join(tmpdir(), 'Shop'),
+      name: 'Shop',
+      packageJson: null,
+      packageManager: null,
+      ecosystems: [{ id: 'dotnet', info: { ...info, solution: 'Shop.slnx', project: null, targetFrameworks: [] } }],
+      workspaces: [core],
+    });
+    const ctx = {
+      project: solution,
+      shared: createSharedContext().forProject('r2'),
+      emit: vi.fn(),
+      platform: { ...fakePlatform(), spawnCommand },
+      settings: { get: () => ({}), update: () => ({}) },
+    } as unknown as ToolContext;
+    const results = (await tool.handlers['check']?.(ctx, {})) as Results;
+    expect(results.packages.map((p) => [p.projectId, p.manager, p.errors])).toEqual([['r2::src/Shop.Core', 'dotnet', []]]);
+    expect(results.packages[0]?.rows.find((r) => r.name === 'Newtonsoft.Json')).toMatchObject({
+      outdated: true,
+      advisories: [{ severity: 'high' }],
+    });
+    expect(spawnCommand.mock.calls[0]?.[0]).toMatchObject({ command: 'dotnet', env: expect.objectContaining({ DOTNET_NOLOGO: '1' }) });
+    expect(await tool.handlers['copyUpdateCommand']?.(ctx, { relPath: 'src/Shop.Core', name: 'Newtonsoft.Json' })).toEqual({
+      command: 'dotnet add package Newtonsoft.Json',
+    });
+    expect(clipboard.writeText).toHaveBeenCalledWith('dotnet add package Newtonsoft.Json');
   });
 
   it('forgets a removed project', async () => {

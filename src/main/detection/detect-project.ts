@@ -164,7 +164,8 @@ async function detectDir(
     if (info !== null) {
       try {
         const validated = module.infoSchema.parse(info);
-        ecosystems.push({ id: module.id, info: validated });
+        const summary = module.summary?.(validated) ?? null;
+        ecosystems.push({ id: module.id, info: validated, ...(summary === null ? {} : { summary }) });
       } catch {
         // Invalid info from detect() — skip this module
       }

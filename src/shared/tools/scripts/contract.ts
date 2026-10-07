@@ -102,6 +102,8 @@ export const scriptsContract = defineContract({
       packages: z.array(PackageScriptsSchema).nullable(),
       /** The package's env files right now, for the Env choice of each row. */
       envFiles: z.array(z.string()),
+      /** Detected commands the user hid in this package (restored below the list). */
+      hidden: z.array(z.string()),
     }),
   },
   start: { input: ScriptInput, output: ProcessSummarySchema },

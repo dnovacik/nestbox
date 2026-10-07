@@ -42,6 +42,7 @@ describe('detectProject with ecosystems', () => {
         version: '1.0.0',
         marker: 'test-marker.txt',
       },
+      summary: 'Test 1.0.0',
     });
   });
 

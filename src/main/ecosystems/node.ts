@@ -40,9 +40,9 @@ export const nodeModule: EcosystemModule<NodeInfo> = {
   },
 
   /**
-   * Globs that identify a Node.js package in a monorepo: any folder with a package.json.
+   * A sub-folder with a package.json, one or two levels down (multi-folder projects).
    */
-  packageGlobs: ['**/package.json'],
+  packageGlobs: ['*/package.json', '*/*/package.json'],
 
   /**
    * The package manager's own commands. Only names no package.json script can take:

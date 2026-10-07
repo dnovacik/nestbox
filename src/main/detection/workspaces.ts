@@ -72,39 +72,30 @@ const NOT_PACKAGES = [
   'example',
 ];
 
+/** The folder of a file path from a glob, with `/` separators. */
+const folderOf = (file: string): string => posix.dirname(file.replace(/\\/g, '/'));
+
 /**
- * A folder like shop/ holding app/ and api/ (each with its own package.json) but no workspaces config:
- * its packages are the package.json folders one or two levels down, plus ecosystem packages.
+ * A folder like shop/ holding app/ and api/ but no workspaces config: its packages are the folders one or
+ * two levels down holding an ecosystem's package file (package.json, a .csproj, …).
  */
 async function subFolderPackages(root: string): Promise<string[]> {
   const ignore = NOT_PACKAGES.flatMap((name) => [`${name}/**`, `*/${name}/**`]);
+  const found = await Promise.all(
+    ECOSYSTEM_MODULES.map(async (module) => {
+      const files = await glob(module.packageGlobs, { cwd: root, ignore, onlyFiles: true, dot: false });
+      return files
+        .map(folderOf)
+        .filter((dir) => !dir.split('/').some((name) => module.skipDir?.(name)));
+    }),
+  );
+  return found.flat();
+}
 
-  // Node packages
-  const nodePackages = await glob(['*/package.json', '*/*/package.json'], {
-    cwd: root,
-    ignore,
-    onlyFiles: true,
-    dot: false,
-  });
-
-  // Ecosystem packages (e.g. Python, .NET)
-  const ecosystemGlobs = ECOSYSTEM_MODULES.flatMap((m) => m.packageGlobs);
-  const ecosystemPackages = ecosystemGlobs.length > 0
-    ? await glob(ecosystemGlobs, {
-        cwd: root,
-        ignore,
-        onlyDirectories: true,
-        dot: false,
-      })
-    : [];
-
-  // Combine and deduplicate
-  const allPackages = new Set([
-    ...nodePackages,
-    ...ecosystemPackages.map((dir) => `${dir}/package.json`), // normalize to manifest path
-  ]);
-
-  return [...allPackages];
+/** Folders the ecosystems list themselves (a solution's projects), whatever the workspaces config says. */
+async function listedPackages(root: string): Promise<string[]> {
+  const listed = await Promise.all(ECOSYSTEM_MODULES.map((m) => m.workspaceDirs?.(root) ?? []));
+  return listed.flat().filter((dir) => !escapesRoot(dir));
 }
 
 export async function findWorkspaceDirs(
@@ -112,8 +103,9 @@ export async function findWorkspaceDirs(
   packageJson: Record<string, unknown> | null,
   options: DetectOptions = {},
 ): Promise<string[]> {
+  const listed = await listedPackages(root);
   const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
-  if (patterns.length === 0) return keepInside(root, await subFolderPackages(root), options);
+  if (patterns.length === 0) return keepInside(root, [...(await subFolderPackages(root)), ...listed], options);
 
   const include = patterns
     .filter((p) => !p.startsWith('!'))
@@ -123,26 +115,23 @@ export async function findWorkspaceDirs(
     .filter((p) => p.startsWith('!'))
     .map((p) => clean(p.slice(1)))
     .filter((p) => !escapesRoot(p));
-  if (include.length === 0) return [];
-
-  const manifests = await glob(
-    include.map((p) => `${p}/package.json`),
-    {
-      cwd: root,
-      ignore: ['**/node_modules/**', ...exclude.map((p) => `${p}/package.json`)],
-      onlyFiles: true,
-    },
-  );
-  return keepInside(root, manifests, options);
+  const manifests =
+    include.length === 0
+      ? []
+      : await glob(
+          include.map((p) => `${p}/package.json`),
+          {
+            cwd: root,
+            ignore: ['**/node_modules/**', ...exclude.map((p) => `${p}/package.json`)],
+            onlyFiles: true,
+          },
+        );
+  return keepInside(root, [...manifests.map(folderOf), ...listed], options);
 }
 
-/** Package folders from manifest paths: sorted, never the root, and only those really inside it. */
-async function keepInside(
-  root: string,
-  manifests: string[],
-  options: DetectOptions,
-): Promise<string[]> {
-  const dirs = new Set(manifests.map((file) => posix.dirname(file.replace(/\\/g, '/'))));
+/** Package folders: sorted, unique, never the root, and only existing ones really inside it. */
+async function keepInside(root: string, folders: string[], options: DetectOptions): Promise<string[]> {
+  const dirs = new Set(folders);
   dirs.delete('.');
   const realRoot = await realpath(root).catch(() => resolve(root));
   const kept: string[] = [];

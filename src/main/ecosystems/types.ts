@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { DepRow, PackageResult, StepError } from '@shared/tools/deps/contract';
 import type { PlatformAdapter } from '../platform/adapter';
 
 export type EcosystemId = 'python' | 'dotnet' | 'node';
@@ -19,6 +20,22 @@ export interface RunEnv {
   env?: Record<string, string>;
   /** Optional note shown in the log (e.g. "Using .venv"). */
   note?: string;
+  /** A version mismatch or missing tool: logged first and shown on the row (like the Node tool's). */
+  warning?: string;
+}
+
+/** Runs one command to completion for a dependency check (the Dependencies tool's runner). */
+export type DepsRun = (
+  command: string,
+  args: string[],
+  env?: Record<string, string>,
+) => Promise<{ code: number | null; stdout: string; timedOut: boolean }>;
+
+/** One package's dependency check result. */
+export interface EcosystemDeps {
+  manager: PackageResult['manager'];
+  rows: DepRow[];
+  errors: StepError[];
 }
 
 export interface RunEnvContext<Settings = unknown> {
@@ -36,8 +53,33 @@ export interface EcosystemModule<Info, Settings = unknown> {
   /** Pure filesystem detection of one folder. No Electron, no subprocess. */
   detect(dir: string, files: ReadonlySet<string>, dirs: ReadonlySet<string>): Promise<Info | null>;
 
-  /** Globs that make a sub-folder a package (multi-folder projects). */
+  /**
+   * Files that make a sub-folder a package when the root declares no workspaces (multi-folder projects):
+   * the folder holding a match is the package, one or two levels down (like Node's package.json).
+   */
   packageGlobs: string[];
+
+  /** Optional: a folder name that never holds one of this ecosystem's packages (build output, tests). */
+  skipDir?(name: string): boolean;
+
+  /**
+   * Optional: package folders the root lists itself (a .NET solution's projects), relative with `/`.
+   * Added to the workspaces or sub-folder packages; may name folders that don't exist or leave the root
+   * (both are dropped). Small capped reads only.
+   */
+  workspaceDirs?(root: string): Promise<string[]>;
+
+  /**
+   * Optional: the Dependencies tool's check for a package without a package.json (network: only on Check
+   * or the schedule). null when the folder has nothing of its own to check.
+   */
+  deps?(info: Info, run: DepsRun): Promise<EcosystemDeps | null>;
+
+  /** Optional: "Copy update command" for one of the rows deps() returned. */
+  depsUpdateCommand?(name: string): string;
+
+  /** Optional: local http ports the package listens on when it runs (Health suggestions). */
+  ports?(info: Info): number[];
 
   /** Commands the ecosystem offers without the user typing them. */
   tasks(info: Info): DetectedTask[];
@@ -56,4 +98,5 @@ export interface EcosystemModule<Info, Settings = unknown> {
 export interface EcosystemEntry {
   id: EcosystemId;
   info: unknown;
+  summary?: string | null;
 }

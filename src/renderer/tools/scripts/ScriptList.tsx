@@ -1,4 +1,4 @@
-import { Pencil, Play, Plus, RotateCw, Square, Star, Trash2 } from 'lucide-react';
+import { EyeOff, Pencil, Play, Plus, RotateCw, Square, Star, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isLive, type ProcessSummary } from '@shared/processes';
 import type { EcosystemId } from '@shared/detected';
@@ -22,6 +22,7 @@ import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import { CommandDialog } from './CommandDialog';
 import {
   useCommandActions,
+  useHiddenActions,
   useScriptAction,
   useScriptList,
   useSetAutoRestart,
@@ -93,6 +94,7 @@ function ScriptRow({
   const action = useScriptAction(projectId);
   const setAutoRestart = useSetAutoRestart(projectId);
   const setMain = useSetMain(projectId);
+  const hide = useHiddenActions(projectId);
   const showScript = useUiStore((s) => s.showScript);
   const live = process !== undefined && isLive(process.state);
   const badge = process ? BADGES[process.state] : undefined;
@@ -130,7 +132,7 @@ function ScriptRow({
             aria-label={`Version warning: ${process.warning}`}
             className="rounded border border-warn/40 px-1.5 py-px text-[10px] font-medium text-warn"
           >
-            Node
+            {info.ecosystemId === 'dotnet' ? '.NET' : 'Node'}
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -145,6 +147,18 @@ function ScriptRow({
           >
             <Star className={cn(info.main ? 'fill-current text-brand' : 'text-fg-faint')} />
           </Button>
+          {info.kind === 'detected' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Hide ${info.name}`}
+              title="Hide this detected command (restore it below the list)"
+              disabled={live || hide.isPending}
+              onClick={() => hide.mutate({ name: info.name, hide: true })}
+            >
+              <EyeOff />
+            </Button>
+          )}
           {info.kind === 'custom' && (
             <>
               <Button variant="ghost" size="icon" aria-label={`Edit ${info.name}`} onClick={onEdit}>
@@ -222,6 +236,7 @@ export function ScriptList({ projectId }: { projectId: string }) {
   const { data, isPending, isError } = useScriptList(projectId);
   const { data: processes = [] } = useProcesses();
   const commands = useCommandActions(projectId);
+  const restore = useHiddenActions(projectId);
   const [editing, setEditing] = useState<ScriptInfo | 'new' | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   if (isPending) return <p className="text-xs text-fg-muted">Loading scripts…</p>;
@@ -249,6 +264,25 @@ export function ScriptList({ projectId }: { projectId: string }) {
           />
         ))}
       </ul>
+      {data.hidden.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-muted">
+          <span>Hidden:</span>
+          {data.hidden.map((name) => (
+            <Button
+              key={name}
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 font-mono text-[11px]"
+              aria-label={`Restore ${name}`}
+              title="Show this detected command again"
+              disabled={restore.isPending}
+              onClick={() => restore.mutate({ name, hide: false })}
+            >
+              {name}
+            </Button>
+          ))}
+        </p>
+      )}
       {editing !== null && (
         <CommandDialog
           projectId={projectId}

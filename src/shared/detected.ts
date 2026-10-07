@@ -12,6 +12,8 @@ export type EcosystemId = (typeof ECOSYSTEM_IDS)[number];
 export interface EcosystemEntry {
   id: EcosystemId;
   info: unknown;
+  /** The module's one-line summary for project info (e.g. ".NET · net8.0 · web"); absent without one. */
+  summary?: string | null;
 }
 
 /** A script or command name as NestBox accepts it (run groups, the tray, log file names). */
@@ -84,7 +86,9 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
       claudeDir: z.boolean(),
       mcpJson: z.boolean(),
     }),
-    ecosystems: z.array(z.object({ id: z.enum(ECOSYSTEM_IDS), info: z.unknown() })),
+    ecosystems: z.array(
+      z.object({ id: z.enum(ECOSYSTEM_IDS), info: z.unknown(), summary: z.string().nullable().optional() }),
+    ),
   }),
 );
 
