@@ -5,6 +5,14 @@ import type { ProcessStats, SystemStats } from '@shared/system-stats';
 
 const execAsync = promisify(exec);
 
+// Cache for tracking CPU time per PID to calculate percentage
+interface CpuSample {
+  time: number; // timestamp in ms
+  cpuTime: number; // cumulative CPU time in seconds
+}
+
+const cpuCache = new Map<number, CpuSample>();
+
 /**
  * Get current system resource usage statistics.
  */
@@ -53,13 +61,15 @@ export async function getProcessStats(pids: readonly number[]): Promise<ProcessS
  */
 async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessStats> {
   const pidList = pids.join(',');
-  // Get WorkingSet64 (memory in bytes) and CPU (sum of CPU time)
+  // Get WorkingSet64 (memory in bytes) and CPU (cumulative CPU time in seconds)
   const { stdout } = await execAsync(
     `powershell -NoProfile -Command "Get-Process -Id ${pidList} -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64,CPU | ConvertTo-Csv -NoTypeInformation"`,
     { timeout: 5000 }
   );
 
   let totalMemory = 0;
+  let totalCpuPercent = 0;
+  const now = Date.now();
 
   const lines = stdout.trim().split('\n').slice(1); // Skip header
   for (const line of lines) {
@@ -67,18 +77,51 @@ async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessS
     // CSV format: "Id","WorkingSet64","CPU"
     const parts = line.split(',').map(s => s.replace(/"/g, '').trim());
     if (parts.length >= 3) {
+      const pidStr = parts[0];
       const memoryStr = parts[1];
+      const cpuStr = parts[2];
+
       if (memoryStr) {
         const memory = parseInt(memoryStr, 10);
         if (!isNaN(memory)) totalMemory += memory;
       }
+
+      // Calculate CPU percentage using interval-based tracking
+      if (pidStr && cpuStr) {
+        const pid = parseInt(pidStr, 10);
+        const cpuTime = parseFloat(cpuStr);
+
+        if (!isNaN(pid) && !isNaN(cpuTime)) {
+          const cached = cpuCache.get(pid);
+
+          if (cached) {
+            // Calculate percentage: (delta CPU time / delta wall time) * 100 * numCores
+            const timeDeltaMs = now - cached.time;
+            const cpuDelta = cpuTime - cached.cpuTime;
+
+            if (timeDeltaMs > 0) {
+              // CPU time is in seconds, convert to ms for comparison
+              const cpuPercent = (cpuDelta * 1000 / timeDeltaMs) * 100;
+              totalCpuPercent += cpuPercent;
+            }
+          }
+
+          // Update cache
+          cpuCache.set(pid, { time: now, cpuTime });
+        }
+      }
     }
   }
 
-  // CPU time is cumulative, not percentage. For now, just show 0% on Windows
-  // A proper implementation would need to track CPU time over intervals
+  // Clean up cache for PIDs that are no longer running
+  for (const cachedPid of cpuCache.keys()) {
+    if (!pids.includes(cachedPid)) {
+      cpuCache.delete(cachedPid);
+    }
+  }
+
   return {
-    cpuPercent: 0,
+    cpuPercent: Math.round(totalCpuPercent * 10) / 10,
     memoryUsed: totalMemory,
   };
 }
