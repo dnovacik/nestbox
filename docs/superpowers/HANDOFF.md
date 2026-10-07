@@ -1,6 +1,6 @@
-# Handoff (2026-10-07)
+# Handoff (2026-10-07, evening)
 
-This is where the cloud session left off, so a local Claude Code session can pick it up. Read `CLAUDE.md` first; this file only adds the current state and how the owner likes to work.
+Where work stands, so the next session (local or cloud) can pick it up. Read `CLAUDE.md` first; this file only adds the current state and how the owner likes to work.
 
 ## How the owner works
 
@@ -11,47 +11,51 @@ This is where the cloud session left off, so a local Claude Code session can pic
   - `pnpm typecheck`
   - `pnpm test`
   - `pnpm build`, then `pnpm e2e`, under `xvfb-run -a` on Linux.
-- **Open a draft PR** and drive CI to green.
-- **Releases.** "Merge and release X" means:
-  1. mark the PR ready;
-  2. merge it with a merge commit;
-  3. run `.github/workflows/release.yml` on `main`.
+
+  On the owner's Windows box, 3 tests in `src/main/platform/win32.integration.test.ts` fail on `main` too (environment, not code); CI runs them green.
+- **Format only your own files:** `pnpm prettier --write <files>` (the repo isn't Prettier-clean).
+- **Open a PR** and drive CI to green.
+- **Releases.** "Merge and release" means:
+  1. **squash-merge** the PR with a clean subject and body that describe what actually shipped (the owner OK'd squash on 2026-10-07; older history used merge commits);
+  2. run `.github/workflows/release.yml` on `main` (`gh workflow run release.yml --ref main`).
 
   That leaves a draft GitHub Release. **Never publish it**: the owner publishes.
 - Keep going without stopping to ask for approval between steps.
 - Bump `package.json`'s version in each feature PR, add CLAUDE.md notes, and update the README's feature table and roadmap line.
+- Keep PR descriptions true to the final diff: when scope changes mid-PR, rewrite the description (and the squash message).
 - When building on someone else's work, credit them in the commits: `Co-authored-by: jubele <53142296+jubele@users.noreply.github.com>`.
+- Progress is mirrored to the owner's personal Obsidian vault (`Projects/Nestbox/Progress.md`, MCP server `obsidian`, not `obsidianRsys`) when that server is connected.
 
 ## Current state
 
 | What | State |
 | --- | --- |
-| v1.20.0 | Merged; release run passed; **draft release waiting for the owner to publish** |
-| [dnovacik/nestbox#33](https://github.com/dnovacik/nestbox/pull/33) `v2-commands-env` (1.21.0) | Draft. The language-neutral half of dnovacik/nestbox#32: custom commands (argv, no shell), an env file per command, a main command per package, Env raw edit / add variable / create file / keys read in code, Remove in the sidebar, "Add as one project". Local checks all passed (lint, typecheck, 1800 unit tests, e2e 32 passed / 2 skipped). CI was running at handoff. |
-| [dnovacik/nestbox#32](https://github.com/dnovacik/nestbox/pull/32) (jubele) | Python support. To be realigned by jubele's own Claude session with the plan below, rebased on 1.21.0 once #33 merges. |
-| Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: one module per ecosystem under `src/main/ecosystems/<id>/` (`detect`, `packageGlobs`, `tasks`, `runEnv`), `DetectedProject.ecosystems` as a list, Python first, then .NET, then Node behind the same interface. |
+| v1.23.0 | **Published.** .NET solutions (#37): solution projects as packages, dotnet tasks and launch profiles, `global.json` SDK warning, NuGet Dependencies, Hide/Restore for detected commands. Design: `docs/superpowers/specs/2026-10-07-nestbox-v2-dotnet-design.md`. |
+| v1.22.0 | Published. Ecosystem framework (#34), .NET module (#35), ecosystem icons and the Node module (#36), system CPU/RAM in the status bar (#38; per-process stats were dropped). |
+| [#39](https://github.com/dnovacik/nestbox/issues/39) **appsettings.json in the Env tool (1.24.0)** | **Next.** Assigned to the owner, to be picked up with them. Design approved in conversation: `docs/superpowers/specs/2026-10-08-nestbox-v2-appsettings-design.md` on branch `v2-appsettings` (build there; no PR yet). |
+| Python ([#32](https://github.com/dnovacik/nestbox/pull/32), jubele) | Closed by its author after the split. The language-neutral half shipped in #33 (1.21.0). Python should come back as a new PR: a module under `src/main/ecosystems/python/` per the "Python module" table in `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`. Review it against that table and the .NET module (the reference). |
+| Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: framework and .NET done; Python next (jubele); later Node into a module, any git repo as a project, make/just targets. |
 
 ## Next steps
 
-1. **Drive #33 to green.** Check its CI and fix anything red. Then wait for the owner's "merge and release 1.21.0".
-2. **Post the split note on #32** if the owner wants it posted (it wasn't posted). Suggested text:
-
-   > Thanks for this! We split it in two. The language-neutral parts (commands as argv, custom commands, main command, env file per command, env raw edit/add/create/code keys, Remove in the sidebar, add as one project) are now in #33, with you as co-author. Please rebase this PR on #33 once it merges and realign the Python part with the plan in `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: Python becomes the first module under `src/main/ecosystems/python/` (`detect`, `packageGlobs`, `tasks`, `runEnv`), `DetectedProject.python` becomes an entry in `DetectedProject.ecosystems`, and hide/restore of detected commands becomes generic in the Scripts tool. The table in the "Python, the first module" section maps each file to its new place.
-
-3. **Review the realigned #32** against the plan's table when jubele pushes it.
-4. **Owner housekeeping:**
-   - publish the v1.20.0 draft release;
-   - delete the merged feature branches. The cloud session wasn't allowed to delete them.
+1. **#39 (1.24.0)** on `v2-appsettings`, with the owner: follow the design and the issue's task list, then a PR and "merge and release" when the owner says so.
+2. **Review the Python PR** when jubele opens it.
+3. **Follow-ups from the .NET work** (in the .NET design doc): the Inspector's default target could use a launch-profile port like Health; EF Core migrations; `ConnectionStrings:*` in the Database tool.
+4. **Owner housekeeping:** delete merged feature branches on `origin` (many old `m*`/`v2-*` branches remain).
 
 ## Notes for a local session
 
-- Use `gh` locally, e.g. `gh pr checks 33` and `gh pr view 33 --comments`. The cloud session used GitHub's MCP tools and received PR events; a local session has to check on its own.
-- The cloud session may still wake on #33 events or its check-in. Tell it to stop (or archive it) if you continue locally, so the two don't both push.
+- Use `gh` locally, e.g. `gh pr checks <n> --watch`, `gh run watch <id>`. The repo is `dnovacik/nestbox`; `origin` uses HTTPS and `gh` is authenticated.
+- The .NET SDKs (8 and 10) are installed on the owner's box. The user-level NuGet config lists sources that are unreachable from here: put a local `nuget.config` with `<clear />` + nuget.org next to any scratch solution before `dotnet restore`.
 - `pnpm install` runs Electron's `install.js` (needs network once). If `pnpm dev` says "Electron uninstall", run `node node_modules/electron/install.js`.
+- Shell editing gotchas seen on Windows Git Bash: GNU sed treats `\u` in a replacement as "uppercase next char", and heredoc'd node scripts with `\` escapes are easy to get wrong. Prefer the Edit tool for code with escapes.
 
-## History (earlier handoff, as of 2026-10-03 to 1.19.0)
+## History
 
-Kept for reference. v1.18.0–v1.20.0 shipped after it (sidebar groups, CI status, multi-folder adding).
+Kept for reference.
+
+- **2026-10-05 to 10-07:** v1.20.0 (multi-folder adding, #31), v1.21.0 (custom commands and env per command, #33, split from jubele's #32), v1.22.0 (ecosystem framework, .NET module, icons, status-bar stats), v1.23.0 (.NET solutions, #37).
+- **Earlier handoff (2026-10-03 to 1.19.0)** follows; v1.18.0–v1.20.0 shipped after it (sidebar groups, CI status, multi-folder adding).
 
 
 ### State as of 2026-10-03
