@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { copyFixture, launch } from './helpers';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const TABS = [
   'Overview',
@@ -57,13 +59,14 @@ test('every tab has the same 24 px inset', async () => {
     await expect(panel.locator(':scope *:visible').first()).toBeVisible();
     // The left and top edges of everything the panel shows, measured from the panel's own edges.
     const inset = await panel.evaluate((el) => {
-      const box = el.getBoundingClientRect();
-      const kids = [...el.querySelectorAll('*')]
-        .map((k) => k.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.height > 0);
+      const htmlEl = el as any;
+      const box = htmlEl.getBoundingClientRect();
+      const kids = [...htmlEl.querySelectorAll('*')]
+        .map((k: any) => k.getBoundingClientRect())
+        .filter((r: any) => r.width > 0 && r.height > 0);
       return {
-        left: Math.round(Math.min(...kids.map((r) => r.left)) - box.left),
-        top: Math.round(Math.min(...kids.map((r) => r.top)) - box.top),
+        left: Math.round(Math.min(...kids.map((r: any) => r.left)) - box.left),
+        top: Math.round(Math.min(...kids.map((r: any) => r.top)) - box.top),
       };
     });
     expect(inset, name).toEqual({ left: 24, top: 24 });
@@ -75,12 +78,13 @@ async function expectScrolls(name: string) {
   const region = page.getByRole('region', { name, exact: true });
   await expect(region).toBeVisible();
   const box = await region.evaluate((el) => {
-    const panel = el.closest('[role="tabpanel"]');
-    el.scrollTop = 10_000;
+    const htmlEl = el as any;
+    const panel = htmlEl.closest('[role="tabpanel"]');
+    htmlEl.scrollTop = 10_000;
     return {
-      bottom: el.getBoundingClientRect().bottom,
+      bottom: htmlEl.getBoundingClientRect().bottom,
       panelBottom: panel?.getBoundingClientRect().bottom ?? 0,
-      scrollTop: el.scrollTop,
+      scrollTop: htmlEl.scrollTop,
     };
   });
   expect(box.bottom).toBeLessThanOrEqual(box.panelBottom + 1);
@@ -100,14 +104,17 @@ test('the Static panel scrolls in a short window', async () => {
 test('the tab bar scrolls by itself instead of widening the window', async () => {
   const tablist = page.getByRole('tablist', { name: 'Project tools' });
   await expect(tablist).toBeVisible();
-  const sizes = await tablist.evaluate((el) => ({
-    pageOverflow:
-      el.ownerDocument.documentElement.scrollWidth - el.ownerDocument.documentElement.clientWidth,
-    tabsOverflow: el.scrollWidth - el.clientWidth,
-    heights: [...el.querySelectorAll('[role="tab"]')].map((t) =>
-      Math.round(t.getBoundingClientRect().height),
-    ),
-  }));
+  const sizes = await tablist.evaluate((el) => {
+    const htmlEl = el as any;
+    return {
+      pageOverflow:
+        htmlEl.ownerDocument.documentElement.scrollWidth - htmlEl.ownerDocument.documentElement.clientWidth,
+      tabsOverflow: htmlEl.scrollWidth - htmlEl.clientWidth,
+      heights: [...htmlEl.querySelectorAll('[role="tab"]')].map((t: any) =>
+        Math.round(t.getBoundingClientRect().height),
+      ),
+    };
+  });
   expect(sizes.pageOverflow).toBe(0);
   // Every tab stays on one line.
   expect(new Set(sizes.heights).size).toBe(1);
@@ -127,9 +134,12 @@ test('tabs that do not fit are reached with the scroll arrows', async () => {
   await expect(right).toBeVisible();
   await expect(left).toHaveCount(0);
   await right.click();
-  await expect.poll(() => bar.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await expect.poll(() => bar.evaluate((el) => (el as any).scrollLeft)).toBeGreaterThan(0);
   await expect(left).toBeVisible();
   // At the far end the right arrow goes away.
-  await bar.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+  await bar.evaluate((el) => {
+    const htmlEl = el as any;
+    htmlEl.scrollTo({ left: htmlEl.scrollWidth });
+  });
   await expect(right).toHaveCount(0);
 });
