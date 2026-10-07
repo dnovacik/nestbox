@@ -1,8 +1,11 @@
 import type { EcosystemModule } from './types';
+import { dotnetModule } from './dotnet';
 
 // Registry of all ecosystem modules
-// Real modules will be added here (python, dotnet, etc.)
-export const ECOSYSTEM_MODULES: ReadonlyArray<EcosystemModule<unknown, unknown>> = [];
+// Modules are checked in order during detection
+export const ECOSYSTEM_MODULES: ReadonlyArray<EcosystemModule<unknown, unknown>> = [
+  dotnetModule,
+];
 
 // Re-export types
 export * from './types';
