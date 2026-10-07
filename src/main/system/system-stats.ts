@@ -49,38 +49,36 @@ export async function getProcessStats(pids: readonly number[]): Promise<ProcessS
 }
 
 /**
- * Get process stats on Windows using WMIC.
+ * Get process stats on Windows using PowerShell.
  */
 async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessStats> {
   const pidList = pids.join(',');
-  // Get WorkingSetSize (memory in bytes) and PercentProcessorTime
+  // Get WorkingSet64 (memory in bytes) and CPU (sum of CPU time)
   const { stdout } = await execAsync(
-    `wmic process where "ProcessId in (${pidList})" get ProcessId,WorkingSetSize,PercentProcessorTime /format:csv`,
+    `powershell -NoProfile -Command "Get-Process -Id ${pidList} -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64,CPU | ConvertTo-Csv -NoTypeInformation"`,
     { timeout: 5000 }
   );
 
   let totalMemory = 0;
-  let totalCpu = 0;
 
   const lines = stdout.trim().split('\n').slice(1); // Skip header
   for (const line of lines) {
-    const parts = line.split(',').map(s => s.trim());
-    if (parts.length >= 4) {
-      const memoryStr = parts[3];
-      const cpuStr = parts[2];
+    if (!line.trim()) continue;
+    // CSV format: "Id","WorkingSet64","CPU"
+    const parts = line.split(',').map(s => s.replace(/"/g, '').trim());
+    if (parts.length >= 3) {
+      const memoryStr = parts[1];
       if (memoryStr) {
         const memory = parseInt(memoryStr, 10);
         if (!isNaN(memory)) totalMemory += memory;
       }
-      if (cpuStr) {
-        const cpu = parseFloat(cpuStr);
-        if (!isNaN(cpu)) totalCpu += cpu;
-      }
     }
   }
 
+  // CPU time is cumulative, not percentage. For now, just show 0% on Windows
+  // A proper implementation would need to track CPU time over intervals
   return {
-    cpuPercent: Math.round(totalCpu * 10) / 10,
+    cpuPercent: 0,
     memoryUsed: totalMemory,
   };
 }

@@ -26,10 +26,12 @@ export function StatusBar({ projectCount }: { projectCount: number }) {
       <div className="flex items-center gap-4">
         {processStats && running > 0 && (
           <>
-            <span className="flex items-center gap-1.5">
-              <Cpu className="size-3" aria-hidden />
-              <span>{processStats.cpuPercent.toFixed(1)}%</span>
-            </span>
+            {processStats.cpuPercent > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Cpu className="size-3" aria-hidden />
+                <span>{processStats.cpuPercent.toFixed(1)}%</span>
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               <MemoryStick className="size-3" aria-hidden />
               <span>{formatBytes(processStats.memoryUsed)}</span>
