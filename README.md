@@ -161,9 +161,44 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 
 ## Roadmap
 
-v1: projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer.
+### Shipped
 
-v2 started with the macOS build (v1.1.0, preview), git glance (v1.2.0), the database panel (v1.3.0), the TODO scanner (v1.4.0), health checks (v1.5.0), Docker Compose (v1.6.0), the mock API (v1.7.0), the request inspector (v1.8.0), its public tunnel (v1.9.0) Compose services in run groups (v1.10.0) the Node version check (v1.11.0), dependency health (v1.12.0), a light theme (v1.13.0) deployments (v1.14.0), env vs production (v1.15.0) the ready-to-deploy check (v1.16.0) tool toggles (v1.17.0), sidebar groups (v1.18.0), CI status (v1.19.0), multi-folder adding (v1.20.0), custom commands (v1.21.0), ecosystem modules with .NET (v1.22.0) and .NET solutions, SDK checks and NuGet dependencies (v1.23.0). See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1).
+| Version | What |
+| --- | --- |
+| v1.0.0 | Projects, scripts and logs, ports, env, static server, Claude Code, command palette, Windows installer |
+| v1.1.0 | macOS build (preview) |
+| v1.2.0 | Git glance |
+| v1.3.0 | Database panel |
+| v1.4.0 | TODO scanner |
+| v1.5.0 | Health checks |
+| v1.6.0 | Docker Compose |
+| v1.7.0 | Mock API |
+| v1.8.0 | Request inspector |
+| v1.9.0 | Public tunnel for the inspector |
+| v1.10.0 | Compose services in run groups |
+| v1.11.0 | Node version check |
+| v1.12.0 | Dependency health |
+| v1.13.0 | Light theme |
+| v1.14.0 | Deployments |
+| v1.15.0 | Env vs production |
+| v1.16.0 | Ready-to-deploy check |
+| v1.17.0 | Tool toggles |
+| v1.18.0 | Sidebar groups |
+| v1.19.0 | CI status |
+| v1.20.0 | Adding a folder of projects |
+| v1.21.0 | Custom commands and an env file per command |
+| v1.22.0 | Ecosystem modules with .NET, and system CPU/RAM in the status bar |
+| v1.23.0 | .NET solutions, SDK checks and NuGet dependencies |
+
+See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 started.
+
+### Planned
+
+- **.NET configuration in the Env tool** (v1.24.0, [#39](https://github.com/dnovacik/nestbox/issues/39)): a matrix of `appsettings.json` and `appsettings.<Environment>.json` keys, with values masked until revealed, edits that keep the file's comments and formatting, and which environment each launch profile runs.
+- **Python:** a Python ecosystem module, with detection (`pyproject.toml`, `requirements.txt`, `Pipfile`), detected commands (Django, FastAPI, Flask, pytest) and the package's virtual environment for every command. Its Env work: `.env` files read by the venv's commands, and keys the code reads (`os.getenv`, `os.environ`) checked against them.
+- **Version and dependency checks for every ecosystem:** the Node and Dependencies tools' checks for .NET's SDK and Python's interpreter and packages.
+- **More from .NET:** `ConnectionStrings` in the Database tool, EF Core migrations (like Prisma's), and the Inspector targeting a launch profile's port.
+- **Beyond package managers:** Node behind the same ecosystem interface, any git repository as a project, and Makefile and justfile targets as detected commands.
 
 ## License
 
