@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { PlatformAdapter } from '../platform/types';
+import type { PlatformAdapter } from '../platform/adapter';
 
 export type EcosystemId = 'python' | 'dotnet' | 'node';
 

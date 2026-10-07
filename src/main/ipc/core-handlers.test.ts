@@ -10,6 +10,7 @@ const detected = (over: Partial<DetectedProject> = {}): DetectedProject => ({
   packageJson: null, packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null,
   dockerCompose: null, deploy: [], git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
+  ecosystems: [],
   ...over,
 });
 

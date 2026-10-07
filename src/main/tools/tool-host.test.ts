@@ -17,6 +17,7 @@ const project: DetectedProject = {
   packageJson: { name: 'shop', scripts: {} }, packageManager: 'pnpm', envFiles: [], envSymlinks: [], workspaces: [],
   prismaSchema: null, dockerCompose: null, deploy: [], git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
+  ecosystems: [],
 };
 
 const echoContract = defineContract({
