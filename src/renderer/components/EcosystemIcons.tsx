@@ -1,41 +1,25 @@
 import type { SVGProps } from 'react';
 import type { EcosystemId } from '@shared/detected';
 
-// Import devicon SVGs as React components
+// Import devicon SVGs as React components (renderer side only)
 import DotNetSvg from 'devicon/icons/dot-net/dot-net-plain.svg?react';
 import PythonSvg from 'devicon/icons/python/python-plain.svg?react';
 import NodeJsSvg from 'devicon/icons/nodejs/nodejs-plain.svg?react';
 
 /**
- * Wrapper components for devicon SVGs.
- * The devicon SVGs have hardcoded colors, so we use them as-is.
- */
-
-function DotNetIcon(props: SVGProps<SVGSVGElement>) {
-  return <DotNetSvg {...props} />;
-}
-
-function PythonIcon(props: SVGProps<SVGSVGElement>) {
-  return <PythonSvg {...props} />;
-}
-
-function NodeJsIcon(props: SVGProps<SVGSVGElement>) {
-  return <NodeJsSvg {...props} />;
-}
-
-/**
  * Get the icon component for an ecosystem.
- * Returns a React component that renders the devicon icon.
+ * Icons are defined here in the renderer process since they use Vite's ?react imports.
  */
 export function getEcosystemIcon(id: EcosystemId): React.ComponentType<SVGProps<SVGSVGElement>> {
   switch (id) {
     case 'dotnet':
-      return DotNetIcon;
+      return DotNetSvg;
     case 'python':
-      return PythonIcon;
+      return PythonSvg;
     case 'node':
-      return NodeJsIcon;
+      return NodeJsSvg;
     default:
-      return DotNetIcon; // Fallback
+      // Fallback for unknown ecosystems
+      return DotNetSvg;
   }
 }

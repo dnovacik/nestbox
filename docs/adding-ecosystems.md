@@ -140,7 +140,43 @@ export const pythonModule: EcosystemModule<PythonInfo> = {
 };
 ```
 
-### 4. Update the EcosystemId Type
+### 4. Add Your Icon (REQUIRED)
+
+Every ecosystem **must** have an icon. Icons are defined in `src/renderer/components/EcosystemIcons.tsx` (renderer process), not in the ecosystem module itself.
+
+**Why?** The main process (where ecosystem modules run) can't use Vite's `?react` imports. Icons must be in the renderer process.
+
+**Steps:**
+
+1. **Find your icon** at https://devicons.github.io/devicon/
+2. **Open** `src/renderer/components/EcosystemIcons.tsx`
+3. **Import the SVG** at the top with the `?react` suffix:
+   ```typescript
+   import PythonSvg from 'devicon/icons/python/python-plain.svg?react';
+   ```
+4. **Add a case** to the `getEcosystemIcon()` switch statement:
+   ```typescript
+   case 'python':
+     return PythonSvg;
+   ```
+
+**Use the `-plain.svg` variant** (without wordmark) for best results. Available icons can be browsed at:
+- https://devicons.github.io/devicon/
+- https://github.com/devicons/devicon/tree/master/icons
+
+**Common icons:**
+- Python: `devicon/icons/python/python-plain.svg`
+- Node.js: `devicon/icons/nodejs/nodejs-plain.svg`
+- .NET: `devicon/icons/dot-net/dot-net-plain.svg`
+- Rust: `devicon/icons/rust/rust-plain.svg`
+- Go: `devicon/icons/go/go-plain.svg`
+
+Icons appear in:
+- Project tree sidebar (next to project names)
+- Scripts tool (next to detected tasks)
+- Project info panel (ecosystem row)
+
+### 5. Update the EcosystemId Type
 
 Add your language to `src/main/ecosystems/types.ts`:
 
@@ -148,7 +184,7 @@ Add your language to `src/main/ecosystems/types.ts`:
 export type EcosystemId = 'python' | 'dotnet' | 'node' | 'rust' | 'go';
 ```
 
-### 5. Register Your Module
+### 6. Register Your Module
 
 Add it to the registry in `src/main/ecosystems/index.ts`:
 
@@ -165,7 +201,7 @@ export const ECOSYSTEM_MODULES: ReadonlyArray<EcosystemModule<unknown, unknown>>
 
 **Order matters**: Modules are checked in array order. Put more specific detectors before generic ones.
 
-### 6. Write Tests
+### 7. Write Tests
 
 Create `src/main/ecosystems/<language>.test.ts`:
 
@@ -244,7 +280,7 @@ describe('pythonModule', () => {
 });
 ```
 
-### 7. Run Tests and Checks
+### 8. Run Tests and Checks
 
 ```bash
 pnpm test src/main/ecosystems/<language>.test.ts
