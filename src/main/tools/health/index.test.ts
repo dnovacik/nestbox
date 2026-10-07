@@ -38,7 +38,7 @@ const result = (state: CheckResult['state'], status: number | null = null): Chec
   at: 1,
 });
 
-function setup(initial: Partial<HealthSettings> = {}) {
+function setup(initial: Partial<HealthSettings> = {}, over: Partial<DetectedProject> = {}) {
   let settings: HealthSettings = { packages: {}, notify: true, ...initial };
   let running: ProcessSummary[] = [];
   const listeners = new Set<(e: ProcessEvent) => void>();
@@ -49,7 +49,7 @@ function setup(initial: Partial<HealthSettings> = {}) {
       return () => listeners.delete(l);
     },
   };
-  const project: DetectedProject = makeDetectedForTest({ path: root, name: 'shop' });
+  const project: DetectedProject = makeDetectedForTest({ path: root, name: 'shop', ...over });
   const check = vi.fn(async (_url: string, _o: { expect?: number }) => result('ok', 200));
   const notify = vi.fn();
   const emit = vi.fn();
@@ -95,6 +95,21 @@ describe('health tool: checks and status', () => {
       suggestions: { port: 3000, envKeys: ['API_URL'] },
     });
     expect(JSON.stringify(status)).not.toMatch(/s3cr3t|token/);
+  });
+
+  it("suggests a .NET launch profile's http port when .env has no PORT", async () => {
+    await writeFile(join(root, '.env'), 'API_URL=http://api.local\n');
+    const dotnet = {
+      solution: null,
+      project: 'Api.csproj',
+      targetFrameworks: ['net8.0'],
+      isWeb: true,
+      isTest: false,
+      sdk: null,
+      launchProfiles: [{ name: 'https', ports: [5283] }],
+    };
+    const { call } = setup({}, { ecosystems: [{ id: 'dotnet', info: dotnet }] });
+    expect((await call<HealthStatus>('status')).suggestions.port).toBe(5283);
   });
 
   it('adds a URL check and an env-key check, labelled without the env value', async () => {

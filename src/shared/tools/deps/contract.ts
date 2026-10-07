@@ -7,7 +7,7 @@ export const depsDefinition: ToolDefinition<Record<string, never>> = {
   id: 'deps',
   name: 'Dependencies',
   icon: 'package',
-  appliesTo: (p) => p.packageJson !== null,
+  appliesTo: (p) => p.packageJson !== null || p.ecosystems.some((e) => e.id === 'dotnet'),
   settingsSchema: z.object({}),
 };
 
@@ -56,8 +56,8 @@ export const PackageResultSchema = z.object({
   projectId: z.string(),
   relPath: z.string(),
   name: z.string(),
-  /** The package manager that ran; Yarn 2+ is 'yarn-berry' (its commands differ from Yarn 1's). */
-  manager: z.enum([...PACKAGE_MANAGERS, 'yarn-berry']),
+  /** The package manager that ran; Yarn 2+ is 'yarn-berry' (its commands differ from Yarn 1's); .NET is 'dotnet'. */
+  manager: z.enum([...PACKAGE_MANAGERS, 'yarn-berry', 'dotnet']),
   checkedAt: z.number(),
   rows: z.array(DepRowSchema),
   errors: z.array(StepErrorSchema),

@@ -26,6 +26,7 @@ import { StoreService } from './store/store-service';
 import { getSystemStats } from './system/system-stats';
 import { createPidLedger } from './processes/pid-ledger';
 import { type ProcessEvent, ProcessManager } from './processes/process-manager';
+import { belongsTo } from '@shared/processes';
 import { isToolEnabled } from '@shared/tools';
 import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
@@ -324,7 +325,11 @@ if (!app.requestSingleInstanceLock()) {
     const depsScheduler = createDepsScheduler({
       rootIds: async () => (await projects.list()).map((p) => p.id),
       schedule: () => (toolEnabled('deps') ? store.getSettings().depsSchedule : 'off'),
-      lastChecked: (rootId) => depsCache.get(rootId)?.checkedAt ?? null,
+      // The newest result among the root and its packages: a solution-only root has no entry of its own.
+      lastChecked: (rootId) => {
+        const times = depsCache.all().filter((r) => belongsTo(r.projectId, rootId)).map((r) => r.checkedAt);
+        return times.length > 0 ? Math.max(...times) : null;
+      },
       check: async (rootId) => {
         await toolHost.invoke('deps', rootId, 'check', {});
       },

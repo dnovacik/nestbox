@@ -29,4 +29,17 @@ describe('ProjectInfoCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('pnpm')).toBeInTheDocument();
   });
+
+  it("shows each ecosystem's summary line", async () => {
+    installMockBridge({
+      'tools:invoke': () =>
+        makeDetected({
+          packageJson: null,
+          packageManager: null,
+          ecosystems: [{ id: 'dotnet', info: {}, summary: '.NET · net8.0 · web · SDK 8.0.100' }],
+        }),
+    });
+    renderWithProviders(<ProjectInfoCard projectId="p1" />);
+    expect(await screen.findByText('.NET · net8.0 · web · SDK 8.0.100')).toBeInTheDocument();
+  });
 });

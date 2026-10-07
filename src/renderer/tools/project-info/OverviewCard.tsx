@@ -40,11 +40,15 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
         {data.ecosystems.length > 0 && (
           <>
             <dt className="text-fg-muted">Ecosystem</dt>
-            <dd className="flex items-center gap-2 text-fg">
+            <dd className="flex flex-col gap-1 text-fg">
               {data.ecosystems.map((entry) => (
                 <span key={entry.id} className="flex items-center gap-1.5">
                   <EcosystemIconBadge id={entry.id} className="size-3.5 flex-shrink-0" />
-                  <span className="text-xs capitalize">{entry.id}</span>
+                  {entry.summary ? (
+                    <span className="text-xs">{entry.summary}</span>
+                  ) : (
+                    <span className="text-xs capitalize">{entry.id}</span>
+                  )}
                 </span>
               ))}
             </dd>

@@ -16,6 +16,7 @@ import {
   type StoredCheck,
   UrlKeySchema,
 } from '@shared/tools/health/contract';
+import { ecosystemPorts } from '../../ecosystems';
 import type { Logger } from '../../logger';
 import type { ProcessEvent } from '../../processes/process-manager';
 import { entries, parseEnv } from '../env/dotenv';
@@ -240,7 +241,9 @@ export function createHealthTool(deps: HealthToolDeps): AnyMainTool {
         }));
         const portText = env.get('PORT')?.trim() ?? '';
         const portNumber = /^\d{1,5}$/.test(portText) ? Number(portText) : NaN;
-        const port = portNumber >= 1 && portNumber <= 65535 ? portNumber : null;
+        // PORT from .env, else the first port an ecosystem knows (a .NET launch profile's http URL).
+        const port =
+          portNumber >= 1 && portNumber <= 65535 ? portNumber : (ecosystemPorts(ctx.project)[0] ?? null);
         const portTaken =
           port !== null &&
           pkg.checks.some(

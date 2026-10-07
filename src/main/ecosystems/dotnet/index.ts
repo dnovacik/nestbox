@@ -9,19 +9,17 @@ import type { EcosystemModule, RunEnv } from '../types';
 import { detectDotnet, type DotnetInfo, DotnetInfoSchema, readSmall } from './detect';
 import { sdkWarning, parseListSdks } from './sdk';
 import { isTestName, parseSolution, SOLUTION_FILE } from './solution';
+import { checkDotnet, dotnetUpdateCommand } from './deps';
+import { DOTNET_ENV } from './env';
 import { dotnetTasks } from './tasks';
+
+export { DOTNET_ENV } from './env';
 
 export type { DotnetInfo } from './detect';
 
 const SOLUTION_MAX = 1024 * 1024;
 const SDK_CACHE_MS = 30_000;
 const SDK_TIMEOUT_MS = 3_000;
-
-export const DOTNET_ENV: Record<string, string> = {
-  DOTNET_NOLOGO: '1',
-  DOTNET_CLI_TELEMETRY_OPTOUT: '1',
-  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1',
-};
 
 const PROJECT_GLOBS = ['cs', 'fs', 'vb'].flatMap((x) => [`*/*.${x}proj`, `*/*/*.${x}proj`]);
 
@@ -93,6 +91,10 @@ export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, hom
     workspaceDirs: solutionProjects,
 
     tasks: dotnetTasks,
+
+    deps: checkDotnet,
+
+    depsUpdateCommand: dotnetUpdateCommand,
 
     async runEnv(ctx, info): Promise<RunEnv> {
       const found = await locate(ctx.platform);

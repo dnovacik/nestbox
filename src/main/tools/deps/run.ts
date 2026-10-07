@@ -11,8 +11,8 @@ export function createRun(
   cwd: string,
   timeoutMs = COMMAND_TIMEOUT_MS,
 ): Run {
-  return async (command, args) => {
-    const env = { ...(await platform.resolveShellEnv()), NO_COLOR: '1', FORCE_COLOR: '0' };
+  return async (command, args, extraEnv = {}) => {
+    const env = { ...(await platform.resolveShellEnv()), NO_COLOR: '1', FORCE_COLOR: '0', ...extraEnv };
     let child;
     try {
       child = platform.spawnCommand({ cwd, command, args, env });

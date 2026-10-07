@@ -25,7 +25,7 @@ export interface RunResult {
   stdout: string;
   timedOut: boolean;
 }
-export type Run = (command: string, args: string[]) => Promise<RunResult>;
+export type Run = (command: string, args: string[], env?: Record<string, string>) => Promise<RunResult>;
 
 export const MAX_ROWS = 1_000;
 export const MAX_FALLBACK_DEPS = 200;
