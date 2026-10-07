@@ -73,6 +73,17 @@ export function useCommandActions(projectId: string) {
   return { save, remove };
 }
 
+/** Hide a detected command, or restore a hidden one. */
+export function useHiddenActions(projectId: string) {
+  const refresh = useRefreshAllLists();
+  return useMutation({
+    mutationFn: ({ name, hide }: { name: string; hide: boolean }) =>
+      api.tools.invoke('scripts', projectId, hide ? 'hideCommand' : 'showCommand', { name }),
+    onSettled: refresh,
+    onError: showError,
+  });
+}
+
 export function useSetEnvFile(projectId: string) {
   const refresh = useRefreshAfter(projectId);
   return useMutation({

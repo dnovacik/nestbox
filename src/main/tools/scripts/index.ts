@@ -125,6 +125,15 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
   return [...npm, ...detected.filter(unique), ...custom];
 }
 
+/** The package's hidden detected tasks that its ecosystems still offer (the Restore list). */
+function hiddenOf(project: DetectedProject, settings: ScriptsSettings): string[] {
+  const hidden = settings.hidden[project.relPath] ?? [];
+  const offered = project.ecosystems.flatMap(
+    (entry) => ECOSYSTEM_MODULES.find((m) => m.id === entry.id)?.tasks(entry.info).map((t) => t.name) ?? [],
+  );
+  return hidden.filter((name) => offered.includes(name));
+}
+
 /** A list of per-script settings with one package's `from` renamed to `to`. */
 function renamed<T extends RunGroupEntry>(list: T[], relPath: string, from: string, to: string): T[] {
   return list.map((e) => (isEntry(relPath, from)(e) ? { ...e, script: to } : e));
@@ -361,7 +370,8 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           // The main one first.
           .sort((a, b) => Number(b.main) - Number(a.main));
         const envFiles = await deps.envFiles.list(ctx.project.path).catch(() => []);
-        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles };
+        const hidden = hiddenOf(ctx.project, settings);
+        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles, hidden };
         const packages = [ctx.project, ...ctx.project.workspaces].map((p) => {
           const names = runnables(p, settings).map((r) => r.name);
           const pkgMain = mainOf(settings, p);
@@ -373,7 +383,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             main: pkgMain !== null && names.includes(pkgMain) ? pkgMain : null,
           };
         });
-        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles };
+        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles, hidden };
       },
 
       start: async (ctx: Ctx, { script }) => {

@@ -120,6 +120,7 @@ describe('scripts tool: list and lifecycle', () => {
         { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false, main: null },
       ],
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
   });
 
@@ -549,6 +550,16 @@ describe('scripts tool: ecosystem commands', () => {
     expect(deps.node.advice).not.toHaveBeenCalled();
   });
 
+  it('hides a detected task until it is restored', async () => {
+    const { call } = dotnetSetup();
+    await call(svc.id, 'hideCommand', { name: 'clean' });
+    const listed = (await call(svc.id, 'list')) as { scripts: { name: string }[]; hidden: string[] };
+    expect(listed.scripts.map((s) => s.name)).not.toContain('clean');
+    expect(listed.hidden).toEqual(['clean']);
+    await call(svc.id, 'showCommand', { name: 'clean' });
+    expect(((await call(svc.id, 'list')) as { hidden: string[] }).hidden).toEqual([]);
+  });
+
   it("runs a custom command in the package's ecosystem environment too", async () => {
     const { call, platform } = dotnetSetup();
     await call(svc.id, 'saveCommand', { name: 'ef', argv: ['dotnet', 'ef', 'database', 'update'] });
@@ -569,6 +580,7 @@ describe('scripts tool: custom commands', () => {
       runGroups: null,
       packages: null,
       envFiles: ['.env', '.env.local'],
+      hidden: [],
     });
     expect(await call('r2', 'list')).toMatchObject({
       scripts: [],
