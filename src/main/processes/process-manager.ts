@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { delimiter } from 'node:path';
 import type { PackageManager } from '@shared/detected';
 import { stripAnsi } from '@shared/ansi-strip';
+import { formatCommandLine } from '@shared/command-line';
 import { NestboxError } from '@shared/errors';
 import {
   isLive,
@@ -42,8 +43,17 @@ export interface StartRequest {
   warning?: string | null;
   /** An extra first log line (e.g. which Node fnm provides). */
   note?: string | null;
-  /** A folder put first on the script's PATH (fnm's Node). */
+  /** A folder put first on the script's PATH (fnm's Node, a virtualenv's bin). */
   pathPrepend?: string | null;
+  /** A program and its arguments to run instead of `<pm> run <script>` (Python and custom commands). */
+  argv?: string[];
+  /** Extra variables (VIRTUAL_ENV, PYTHONUNBUFFERED). Paths and flags only, never values from .env. */
+  env?: Record<string, string>;
+  /**
+   * An env file whose variables the script gets, read at every spawn so edits apply on the next (re)start.
+   * read() resolves null when the file is missing. The values go only to the child: never logged or kept.
+   */
+  loadEnv?: { file: string; read(): Promise<Record<string, string> | null> };
 }
 
 /** The env with `dir` first on PATH, under whatever casing the env uses for it (Windows: Path). */
@@ -285,6 +295,24 @@ export class ProcessManager {
     return entry;
   }
 
+  /** The request's env file, or nothing when it has none, is missing or can't be read (the log says which). */
+  private async readEnvFile(entry: Entry): Promise<Record<string, string>> {
+    const load = entry.req.loadEnv;
+    if (!load) return {};
+    const vars = await load.read().catch(() => undefined);
+    if (vars === undefined) {
+      this.system(entry, `▲ ${load.file} could not be read: started without it`);
+      return {};
+    }
+    if (vars === null) {
+      this.system(entry, `▸ ${load.file} not found: started without it`);
+      return {};
+    }
+    const n = Object.keys(vars).length;
+    this.system(entry, `▸ env: ${load.file} (${n} ${n === 1 ? 'variable' : 'variables'})`);
+    return vars;
+  }
+
   private async spawn(entry: Entry): Promise<void> {
     const run = ++entry.run;
     entry.stopRequested = false;
@@ -296,18 +324,26 @@ export class ProcessManager {
     entry.lastStderr = null;
     entry.state = 'starting';
     entry.startedAt = this.now();
-    const command = entry.req.packageManager ?? 'npm';
+    const [command = 'npm', ...args] = entry.req.argv ?? [entry.req.packageManager ?? 'npm', 'run', entry.req.script];
     if (entry.req.note) this.system(entry, entry.req.note);
     if (entry.req.warning) this.system(entry, `▲ ${entry.req.warning}`);
-    this.system(entry, `▸ ${command} run ${entry.req.script}`);
+    this.system(entry, `▸ ${formatCommandLine([command, ...args])}`);
     this.changed();
 
     let child: ChildProcess;
     try {
       const shell = await this.deps.platform.resolveShellEnv();
-      const env = { ...(entry.req.pathPrepend ? withPathFirst(shell, entry.req.pathPrepend) : shell), FORCE_COLOR: '1' };
+      const fromFile = await this.readEnvFile(entry);
       if (run !== entry.run) return; // a stop pre-empted the spawn
-      child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args: ['run', entry.req.script], env });
+      // The file's variables over the shell's; the virtualenv and NestBox's own variables over both.
+      const base = { ...shell, ...fromFile };
+      const env = {
+        ...(entry.req.pathPrepend ? withPathFirst(base, entry.req.pathPrepend) : base),
+        ...entry.req.env,
+        FORCE_COLOR: '1',
+      };
+      if (run !== entry.run) return; // a stop pre-empted the spawn
+      child = this.deps.platform.spawnScript({ cwd: entry.req.cwd, command, args, env });
     } catch (error) {
       if (run !== entry.run) return;
       entry.state = 'stopped';
