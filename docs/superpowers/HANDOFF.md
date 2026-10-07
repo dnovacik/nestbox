@@ -21,7 +21,7 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 
   That leaves a draft GitHub Release. **Never publish it**: the owner publishes.
 - Keep going without stopping to ask for approval between steps.
-- Bump `package.json`'s version in each feature PR, add CLAUDE.md notes, and update the README's feature table and roadmap line.
+- Bump `package.json`'s version in each feature PR, add CLAUDE.md notes, and update the README's feature table and roadmap (a row under Shipped; move the item out of Planned).
 - Keep PR descriptions true to the final diff: when scope changes mid-PR, rewrite the description (and the squash message).
 - When building on someone else's work, credit them in the commits: `Co-authored-by: jubele <53142296+jubele@users.noreply.github.com>`.
 - Progress is mirrored to the owner's personal Obsidian vault (`Projects/Nestbox/Progress.md`, MCP server `obsidian`, not `obsidianRsys`) when that server is connected.
