@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import type { ToolPanelProps } from '../types';
 import { useProjectFacts } from './use-facts';
 
@@ -36,6 +37,19 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
     >
       <h3 className="text-[10px] font-semibold tracking-wider text-fg-muted uppercase">Project</h3>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+        {data.ecosystems.length > 0 && (
+          <>
+            <dt className="text-fg-muted">Ecosystem</dt>
+            <dd className="flex items-center gap-2 text-fg">
+              {data.ecosystems.map((entry) => (
+                <span key={entry.id} className="flex items-center gap-1.5">
+                  <EcosystemIconBadge id={entry.id} className="flex-shrink-0 opacity-60" />
+                  <span className="text-xs capitalize">{entry.id}</span>
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
         <dt className="text-fg-muted">Package manager</dt>
         <dd className="font-mono text-fg">{data.packageManager ?? 'none'}</dd>
         <dt className="text-fg-muted">Scripts</dt>

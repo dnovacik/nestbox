@@ -71,6 +71,8 @@ interface Runnable {
   command: string;
   /** null for a package.json script (`<pm> run <name>`). */
   argv: string[] | null;
+  /** The ecosystem ID for detected tasks. */
+  ecosystemId?: string;
 }
 
 const isEntry =
@@ -106,7 +108,7 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
     const tasks = module.tasks(entry.info);
     for (const task of tasks) {
       if (hiddenForPackage.includes(task.name)) continue;
-      detected.push(asRunnable('detected')(task));
+      detected.push({ ...asRunnable('detected')(task), ecosystemId: entry.id });
     }
   }
 
@@ -332,6 +334,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             kind: r.kind,
             envFile: envFileOf(settings, ctx.project, r),
             main: r.name === main,
+            ecosystemId: r.ecosystemId,
           }))
           // The main one first.
           .sort((a, b) => Number(b.main) - Number(a.main));
