@@ -15,7 +15,6 @@ export const queryKeys = {
   processes: ['processes'] as const,
   ports: ['ports'] as const,
   systemStats: ['system-stats'] as const,
-  processStats: ['process-stats'] as const,
   tools: (projectId: string) => ['tools', projectId] as const,
   toolCalls: ['tool'] as const,
   tool: (toolId: string, projectId: string, method: string) => ['tool', toolId, projectId, method] as const,
@@ -101,14 +100,6 @@ export function useSystemStats() {
   return useQuery({
     queryKey: queryKeys.systemStats,
     queryFn: () => api.system.getStats(),
-    refetchInterval: 2000, // Refresh every 2 seconds
-  });
-}
-
-export function useProcessStats() {
-  return useQuery({
-    queryKey: queryKeys.processStats,
-    queryFn: () => api.system.getProcessStats(),
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 }
