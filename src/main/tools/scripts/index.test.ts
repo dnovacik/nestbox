@@ -59,6 +59,7 @@ function setup(projects: DetectedProject[] = [root, api]) {
     isFile: vi.fn(async (_path: string) => true),
     emit: vi.fn(),
     logger: createMemoryLogger(),
+    platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
     node: {
       advice: vi.fn(
         async (_projectId: string): Promise<{ warning: string | null; pathPrepend: string | null; note: string | null }> => ({
@@ -153,11 +154,11 @@ describe('scripts tool: list and lifecycle', () => {
     const { call, toolSettings, processes } = setup();
     await call(api.id, 'start', { script: 'dev' });
     expect(await call(api.id, 'setAutoRestart', { script: 'dev', enabled: true })).toEqual({ enabled: true });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [], envFiles: [], main: [] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [], envFiles: [], main: [], hidden: {} });
     expect(processes.get(api.id, 'dev')?.autoRestart).toBe(true);
     expect(await call(api.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', autoRestart: true }] });
     await call(api.id, 'setAutoRestart', { script: 'dev', enabled: false });
-    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [], envFiles: [], main: [] });
+    expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [], envFiles: [], main: [], hidden: {} });
   });
 
   it('starts with auto-restart from settings', async () => {
