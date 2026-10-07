@@ -4,7 +4,7 @@ This directory contains ecosystem modules that detect and provide commands for d
 
 ## Current Modules
 
-- **dotnet** - .NET projects (.sln, .csproj, .fsproj)
+- **dotnet/** - .NET solutions (.sln, .slnx) and projects (.csproj, .fsproj, .vbproj): launch profiles, SDK check, NuGet dependencies
 - **node** - Node.js projects (package.json)
 
 ## Adding a New Module
@@ -13,7 +13,7 @@ See [docs/adding-ecosystems.md](../../docs/adding-ecosystems.md) for a complete 
 
 **Quick start:**
 
-1. Create `<language>.ts` with detection logic and task list
+1. Create `<language>.ts` (or a `<language>/` folder) with detection logic and task list
 2. Add your ecosystem ID to `EcosystemId` in `types.ts`
 3. **Add your icon** - Update `src/renderer/components/EcosystemIcons.tsx` (required)
 4. Register in `index.ts` → `ECOSYSTEM_MODULES` array
@@ -38,7 +38,7 @@ export const myModule: EcosystemModule<z.infer<typeof MyInfoSchema>> = {
     // Return info or null
   },
   
-  packageGlobs: ['**/marker-file'],
+  packageGlobs: ['*/marker-file', '*/*/marker-file'],
   
   tasks(info) {
     return [

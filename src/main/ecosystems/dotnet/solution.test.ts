@@ -32,7 +32,9 @@ describe('parseSolution', () => {
   });
 
   it('returns [] for an empty or unrelated file', () => {
-    expect(parseSolution('Empty.sln', 'Microsoft Visual Studio Solution File\nGlobal\nEndGlobal\n')).toEqual([]);
+    expect(
+      parseSolution('Empty.sln', 'Microsoft Visual Studio Solution File\nGlobal\nEndGlobal\n'),
+    ).toEqual([]);
     expect(parseSolution('x.sln', 'not a solution')).toEqual([]);
   });
 
@@ -41,16 +43,27 @@ describe('parseSolution', () => {
       '\uFEFF<Solution>\n  <Folder Name="/src/">\n    <Project Path="src/Shop.Api/Shop.Api.csproj" />\n' +
       '    <Project Path="src\\R&amp;D\\RnD.fsproj" Type="Classic F#" />\n  </Folder>\n' +
       '  <Project Path="db/Db.sqlproj" />\n</Solution>\n';
-    expect(parseSolution('Shop.slnx', text)).toEqual(['src/Shop.Api/Shop.Api.csproj', 'src/R&D/RnD.fsproj']);
+    expect(parseSolution('Shop.slnx', text)).toEqual([
+      'src/Shop.Api/Shop.Api.csproj',
+      'src/R&D/RnD.fsproj',
+    ]);
   });
 });
 
 describe('isTestName', () => {
-  it.each(['test', 'tests', 'Tests', 'Shop.Tests', 'Shop.Api.Tests', 'Shop.IntegrationTests', 'api-test', 'UnitTests', 'tests.unit'])(
-    '%s is a test project',
-    (name) => expect(isTestName(name)).toBe(true),
-  );
-  it.each(['Api', 'Contest', 'Latest', 'Testimonials', 'Shop.Testing', 'src'])('%s is not', (name) =>
-    expect(isTestName(name)).toBe(false),
+  it.each([
+    'test',
+    'tests',
+    'Tests',
+    'Shop.Tests',
+    'Shop.Api.Tests',
+    'Shop.IntegrationTests',
+    'api-test',
+    'UnitTests',
+    'tests.unit',
+  ])('%s is a test project', (name) => expect(isTestName(name)).toBe(true));
+  it.each(['Api', 'Contest', 'Latest', 'Testimonials', 'Shop.Testing', 'src'])(
+    '%s is not',
+    (name) => expect(isTestName(name)).toBe(false),
   );
 });

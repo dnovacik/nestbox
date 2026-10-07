@@ -154,6 +154,8 @@ export interface EcosystemModule<Info, Settings = unknown> {
 
 ## .NET module (PR B: v2-dotnet, 1.23.0)
 
+**Status:** built in dnovacik/nestbox#37 (1.23.0); decisions and differences from this section are in [the .NET design](2026-10-07-nestbox-v2-dotnet-design.md).
+
 Stacked on `v2-ecosystems`. Becomes the first real ecosystem module.
 
 **Detection** (pure filesystem, size caps like other detectors):

@@ -25,7 +25,10 @@ const TRANSITIVE = JSON.stringify({
               id: 'System.Text.Json',
               resolvedVersion: '8.0.0',
               vulnerabilities: [
-                { severity: 'High', advisoryurl: 'https://github.com/advisories/GHSA-hh2w-p6rv-4g7w' },
+                {
+                  severity: 'High',
+                  advisoryurl: 'https://github.com/advisories/GHSA-hh2w-p6rv-4g7w',
+                },
                 { severity: 'Moderate', advisoryurl: 'javascript:alert(1)' },
               ],
             },
@@ -116,8 +119,24 @@ describe('checkDotnet', () => {
     }));
     const result = await checkDotnet(info, run);
     expect(run.mock.calls).toEqual([
-      ['dotnet', ['list', 'Shop.Core.csproj', 'package', '--outdated', '--format', 'json'], DOTNET_ENV],
-      ['dotnet', ['list', 'Shop.Core.csproj', 'package', '--vulnerable', '--include-transitive', '--format', 'json'], DOTNET_ENV],
+      [
+        'dotnet',
+        ['list', 'Shop.Core.csproj', 'package', '--outdated', '--format', 'json'],
+        DOTNET_ENV,
+      ],
+      [
+        'dotnet',
+        [
+          'list',
+          'Shop.Core.csproj',
+          'package',
+          '--vulnerable',
+          '--include-transitive',
+          '--format',
+          'json',
+        ],
+        DOTNET_ENV,
+      ],
     ]);
     expect(result).toMatchObject({ manager: 'dotnet', errors: [] });
     expect(result?.rows).toHaveLength(4);

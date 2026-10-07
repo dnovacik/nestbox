@@ -57,7 +57,9 @@ export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, hom
   let sdkCache: { command: string; at: number; versions: string[] | null } | null = null;
 
   /** `dotnet`, or the ~/.dotnet copy when dotnet isn't on PATH; null when neither is found. */
-  async function locate(platform: PlatformAdapter): Promise<{ command: string; dir: string | null } | null> {
+  async function locate(
+    platform: PlatformAdapter,
+  ): Promise<{ command: string; dir: string | null } | null> {
     if ((await platform.commandExists('dotnet')) !== false) return { command: 'dotnet', dir: null };
     const dir = join(deps.home, '.dotnet');
     for (const exe of ['dotnet', 'dotnet.exe']) {
@@ -67,9 +69,14 @@ export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, hom
   }
 
   /** Installed SDK versions (30 s cache); null when `dotnet --list-sdks` fails. */
-  async function installedSdks(platform: PlatformAdapter, command: string, cwd: string): Promise<string[] | null> {
+  async function installedSdks(
+    platform: PlatformAdapter,
+    command: string,
+    cwd: string,
+  ): Promise<string[] | null> {
     const now = deps.now();
-    if (sdkCache && sdkCache.command === command && now - sdkCache.at < SDK_CACHE_MS) return sdkCache.versions;
+    if (sdkCache && sdkCache.command === command && now - sdkCache.at < SDK_CACHE_MS)
+      return sdkCache.versions;
     const result = await platform
       .execCommand(command, ['--list-sdks'], { cwd, timeoutMs: SDK_TIMEOUT_MS, env: DOTNET_ENV })
       .catch(() => null);
@@ -98,17 +105,22 @@ export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, hom
 
     async runEnv(ctx, info): Promise<RunEnv> {
       const found = await locate(ctx.platform);
-      if (found === null) return { env: DOTNET_ENV, warning: "dotnet isn't on PATH: install the .NET SDK" };
-      const versions = info.sdk === null ? null : await installedSdks(ctx.platform, found.command, ctx.dir);
+      if (found === null)
+        return { env: DOTNET_ENV, warning: "dotnet isn't on PATH: install the .NET SDK" };
+      const versions =
+        info.sdk === null ? null : await installedSdks(ctx.platform, found.command, ctx.dir);
       const warning = versions === null ? null : sdkWarning(info.sdk, versions);
       return {
         env: DOTNET_ENV,
-        ...(found.dir === null ? {} : { pathPrepend: found.dir, note: `Using the .NET SDK in ${found.dir}` }),
+        ...(found.dir === null
+          ? {}
+          : { pathPrepend: found.dir, note: `Using the .NET SDK in ${found.dir}` }),
         ...(warning === null ? {} : { warning }),
       };
     },
 
-    ports: (info) => info.launchProfiles.flatMap((p) => p.ports).filter((p, i, all) => all.indexOf(p) === i),
+    ports: (info) =>
+      info.launchProfiles.flatMap((p) => p.ports).filter((p, i, all) => all.indexOf(p) === i),
 
     summary(info) {
       const parts = ['.NET'];

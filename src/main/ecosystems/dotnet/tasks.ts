@@ -15,7 +15,11 @@ export function dotnetTasks(info: DotnetInfo): DetectedTask[] {
   const { project, solution } = info;
   if (project !== null && !info.isTest) {
     tasks.push({ name: 'run', argv: ['dotnet', 'run', '--project', project], title: 'Run' });
-    tasks.push({ name: 'watch', argv: ['dotnet', 'watch', '--project', project], title: 'Run with hot reload' });
+    tasks.push({
+      name: 'watch',
+      argv: ['dotnet', 'watch', '--project', project],
+      title: 'Run with hot reload',
+    });
     const taken = new Set(['run']);
     for (const profile of info.launchProfiles) {
       const name = profileTaskName(profile.name);

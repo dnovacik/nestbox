@@ -15,10 +15,16 @@ interface Version {
 function parse(text: string): Version | null {
   const m = /^(\d+)\.(\d+)\.(\d+)(-\S+)?$/.exec(text.trim());
   if (!m) return null;
-  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), prerelease: m[4] !== undefined };
+  return {
+    major: Number(m[1]),
+    minor: Number(m[2]),
+    patch: Number(m[3]),
+    prerelease: m[4] !== undefined,
+  };
 }
 
-const compare = (a: Version, b: Version): number => a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+const compare = (a: Version, b: Version): number =>
+  a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 const band = (v: Version): number => Math.floor(v.patch / 100);
 
 /** `dotnet --list-sdks`: one `<version> [<folder>]` per line. Only the versions are kept. */
@@ -33,8 +39,10 @@ export function satisfies(required: string, policy: Policy, installed: string): 
   const want = parse(required);
   const have = parse(installed);
   if (!want || !have) return false;
-  if (compare(have, want) === 0) return have.prerelease === want.prerelease || installed === required;
-  if (policy === 'disable' || compare(have, want) < 0 || (have.prerelease && !want.prerelease)) return false;
+  if (compare(have, want) === 0)
+    return have.prerelease === want.prerelease || installed === required;
+  if (policy === 'disable' || compare(have, want) < 0 || (have.prerelease && !want.prerelease))
+    return false;
   const sameMajor = have.major === want.major;
   const sameMinor = sameMajor && have.minor === want.minor;
   switch (policy) {
@@ -55,7 +63,8 @@ export function satisfies(required: string, policy: Policy, installed: string): 
 
 /** The start warning when no installed SDK satisfies global.json; null when one does or none is pinned. */
 export function sdkWarning(sdk: DotnetInfo['sdk'], installed: readonly string[]): string | null {
-  if (sdk === null || installed.some((v) => satisfies(sdk.version, sdk.rollForward, v))) return null;
+  if (sdk === null || installed.some((v) => satisfies(sdk.version, sdk.rollForward, v)))
+    return null;
   const list = installed.length > 0 ? installed.join(', ') : 'none';
   return `global.json asks for .NET SDK ${sdk.version} (rollForward ${sdk.rollForward}); installed: ${list}`;
 }

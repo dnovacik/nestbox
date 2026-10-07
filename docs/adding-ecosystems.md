@@ -48,8 +48,8 @@ export const pythonModule: EcosystemModule<PythonInfo> = {
 
   /**
    * Detect if this directory contains a project of your type.
-   * This is PURE: no file I/O, no subprocess, no Electron APIs.
-   * Only use the provided files and dirs sets.
+   * No subprocess and no Electron APIs. Prefer the provided files and dirs sets;
+   * read a file only when you must, small and capped (see Cheap Detection).
    */
   async detect(
     dir: string,
@@ -70,10 +70,14 @@ export const pythonModule: EcosystemModule<PythonInfo> = {
   },
 
   /**
-   * Glob patterns that identify workspace packages.
-   * Used for multi-folder projects (e.g., monorepos).
+   * File patterns that make a sub-folder a package when the root declares no workspaces
+   * (multi-folder projects): the folder holding a match is the package. Stay one or two
+   * levels down, like Node's `*/package.json` and `*/*/package.json`.
    */
-  packageGlobs: ['**/pyproject.toml', '**/setup.py'],
+  packageGlobs: ['*/pyproject.toml', '*/*/pyproject.toml'],
+
+  /** Optional: folder names that never hold a package (build output, test folders). */
+  skipDir: (name) => name === '__pycache__',
 
   /**
    * Generate the list of runnable tasks for this project.
@@ -291,21 +295,17 @@ pnpm test  # Full suite
 
 ## Design Principles
 
-### Pure Detection
+### Cheap Detection
 
-The `detect()` method must be **pure** and **fast**:
+The `detect()` method must be **cheap**:
 - ✅ Check file/dir existence in the provided sets
 - ✅ Pattern matching on file names
-- ❌ No file I/O (`readFile`, `stat`, etc.)
+- ✅ Small, capped reads of a few known files when the names alone don't say enough (the .NET module reads the project file, `launchSettings.json` and `global.json`, each with a size cap)
 - ❌ No subprocess execution
 - ❌ No Electron APIs
+- ❌ Never keep secrets or values (launch profiles' `environmentVariables`, `.env` values)
 
-**Why?** Detection runs for every directory during project scanning. Keeping it pure makes it:
-- Fast (no I/O)
-- Testable (no mocking needed)
-- Reliable (no race conditions)
-
-If you need file contents or subprocess output, parse it in `runEnv()` or defer it to a future enhancement.
+**Why?** Detection runs for every directory on every refresh. Anything slower (a subprocess, the network) belongs in `runEnv()` or `deps()`.
 
 ### Task Design
 
@@ -339,9 +339,11 @@ If you need to parse a config file or run a subprocess to determine the environm
 Your module integrates automatically with:
 
 1. **Project detection** (`detectProject()`): Runs during initial scan and rescan
-2. **Scripts tool**: Tasks appear as `'detected'` kind commands
-3. **Project-info**: `summary()` appears in the info panel
-4. **Workspace detection**: `packageGlobs` finds nested packages
+2. **Scripts tool**: Tasks appear as `'detected'` kind commands (Hide on the row, Restore below the list). `runEnv()` applies to them and to custom commands of the package; its `warning` becomes the row's badge.
+3. **Project-info**: `summary()` appears in the project card
+4. **Workspace detection**: `packageGlobs` and `skipDir` find sub-folder packages; optional `workspaceDirs(root)` adds folders the root lists itself (a .NET solution's projects)
+5. **Health** (optional `ports(info)`): the first port is a check suggestion when `.env` has no `PORT`
+6. **Dependencies** (optional `deps(info, run)` and `depsUpdateCommand(name)`): rows for a package without a `package.json`; network only on Check or the schedule
 
 ## Testing Strategy
 
@@ -369,7 +371,8 @@ Test these scenarios:
 ## Examples
 
 See existing modules:
-- [`dotnet.ts`](../src/main/ecosystems/dotnet.ts) - Simple, file-extension based detection
+- [`dotnet/`](../src/main/ecosystems/dotnet/) - The full reference: capped reads, solution projects, launch-profile tasks, an SDK warning in `runEnv`, Health ports and a dependency check
+- [`node.ts`](../src/main/ecosystems/node.ts) - Minimal: detection from file names only
 - [`test-module.ts`](../src/main/ecosystems/test-module.ts) - Test fixture showing all features
 
 ## Common Patterns
@@ -438,4 +441,4 @@ async runEnv(ctx, info) {
 
 ## Questions?
 
-Check the [ecosystem spec](../specs/2026-10-07-nestbox-v2-ecosystems-plan.md) for design rationale, or look at the existing `.NET` module as a reference implementation.
+Check the [ecosystem spec](superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md) for design rationale, or look at the `.NET` module (`src/main/ecosystems/dotnet/`) as a reference implementation.

@@ -37,14 +37,22 @@ const LAUNCH_SETTINGS = `\uFEFF{
 
 describe('parseProjectFile', () => {
   it('reads the web SDK and target framework', () => {
-    expect(parseProjectFile(WEB_CSPROJ)).toEqual({ targetFrameworks: ['net10.0'], isWeb: true, isTest: false });
+    expect(parseProjectFile(WEB_CSPROJ)).toEqual({
+      targetFrameworks: ['net10.0'],
+      isWeb: true,
+      isTest: false,
+    });
   });
 
   it('reads several target frameworks and ignores comments', () => {
     const xml =
       '<Project Sdk="Microsoft.NET.Sdk"><!-- <TargetFramework>net6.0</TargetFramework> -->' +
       '<PropertyGroup><TargetFrameworks>net8.0;net48</TargetFrameworks></PropertyGroup></Project>';
-    expect(parseProjectFile(xml)).toEqual({ targetFrameworks: ['net8.0', 'net48'], isWeb: false, isTest: false });
+    expect(parseProjectFile(xml)).toEqual({
+      targetFrameworks: ['net8.0', 'net48'],
+      isWeb: false,
+      isTest: false,
+    });
   });
 
   it.each([
@@ -53,7 +61,11 @@ describe('parseProjectFile', () => {
     '<PackageReference Include="NUnit" Version="4.0.0" />',
     '<IsTestProject>true</IsTestProject>',
   ])('recognises a test project from %s', (snippet) => {
-    expect(parseProjectFile(`<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>${snippet}</ItemGroup></Project>`).isTest).toBe(true);
+    expect(
+      parseProjectFile(
+        `<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>${snippet}</ItemGroup></Project>`,
+      ).isTest,
+    ).toBe(true);
   });
 
   it('recognises the MSTest SDK', () => {
@@ -124,7 +136,12 @@ describe('detectDotnet', () => {
   });
 
   it('takes the first solution and project by name', async () => {
-    dir = await makeTree({ 'B.slnx': '<Solution />', 'A.sln': '', 'Z.csproj': '<Project />', 'Y.fsproj': '<Project />' });
+    dir = await makeTree({
+      'B.slnx': '<Solution />',
+      'A.sln': '',
+      'Z.csproj': '<Project />',
+      'Y.fsproj': '<Project />',
+    });
     const info = await detectDotnet(dir, new Set(['B.slnx', 'A.sln', 'Z.csproj', 'Y.fsproj']));
     expect(info).toMatchObject({ solution: 'A.sln', project: 'Y.fsproj' });
   });

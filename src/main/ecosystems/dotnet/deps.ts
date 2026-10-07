@@ -20,16 +20,27 @@ interface Listed {
   transitive: boolean;
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const str = (v: unknown, re: RegExp): string | null => (typeof v === 'string' && re.test(v) ? v : null);
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v: unknown, re: RegExp): string | null =>
+  typeof v === 'string' && re.test(v) ? v : null;
 const array = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
-const SEVERITY: Record<string, Severity> = { low: 'low', moderate: 'moderate', medium: 'moderate', high: 'high', critical: 'critical' };
+const SEVERITY: Record<string, Severity> = {
+  low: 'low',
+  moderate: 'moderate',
+  medium: 'moderate',
+  high: 'high',
+  critical: 'critical',
+};
 
 function advisory(v: unknown): Advisory | null {
   if (!isObject(v)) return null;
   const severity = SEVERITY[String(v['severity']).toLowerCase()];
-  const url = typeof v['advisoryurl'] === 'string' && /^https:\/\/\S+$/.test(v['advisoryurl']) ? v['advisoryurl'] : null;
+  const url =
+    typeof v['advisoryurl'] === 'string' && /^https:\/\/\S+$/.test(v['advisoryurl'])
+      ? v['advisoryurl']
+      : null;
   if (!severity) return null;
   const id = url?.split('/').filter(Boolean).pop() ?? 'advisory';
   return { id, title: id, severity, url, range: null };
@@ -60,7 +71,8 @@ export function parseListPackage(text: string): Listed[] | null {
             .map(advisory)
             .filter((a): a is Advisory => a !== null);
           if (found) {
-            for (const a of advisories) if (!found.advisories.some((b) => b.id === a.id)) found.advisories.push(a);
+            for (const a of advisories)
+              if (!found.advisories.some((b) => b.id === a.id)) found.advisories.push(a);
             continue;
           }
           byId.set(id.toLowerCase(), {
@@ -121,7 +133,11 @@ export async function checkDotnet(info: DotnetInfo, run: DepsRun): Promise<Ecosy
   if (info.project === null) return null;
   const errors: StepError[] = [];
   const list = async (step: StepError['step'], flags: string[]): Promise<Listed[]> => {
-    const r = await run('dotnet', ['list', info.project as string, 'package', ...flags, '--format', 'json'], DOTNET_ENV);
+    const r = await run(
+      'dotnet',
+      ['list', info.project as string, 'package', ...flags, '--format', 'json'],
+      DOTNET_ENV,
+    );
     const parsed = r.code === null ? null : parseListPackage(r.stdout);
     if (parsed) return parsed;
     errors.push({ step, code: r.timedOut ? 'timeout' : 'failed' });

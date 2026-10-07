@@ -9,9 +9,13 @@ const args = process.argv.slice(2);
 appendFileSync(join(process.cwd(), '.fake-dotnet.log'), `${args.join(' ')}\n`);
 
 if (args[0] === '--list-sdks') {
-  process.stdout.write('8.0.414 [C:\\Program Files\\dotnet\\sdk]\n10.0.401 [C:\\Program Files\\dotnet\\sdk]\n');
+  process.stdout.write(
+    '8.0.414 [C:\\Program Files\\dotnet\\sdk]\n10.0.401 [C:\\Program Files\\dotnet\\sdk]\n',
+  );
 } else if (args[0] === 'run' || args[0] === 'watch') {
-  const profile = args.includes('--launch-profile') ? args[args.indexOf('--launch-profile') + 1] : 'default';
+  const profile = args.includes('--launch-profile')
+    ? args[args.indexOf('--launch-profile') + 1]
+    : 'default';
   console.log(`Using launch settings profile ${profile}`);
   console.log('info: Microsoft.Hosting.Lifetime[14]');
   console.log('      Now listening on: http://localhost:5283');

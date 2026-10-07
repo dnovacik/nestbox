@@ -71,15 +71,22 @@ function parseJson(text: string | null): unknown {
   }
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const TEST_PACKAGES = /^(?:Microsoft\.NET\.Test\.Sdk|xunit|xunit\.v3|NUnit|MSTest|MSTest\.TestFramework|TUnit)$/i;
+const TEST_PACKAGES =
+  /^(?:Microsoft\.NET\.Test\.Sdk|xunit|xunit\.v3|NUnit|MSTest|MSTest\.TestFramework|TUnit)$/i;
 
-export function parseProjectFile(xml: string): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest'> {
+export function parseProjectFile(
+  xml: string,
+): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest'> {
   const text = xml.replace(/<!--[\s\S]*?-->/g, '');
   const sdk = /<Project\b[^>]*\bSdk\s*=\s*"([^"]*)"/i.exec(text)?.[1] ?? '';
-  const frameworks = /<TargetFrameworks?>\s*([^<]*?)\s*<\/TargetFrameworks?>/i.exec(text)?.[1] ?? '';
-  const packages = [...text.matchAll(/<PackageReference\b[^>]*\bInclude\s*=\s*"([^"]+)"/gi)].map((m) => m[1] ?? '');
+  const frameworks =
+    /<TargetFrameworks?>\s*([^<]*?)\s*<\/TargetFrameworks?>/i.exec(text)?.[1] ?? '';
+  const packages = [...text.matchAll(/<PackageReference\b[^>]*\bInclude\s*=\s*"([^"]+)"/gi)].map(
+    (m) => m[1] ?? '',
+  );
   return {
     targetFrameworks: frameworks
       .split(';')
@@ -112,13 +119,17 @@ export function parseLaunchSettings(text: string | null): DotnetInfo['launchProf
   return Object.entries(profiles)
     .filter(([name, p]) => PROFILE_NAME.test(name) && isObject(p) && p['commandName'] === 'Project')
     .slice(0, 20)
-    .map(([name, p]) => ({ name, ports: httpPorts((p as Record<string, unknown>)['applicationUrl']) }));
+    .map(([name, p]) => ({
+      name,
+      ports: httpPorts((p as Record<string, unknown>)['applicationUrl']),
+    }));
 }
 
 export function parseGlobalJson(text: string | null): DotnetInfo['sdk'] {
   const json = parseJson(text);
   const sdk = isObject(json) ? json['sdk'] : null;
-  if (!isObject(sdk) || typeof sdk['version'] !== 'string' || !SDK_VERSION.test(sdk['version'])) return null;
+  if (!isObject(sdk) || typeof sdk['version'] !== 'string' || !SDK_VERSION.test(sdk['version']))
+    return null;
   const policy = ROLL_FORWARD.find((p) => p === sdk['rollForward']);
   return { version: sdk['version'], rollForward: policy ?? 'latestPatch' };
 }
@@ -135,7 +146,10 @@ async function findGlobalJson(dir: string): Promise<DotnetInfo['sdk']> {
 const firstSorted = (files: ReadonlySet<string>, pattern: RegExp): string | null =>
   [...files].filter((f) => pattern.test(f)).sort()[0] ?? null;
 
-export async function detectDotnet(dir: string, files: ReadonlySet<string>): Promise<DotnetInfo | null> {
+export async function detectDotnet(
+  dir: string,
+  files: ReadonlySet<string>,
+): Promise<DotnetInfo | null> {
   const solution = firstSorted(files, SOLUTION_FILE);
   const project = firstSorted(files, PROJECT_FILE);
   if (solution === null && project === null) return null;
@@ -146,6 +160,8 @@ export async function detectDotnet(dir: string, files: ReadonlySet<string>): Pro
   const launchProfiles =
     project === null
       ? []
-      : parseLaunchSettings(await readSmall(join(dir, 'Properties', 'launchSettings.json'), LAUNCH_SETTINGS_MAX));
+      : parseLaunchSettings(
+          await readSmall(join(dir, 'Properties', 'launchSettings.json'), LAUNCH_SETTINGS_MAX),
+        );
   return { solution, project, ...facts, sdk: await findGlobalJson(dir), launchProfiles };
 }
