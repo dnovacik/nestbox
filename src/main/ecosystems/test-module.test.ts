@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { PlatformAdapter } from '../platform/adapter';
 import { TEST_ECOSYSTEM_MODULE } from './test-module';
 
 describe('TEST_ECOSYSTEM_MODULE', () => {
@@ -43,7 +44,7 @@ describe('TEST_ECOSYSTEM_MODULE', () => {
       const info = { version: '1.0.0', marker: 'test-marker.txt' };
       const ctx = {
         dir: '/test/dir',
-        platform: {} as any,
+        platform: {} as PlatformAdapter,
         settings: {},
       };
 

@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { detectProject } from './detect-project';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
 import { TEST_ECOSYSTEM_MODULE } from '../ecosystems/test-module';
+import type { EcosystemModule } from '../ecosystems/types';
 
 describe('detectProject with ecosystems', () => {
   let testDir: string;
-  let originalModules: typeof ECOSYSTEM_MODULES;
+  let originalModules: EcosystemModule<unknown, unknown>[];
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `nestbox-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -16,16 +17,16 @@ describe('detectProject with ecosystems', () => {
 
     // Temporarily inject test module
     originalModules = [...ECOSYSTEM_MODULES];
-    (ECOSYSTEM_MODULES as any).length = 0;
-    (ECOSYSTEM_MODULES as any).push(TEST_ECOSYSTEM_MODULE);
+    (ECOSYSTEM_MODULES as EcosystemModule<unknown, unknown>[]).length = 0;
+    (ECOSYSTEM_MODULES as EcosystemModule<unknown, unknown>[]).push(TEST_ECOSYSTEM_MODULE);
   });
 
   afterEach(async () => {
     await rm(testDir, { recursive: true, force: true });
 
     // Restore original modules
-    (ECOSYSTEM_MODULES as any).length = 0;
-    (ECOSYSTEM_MODULES as any).push(...originalModules);
+    (ECOSYSTEM_MODULES as EcosystemModule<unknown, unknown>[]).length = 0;
+    (ECOSYSTEM_MODULES as EcosystemModule<unknown, unknown>[]).push(...originalModules);
   });
 
   it('detects ecosystem when marker file exists', async () => {

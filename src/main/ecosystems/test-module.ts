@@ -17,7 +17,7 @@ export const TEST_ECOSYSTEM_MODULE: EcosystemModule<TestInfo> = {
   id: 'python', // Use 'python' as a valid EcosystemId for tests
   infoSchema: TestInfoSchema,
 
-  async detect(dir: string, files: ReadonlySet<string>, dirs: ReadonlySet<string>): Promise<TestInfo | null> {
+  async detect(_dir: string, files: ReadonlySet<string>, _dirs: ReadonlySet<string>): Promise<TestInfo | null> {
     // Detect when test-marker.txt exists
     if (files.has('test-marker.txt')) {
       return {
@@ -30,7 +30,7 @@ export const TEST_ECOSYSTEM_MODULE: EcosystemModule<TestInfo> = {
 
   packageGlobs: ['test-pkg-*/*.test'],
 
-  tasks(info: TestInfo): DetectedTask[] {
+  tasks(_info: TestInfo): DetectedTask[] {
     return [
       {
         name: 'test-run',
@@ -45,7 +45,7 @@ export const TEST_ECOSYSTEM_MODULE: EcosystemModule<TestInfo> = {
     ];
   },
 
-  async runEnv(ctx: RunEnvContext, info: TestInfo): Promise<RunEnv> {
+  async runEnv(_ctx: RunEnvContext, info: TestInfo): Promise<RunEnv> {
     return {
       pathPrepend: '/test/bin',
       env: {
