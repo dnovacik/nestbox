@@ -43,7 +43,7 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
             <dd className="flex items-center gap-2 text-fg">
               {data.ecosystems.map((entry) => (
                 <span key={entry.id} className="flex items-center gap-1.5">
-                  <EcosystemIconBadge id={entry.id} className="flex-shrink-0 opacity-60" />
+                  <EcosystemIconBadge id={entry.id} className="size-3.5 flex-shrink-0 text-brand" />
                   <span className="text-xs capitalize">{entry.id}</span>
                 </span>
               ))}

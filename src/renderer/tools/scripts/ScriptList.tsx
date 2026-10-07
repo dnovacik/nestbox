@@ -112,7 +112,7 @@ function ScriptRow({
           {info.name}
         </button>
         {info.kind === 'detected' && info.ecosystemId && (
-          <EcosystemIconBadge id={info.ecosystemId as EcosystemId} className="flex-shrink-0 opacity-60" />
+          <EcosystemIconBadge id={info.ecosystemId as EcosystemId} className="size-3.5 flex-shrink-0 text-brand" />
         )}
         {chip && (
           <span title={chip.title} className="rounded border border-line px-1.5 py-px text-[10px] text-fg-muted">

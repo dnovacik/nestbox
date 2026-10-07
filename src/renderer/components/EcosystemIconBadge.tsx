@@ -1,5 +1,5 @@
 import type { EcosystemId } from '@shared/detected';
-import { DotnetIcon, EcosystemIcon, NodeIcon, PythonIcon } from './EcosystemIcons';
+import { getEcosystemIcon } from './EcosystemIcons';
 
 interface EcosystemIconProps {
   id: EcosystemId;
@@ -8,22 +8,9 @@ interface EcosystemIconProps {
 
 /**
  * Renders the appropriate icon for an ecosystem ID.
- * Falls back to generic icon for unknown types.
+ * Uses lucide-react icons at size-3.5.
  */
 export function EcosystemIconBadge({ id, className }: EcosystemIconProps) {
   const Icon = getEcosystemIcon(id);
-  return <Icon className={className} aria-label={`${id} ecosystem`} />;
-}
-
-function getEcosystemIcon(id: EcosystemId) {
-  switch (id) {
-    case 'dotnet':
-      return DotnetIcon;
-    case 'python':
-      return PythonIcon;
-    case 'node':
-      return NodeIcon;
-    default:
-      return EcosystemIcon;
-  }
+  return <Icon aria-hidden className={className} />;
 }
