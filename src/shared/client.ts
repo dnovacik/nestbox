@@ -56,6 +56,9 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       overview: () => call('deps:overview'),
       checkAll: () => call('deps:checkAll'),
     },
+    system: {
+      getStats: () => call('system:getStats'),
+    },
     settings: {
       get: () => call('settings:get'),
       update: (patch: SettingsPatch) => call('settings:update', patch),

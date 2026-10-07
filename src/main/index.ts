@@ -23,6 +23,7 @@ import { applySessionSecurity, hardenAllWebContents } from './security/harden';
 import { isAppUrl } from './security/origin';
 import { createElectronStoreBackend } from './store/electron-store-backend';
 import { StoreService } from './store/store-service';
+import { getSystemStats } from './system/system-stats';
 import { createPidLedger } from './processes/pid-ledger';
 import { type ProcessEvent, ProcessManager } from './processes/process-manager';
 import { isToolEnabled } from '@shared/tools';
@@ -451,6 +452,7 @@ if (!app.requestSingleInstanceLock()) {
             if (toolEnabled('deps')) void depsScheduler.runAll();
           },
         },
+        getSystemStats,
         onSettingsChanged: (settings) => {
           nativeTheme.themeSource = settings.theme;
           tray?.refresh();

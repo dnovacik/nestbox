@@ -69,6 +69,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       overview: vi.fn(async () => ({ projects: [], runningAll: false, schedule: 'off' as const })),
       checkAll: vi.fn(),
     },
+    getSystemStats: vi.fn(async () => ({ cpuPercent: 10, memoryUsed: 1024 * 1024 * 1024, memoryTotal: 8 * 1024 * 1024 * 1024 })),
     ...over,
   };
 }
