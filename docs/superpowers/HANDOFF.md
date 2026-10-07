@@ -1,6 +1,60 @@
-# Handoff (read this first in a new or cloud session)
+# Handoff (2026-10-07)
 
-**State as of 2026-10-03**
+This is where the cloud session left off, so a local Claude Code session can pick it up. Read `CLAUDE.md` first; this file only adds the current state and how the owner likes to work.
+
+## How the owner works
+
+- **Design first.** Brainstorm with the owner, offering the recommended option first. Then write a design doc in `docs/superpowers/specs/YYYY-MM-DD-nestbox-v2-<topic>-design.md`.
+- **Build.** Work on a branch with TDD (the failing Vitest test first, next to the source) and small conventional commits.
+- **Before pushing,** run:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+  - `pnpm build`, then `pnpm e2e`, under `xvfb-run -a` on Linux.
+- **Open a draft PR** and drive CI to green.
+- **Releases.** "Merge and release X" means:
+  1. mark the PR ready;
+  2. merge it with a merge commit;
+  3. run `.github/workflows/release.yml` on `main`.
+
+  That leaves a draft GitHub Release. **Never publish it**: the owner publishes.
+- Keep going without stopping to ask for approval between steps.
+- Bump `package.json`'s version in each feature PR, add CLAUDE.md notes, and update the README's feature table and roadmap line.
+- When building on someone else's work, credit them in the commits: `Co-authored-by: jubele <53142296+jubele@users.noreply.github.com>`.
+
+## Current state
+
+| What | State |
+| --- | --- |
+| v1.20.0 | Merged; release run passed; **draft release waiting for the owner to publish** |
+| [dnovacik/nestbox#33](https://github.com/dnovacik/nestbox/pull/33) `v2-commands-env` (1.21.0) | Draft. The language-neutral half of dnovacik/nestbox#32: custom commands (argv, no shell), an env file per command, a main command per package, Env raw edit / add variable / create file / keys read in code, Remove in the sidebar, "Add as one project". Local checks all passed (lint, typecheck, 1800 unit tests, e2e 32 passed / 2 skipped). CI was running at handoff. |
+| [dnovacik/nestbox#32](https://github.com/dnovacik/nestbox/pull/32) (jubele) | Python support. To be realigned by jubele's own Claude session with the plan below, rebased on 1.21.0 once #33 merges. |
+| Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: one module per ecosystem under `src/main/ecosystems/<id>/` (`detect`, `packageGlobs`, `tasks`, `runEnv`), `DetectedProject.ecosystems` as a list, Python first, then .NET, then Node behind the same interface. |
+
+## Next steps
+
+1. **Drive #33 to green.** Check its CI and fix anything red. Then wait for the owner's "merge and release 1.21.0".
+2. **Post the split note on #32** if the owner wants it posted (it wasn't posted). Suggested text:
+
+   > Thanks for this! We split it in two. The language-neutral parts (commands as argv, custom commands, main command, env file per command, env raw edit/add/create/code keys, Remove in the sidebar, add as one project) are now in #33, with you as co-author. Please rebase this PR on #33 once it merges and realign the Python part with the plan in `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: Python becomes the first module under `src/main/ecosystems/python/` (`detect`, `packageGlobs`, `tasks`, `runEnv`), `DetectedProject.python` becomes an entry in `DetectedProject.ecosystems`, and hide/restore of detected commands becomes generic in the Scripts tool. The table in the "Python, the first module" section maps each file to its new place.
+
+3. **Review the realigned #32** against the plan's table when jubele pushes it.
+4. **Owner housekeeping:**
+   - publish the v1.20.0 draft release;
+   - delete the merged feature branches. The cloud session wasn't allowed to delete them.
+
+## Notes for a local session
+
+- Use `gh` locally, e.g. `gh pr checks 33` and `gh pr view 33 --comments`. The cloud session used GitHub's MCP tools and received PR events; a local session has to check on its own.
+- The cloud session may still wake on #33 events or its check-in. Tell it to stop (or archive it) if you continue locally, so the two don't both push.
+- `pnpm install` runs Electron's `install.js` (needs network once). If `pnpm dev` says "Electron uninstall", run `node node_modules/electron/install.js`.
+
+## History (earlier handoff, as of 2026-10-03 to 1.19.0)
+
+Kept for reference. v1.18.0–v1.20.0 shipped after it (sidebar groups, CI status, multi-folder adding).
+
+
+### State as of 2026-10-03
 
 - M0–M3 are merged to `main` (PRs #1–#4). v1 is done.
   - The v1.0.0 draft release (built by the release workflow from `49a36cb`, `NestBox-Setup-1.0.0.exe`) waits for the owner to press Publish.
@@ -70,13 +124,13 @@
 - CI status: branch `v2-ci-status` (from `main` at 1.18.0), version 1.19.0. Design `docs/superpowers/specs/2026-10-05-nestbox-v2-ci-status-design.md`. Owner's answers: GitHub Actions + GitLab CI; failed jobs + log tail; Open/Refresh + follow running; re-run failed jobs + a CI check in Ready to deploy. gh fixtures are real gh 2.89 output except the log (its download host is blocked here); glab fixtures follow the GitLab API shapes glab prints (glab isn't installed here). Not verifiable in CI: real gh/glab logins, GitLab end to end.
 - Done: the originally planned v2 tools, follow-ups and portfolio docs. Still open from v1: record the README GIF on Windows.
 
-**Read, in order**
+### Read, in order
 
 1. `CLAUDE.md`: commands, structure, conventions, gotchas.
 2. `docs/nestbox-spec.md`: the source of truth.
 3. The milestone designs and plans in `docs/superpowers/specs/` and `docs/superpowers/plans/`. The M0 plan ends with the M1–M3 outlines.
 
-**Workflow the owner expects**
+### Workflow the owner expects
 
 - Use Superpowers in this order: brainstorming, writing-plans, then stop for approval.
 - Execute with subagent-driven-development and TDD in a git worktree.
@@ -86,17 +140,17 @@
 - Owner identity in this repo: Daniel Novacik <novacik.daniel@gmail.com>.
 - One PR per milestone, from its own branch (`m1-scripts-logs`, then e.g. `m2-ports-env`), merged to `main`.
 
-**Cloud-session notes**
+### Cloud-session notes
 
 - Superpowers isn't installed in cloud sessions: the same steps are followed by hand.
 - `ui.shadcn.com` was blocked by the network policy, so `components/ui/dialog.tsx`, `switch.tsx` and `select.tsx` are hand-written (new-york style). Regenerate them with the CLI when it is reachable.
 - The Electron binary can be installed (`node node_modules/electron/install.js`), and the built app runs under `xvfb-run`. On Linux the platform adapter is the macOS stub, so scripts cannot start, but the UI and IPC can be checked with Playwright.
 
-**M1 follow-ups (from M0 reviews): all done in PR #2**
+### M1 follow-ups (from M0 reviews): all done in PR #2
 
 Startup, stale data, graceful quit, missing editor, store writes and read-only mode, IPC hardening, tool error hygiene, the UI items and the test gaps.
 
-**Open follow-ups**
+### Open follow-ups
 
 - **Orphans.** The PID ledger records each script root's spawn time (PowerShell can take over 10 s cold). At startup one `listProcesses` call feeds `findOrphans`, which offers a live root within 3 s of it, or the children a dead root `cmd.exe` left behind.
 
@@ -116,7 +170,7 @@ Startup, stale data, graceful quit, missing editor, store writes and read-only m
 - **Editor command:** check editor paths that contain spaces (the `where` pre-check handles `dir:pattern`; the launch through `cmd.exe` still needs a test with a real path).
 - **Code signing.** The installer is unsigned (README explains SmartScreen). A certificate would go into the release workflow as a secret.
 
-**Machine notes (owner's Windows box)**
+### Machine notes (owner's Windows box)
 
 - No Windows Terminal is installed, so the `cmd` fallback is the path that actually runs.
 - `gh` is installed and authenticated.
