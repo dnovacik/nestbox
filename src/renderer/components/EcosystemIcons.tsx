@@ -1,19 +1,41 @@
-import { Box, Code2, type LucideIcon, Package2 } from 'lucide-react';
+import type { SVGProps } from 'react';
 import type { EcosystemId } from '@shared/detected';
 
+// Import devicon SVGs as React components
+import DotNetSvg from 'devicon/icons/dot-net/dot-net-plain.svg?react';
+import PythonSvg from 'devicon/icons/python/python-plain.svg?react';
+import NodeJsSvg from 'devicon/icons/nodejs/nodejs-plain.svg?react';
+
 /**
- * Get the lucide-react icon for an ecosystem.
- * Returns the icon component that can be rendered with size-3.5 className.
+ * Wrapper components for devicon SVGs.
+ * The devicon SVGs have hardcoded colors, so we use them as-is.
  */
-export function getEcosystemIcon(id: EcosystemId): LucideIcon {
+
+function DotNetIcon(props: SVGProps<SVGSVGElement>) {
+  return <DotNetSvg {...props} />;
+}
+
+function PythonIcon(props: SVGProps<SVGSVGElement>) {
+  return <PythonSvg {...props} />;
+}
+
+function NodeJsIcon(props: SVGProps<SVGSVGElement>) {
+  return <NodeJsSvg {...props} />;
+}
+
+/**
+ * Get the icon component for an ecosystem.
+ * Returns a React component that renders the devicon icon.
+ */
+export function getEcosystemIcon(id: EcosystemId): React.ComponentType<SVGProps<SVGSVGElement>> {
   switch (id) {
     case 'dotnet':
-      return Box; // Hexagon-like box shape for .NET
+      return DotNetIcon;
     case 'python':
-      return Code2; // Code brackets for Python
+      return PythonIcon;
     case 'node':
-      return Package2; // Package for Node.js
+      return NodeJsIcon;
     default:
-      return Box; // Fallback
+      return DotNetIcon; // Fallback
   }
 }

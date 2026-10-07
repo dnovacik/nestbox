@@ -619,7 +619,7 @@ function ProjectRow({
     >
       <StateDot state={state} />
       {detected.ecosystems[0] && (
-        <EcosystemIconBadge id={detected.ecosystems[0].id} className="size-3.5 flex-shrink-0 text-brand" />
+        <EcosystemIconBadge id={detected.ecosystems[0].id} className="size-3.5 flex-shrink-0" />
       )}
       <span className="truncate">{label}</span>
       {detected.missing && <span className="ml-auto text-[10px] text-err">missing</span>}
