@@ -2,7 +2,7 @@
   <img src="resources/brand/svg/nestbox-lockup-outlined.svg" alt="NestBox" width="340">
 </p>
 
-A desktop toolbox for Node.js and TypeScript projects. You add a project folder once, and NestBox gives you what a browser can't: run its scripts and read their logs, see which process holds port 3000 and stop it, keep `.env` files in step, serve a build to your phone, and hand the project to Claude Code with the right context.
+A desktop toolbox for Node.js, .NET, and other development projects. You add a project folder once, and NestBox gives you what a browser can't: run its scripts and read their logs, see which process holds port 3000 and stop it, keep `.env` files in step, serve a build to your phone, and hand the project to Claude Code with the right context.
 
 Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a preview for now). Linux is not planned.
 
@@ -14,7 +14,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 
 | | |
 | --- | --- |
-| **Projects** | Detects the package manager, scripts, workspace packages, env files, Prisma, Docker Compose, the build output and Claude Code files. Workspace packages appear as sub-projects. |
+| **Projects** | Detects the package manager, scripts, workspace packages, env files, Prisma, Docker Compose, the build output and Claude Code files. Supports Node.js, .NET, and other languages via the ecosystem framework. Workspace packages appear as sub-projects. |
 | **Scripts and logs** | Start, stop and restart scripts (the whole process tree), run groups (which can bring Docker Compose services up first and wait until they're healthy), auto-restart with backoff, your own commands (any program with arguments, run without a shell, with the env file you pick) and a main command per package, and a virtualised log viewer with ANSI colours, JSON log levels, search and split panes. A tray icon shows what is running. |
 | **Ports** | Every listening port on the machine, with the NestBox script that owns it. Stop the script, or kill a foreign process after confirming. "Port in use" errors in a log offer the fix. |
 | **Env** | A matrix of keys across `.env`, `.env.example` and profiles (`.env.staging`, …): what is missing, empty or undocumented. Values stay masked until revealed. Edits keep comments and formatting, and profiles switch with a backup. |

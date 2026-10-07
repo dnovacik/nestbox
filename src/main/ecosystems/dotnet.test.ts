@@ -109,7 +109,7 @@ describe('dotnetModule', () => {
         isWeb: false,
       };
 
-      const summary = dotnetModule.summary(info);
+      const summary = dotnetModule.summary?.(info);
 
       expect(summary).toBe('.NET');
     });
@@ -121,7 +121,7 @@ describe('dotnetModule', () => {
         isWeb: false,
       };
 
-      const summary = dotnetModule.summary(info);
+      const summary = dotnetModule.summary?.(info);
 
       expect(summary).toBe('.NET · net8.0');
     });
@@ -133,7 +133,7 @@ describe('dotnetModule', () => {
         isWeb: true,
       };
 
-      const summary = dotnetModule.summary(info);
+      const summary = dotnetModule.summary?.(info);
 
       expect(summary).toBe('.NET · net8.0 · Web');
     });
