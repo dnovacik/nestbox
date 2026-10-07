@@ -67,26 +67,38 @@ async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessS
   const pidList = pids.join(',');
   const allPids = new Set<number>(pids);
 
-  // Get child processes recursively
-  const { stdout: childStdout } = await execAsync(
-    `powershell -NoProfile -Command "$parents = @(${pidList}); $seen = @{}; while ($parents.Count -gt 0) { $current = $parents[0]; $parents = $parents[1..($parents.Count-1)]; if ($seen[$current]) { continue }; $seen[$current] = $true; $children = Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $current } | Select-Object -ExpandProperty ProcessId; if ($children) { if ($children -is [array]) { $parents += $children } else { $parents += @($children) } } }; $seen.Keys -join ','"`
-  );
+  try {
+    // Get child processes recursively
+    const psScript = '$parents = @(' + pidList + '); $seen = @{}; while ($parents.Count -gt 0) { $current = $parents[0]; $parents = $parents[1..($parents.Count-1)]; if ($seen[$current]) { continue }; $seen[$current] = $true; $children = Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $current } | Select-Object -ExpandProperty ProcessId; if ($children) { if ($children -is [array]) { $parents += $children } else { $parents += @($children) } } }; $seen.Keys -join \',\'';
+    const { stdout: childStdout } = await execAsync(
+      `powershell -NoProfile -Command "${psScript}"`,
+      { timeout: 5000 }
+    );
 
-  // Add descendants to the set
-  const descendants = childStdout.trim().split(',').filter(Boolean);
-  for (const pidStr of descendants) {
-    const pid = parseInt(pidStr, 10);
-    if (!isNaN(pid)) allPids.add(pid);
+    // Add descendants to the set
+    const descendants = childStdout.trim().split(',').filter(Boolean);
+    console.log('Descendants found:', descendants);
+    for (const pidStr of descendants) {
+      const pid = parseInt(pidStr, 10);
+      if (!isNaN(pid)) allPids.add(pid);
+    }
+  } catch (error) {
+    console.error('Failed to get child processes:', error);
+    // Continue with just the parent PIDs
   }
 
   if (allPids.size === 0) return { cpuPercent: 0, memoryUsed: 0 };
 
+  console.log('All PIDs to track:', Array.from(allPids));
+
   // Now get stats for all PIDs (parents + descendants)
   const allPidList = Array.from(allPids).join(',');
   const { stdout } = await execAsync(
-    `powershell -NoProfile -Command "Get-Process -Id ${allPidList} -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64,CPU | ConvertTo-Csv -NoTypeInformation"`,
+    'powershell -NoProfile -Command "Get-Process -Id ' + allPidList + ' -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64,CPU | ConvertTo-Csv -NoTypeInformation"',
     { timeout: 5000 }
   );
+
+  console.log('PowerShell output:', stdout);
 
   let totalMemory = 0;
   let totalCpuPercent = 0;
@@ -133,6 +145,8 @@ async function getProcessStatsWindows(pids: readonly number[]): Promise<ProcessS
       }
     }
   }
+
+  console.log('Total memory:', totalMemory, 'Total CPU%:', totalCpuPercent);
 
   // Clean up cache for PIDs that are no longer in the tree
   for (const cachedPid of cpuCache.keys()) {
