@@ -8,7 +8,8 @@ async function ruleIds(code: string, filePath: string): Promise<string[]> {
   return (result?.messages ?? []).map((m) => m.ruleId ?? 'fatal');
 }
 
-describe('custom lint rules', () => {
+// The first lintText loads the whole config (typescript-eslint included): over 5 s on a busy macOS runner.
+describe('custom lint rules', { timeout: 30_000 }, () => {
   it('rejects process.platform outside src/main/platform', async () => {
     const ids = await ruleIds('export const p = process.platform;\n', 'src/main/services/x.ts');
     expect(ids).toContain('no-restricted-properties');
