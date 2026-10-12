@@ -34,6 +34,25 @@ export const REACH_RESULTS = ['reachable', 'refused', 'timeout', 'dns', 'missing
 export const PRISMA_COMMANDS = ['migrate-status', 'generate'] as const;
 export type PrismaCommand = (typeof PRISMA_COMMANDS)[number];
 
+/** EF Core commands (`dotnet ef …`, `restore` is `dotnet tool restore`). */
+export const EF_ACTIONS = ['list', 'add', 'update', 'script', 'remove', 'restore'] as const;
+export type EfAction = (typeof EF_ACTIONS)[number];
+export const EF_KINDS = ['ef-list', 'ef-add', 'ef-update', 'ef-script', 'ef-remove', 'ef-restore'] as const;
+export type EfKind = (typeof EF_KINDS)[number];
+/** EF's migration ids: a 14-digit timestamp and the name. */
+export const MIGRATION_ID = /^\d{14}_[A-Za-z_][A-Za-z0-9_]*$/;
+export const MIGRATION_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
+/** A DbContext class name (no namespace). */
+export const CLASS_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,199}$/;
+
+/** One row of `dotnet ef migrations list --json`; applied is null when EF couldn't reach the database. */
+export const EfMigrationSchema = z.object({
+  id: z.string().regex(MIGRATION_ID),
+  name: z.string().regex(MIGRATION_NAME),
+  applied: z.boolean().nullable(),
+});
+export type EfMigration = z.infer<typeof EfMigrationSchema>;
+
 /** Where one .NET connection string points: like DbTarget, from an appsettings file. */
 export const DbConnectionSchema = z.object({
   name: z.string(),
