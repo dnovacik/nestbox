@@ -8,6 +8,7 @@ export function dbStatus(patch: Partial<DbStatus> = {}): DbStatus {
     url: { state: 'set', target: { provider: 'postgresql', host: 'localhost', port: 5432, database: 'shop', file: null, source: '.env' } },
     reach: { result: 'reachable', reason: null },
     running: { command: null, studio: null },
+    dotnet: null,
     ...patch,
   };
 }

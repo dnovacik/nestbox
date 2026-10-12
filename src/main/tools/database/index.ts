@@ -3,12 +3,15 @@ import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { NestboxError } from '@shared/errors';
 import { belongsTo, type LogLine } from '@shared/processes';
-import { databaseContract, databaseDefinition, type DbStatus, type PrismaCommand } from '@shared/tools/database/contract';
+import { databaseContract, databaseDefinition, type DbConnection, type DbStatus, type PrismaCommand } from '@shared/tools/database/contract';
+import { DotnetInfoSchema } from '../../ecosystems/dotnet/detect';
 import type { Logger } from '../../logger';
 import { LineSplitter } from '../../processes/line-splitter';
 import { BatchedLog } from '../batched-log';
-import type { EnvFileAccess } from '../env/env-files';
+import type { ConfigFileAccess, EnvFileAccess } from '../env/env-files';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
+import { describeConnectionString } from './ado';
+import { environmentsFor, readConnections } from './connections';
 import { firstPrismaCode, loginMessage, prismaCommand } from './prisma';
 import type { checkReachable as CheckReachable } from './reach';
 import { readDatasource } from './schema';
@@ -17,6 +20,8 @@ import { describeUrl } from './url';
 
 export interface DatabaseToolDeps {
   envFiles: Pick<EnvFileAccess, 'read'>;
+  /** appsettings*.json, for a .NET package's ConnectionStrings. */
+  configFiles: Pick<ConfigFileAccess, 'list' | 'read'>;
   checkReachable: typeof CheckReachable;
   firstFreePort(start: number, host: string): Promise<number | null>;
   logger: Logger;
@@ -139,6 +144,40 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
     if (states.get(ctx.project.id) === state) ctx.emit('changed', undefined);
   }
 
+  /** ConnectionStrings for one environment, described and checked; null without a .NET project. */
+  async function dotnetConnections(ctx: Ctx, requested: string | undefined): Promise<DbStatus['dotnet']> {
+    const entry = ctx.project.ecosystems.find((e) => e.id === 'dotnet');
+    const info = entry ? DotnetInfoSchema.safeParse(entry.info) : null;
+    if (!info?.success || info.data.project === null) return null;
+    const dir = ctx.project.path;
+    const listed = (await deps.configFiles.list(dir).catch(() => [])).map((f) => f.name);
+    const profiles = info.data.launchProfiles;
+    const environment = requested ?? profiles[0]?.environment ?? 'Production';
+    const { connections, truncated } = await readConnections(dir, deps.configFiles, environment);
+    const described = await Promise.all(
+      connections.map(async ({ name, file, value }): Promise<DbConnection> => {
+        if (value === null) {
+          return {
+            name,
+            file,
+            target: { provider: 'unknown', host: null, port: null, database: null, file: null },
+            reach: { result: 'not-checked', reason: 'Not a text value' },
+          };
+        }
+        // The value is dropped here: only its description leaves.
+        const { target, skip } = describeConnectionString(value, { providers: info.data.dbProviders, dir });
+        const reach = skip === null ? await deps.checkReachable(target) : { result: 'not-checked' as const, reason: skip };
+        return { name, file, target, reach };
+      }),
+    );
+    deps.logger.info('database connections', {
+      projectId: ctx.project.id,
+      connections: described.length,
+      reachable: described.filter((c) => c.reach.result === 'reachable').length,
+    });
+    return { environment, environments: environmentsFor(profiles, listed), connections: described, truncated };
+  }
+
   function schemaArgs(ctx: Ctx): string[] {
     return ['--schema', schemaOf(ctx)];
   }
@@ -154,19 +193,19 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
     ...databaseDefinition,
     contract: databaseContract,
     handlers: {
-      status: async (ctx: Ctx): Promise<DbStatus> => {
-        const { variable, found, literal } = await target(ctx);
+      status: async (ctx: Ctx, { environment }): Promise<DbStatus> => {
+        const [{ variable, found, literal }, dotnet] = await Promise.all([target(ctx), dotnetConnections(ctx, environment)]);
         const state = states.get(ctx.project.id);
         const running = { command: state?.command?.kind ?? null, studio: state?.studio ? { port: state.studio.port } : null };
         const prisma = ctx.project.prismaSchema === null ? null : { schema: ctx.project.prismaSchema };
-        if (literal) return { prisma, variable, url: { state: 'literal' }, reach: null, running };
+        if (literal) return { prisma, variable, url: { state: 'literal' }, reach: null, running, dotnet };
         if (!found) {
           const configTs = (await Promise.all(CONFIG_FILES.map((f) => exists(join(ctx.project.path, f))))).some(Boolean);
-          return { prisma, variable, url: { state: 'missing', configTs }, reach: null, running };
+          return { prisma, variable, url: { state: 'missing', configTs }, reach: null, running, dotnet };
         }
         // Not logged: status runs on every window focus.
         const reach = await deps.checkReachable(found);
-        return { prisma, variable, url: { state: 'set', target: found }, reach, running };
+        return { prisma, variable, url: { state: 'set', target: found }, reach, running, dotnet };
       },
 
       testLogin: async (ctx: Ctx) => {

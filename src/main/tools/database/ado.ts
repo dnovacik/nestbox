@@ -104,7 +104,8 @@ function providerOf(
   if (providers.length === 1 && only !== undefined) return only;
   const server = (first(values, 'server', 'datasource', 'address') ?? '').toLowerCase();
   if (keys.has('host')) return 'postgresql';
-  if ([...keys].some((k) => SQLSERVER_HINTS.has(k)) || /^(tcp|np):|^\(localdb\)/.test(server))
+  // host\Instance is SQL Server's syntax only.
+  if ([...keys].some((k) => SQLSERVER_HINTS.has(k)) || /^(tcp|np):|^\(localdb\)|\\/.test(server))
     return 'sqlserver';
   const path = first(values, 'filename', 'datasource') ?? '';
   if (SQLITE_FILE.test(path) || path === ':memory:') return 'sqlite';

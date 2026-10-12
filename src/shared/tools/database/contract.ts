@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { LogLineSchema, LogSnapshotSchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
+import { ENVIRONMENT_NAME } from '../env/contract';
 
 const settingsSchema = z.strictObject({});
 
@@ -8,8 +9,12 @@ export const databaseDefinition: ToolDefinition<z.infer<typeof settingsSchema>> 
   id: 'database',
   name: 'Database',
   icon: 'database',
-  // Reading .env to see whether DATABASE_URL is set is the tool's job, not detection's.
-  appliesTo: (p) => p.prismaSchema !== null || p.envFiles.length > 0,
+  // Reading .env to see whether DATABASE_URL is set is the tool's job, not detection's; so is reading a
+  // .NET project's appsettings for ConnectionStrings.
+  appliesTo: (p) =>
+    p.prismaSchema !== null ||
+    p.envFiles.length > 0 ||
+    p.ecosystems.some((e) => e.id === 'dotnet' && typeof (e.info as { project?: unknown } | null)?.project === 'string'),
   settingsSchema,
 };
 
@@ -29,6 +34,16 @@ export const REACH_RESULTS = ['reachable', 'refused', 'timeout', 'dns', 'missing
 export const PRISMA_COMMANDS = ['migrate-status', 'generate'] as const;
 export type PrismaCommand = (typeof PRISMA_COMMANDS)[number];
 
+/** Where one .NET connection string points: like DbTarget, from an appsettings file. */
+export const DbConnectionSchema = z.object({
+  name: z.string(),
+  /** appsettings.json or appsettings.<Environment>.json. */
+  file: z.string(),
+  target: DbTargetSchema.omit({ source: true }),
+  reach: z.object({ result: z.enum(REACH_RESULTS), reason: z.string().nullable() }),
+});
+export type DbConnection = z.infer<typeof DbConnectionSchema>;
+
 export const DbStatusSchema = z.object({
   /** The schema path relative to the package, when there is one. */
   prisma: z.object({ schema: z.string() }).nullable(),
@@ -46,11 +61,23 @@ export const DbStatusSchema = z.object({
     command: z.enum([...PRISMA_COMMANDS, 'test-login']).nullable(),
     studio: z.object({ port: z.number().int() }).nullable(),
   }),
+  /** ConnectionStrings from appsettings for one environment; null when the package has no .NET project. */
+  dotnet: z
+    .object({
+      environment: z.string(),
+      /** Offered in the select: profile environments, environment files, then Production. */
+      environments: z.array(z.string()),
+      connections: z.array(DbConnectionSchema),
+      /** More than 20 connections: the rest aren't shown. */
+      truncated: z.boolean(),
+    })
+    .nullable(),
 });
 export type DbStatus = z.infer<typeof DbStatusSchema>;
 
 export const databaseContract = defineContract({
-  status: { input: z.strictObject({}), output: DbStatusSchema },
+  /** environment: the .NET environment to read ConnectionStrings for (default: the first launch profile's). */
+  status: { input: z.strictObject({ environment: z.string().regex(ENVIRONMENT_NAME).optional() }), output: DbStatusSchema },
   /** Runs SELECT 1 through Prisma; message is NestBox's own text for the P-code, never Prisma's. */
   testLogin: { input: z.strictObject({}), output: z.object({ ok: z.boolean(), message: z.string() }) },
   run: { input: z.strictObject({ command: z.enum(PRISMA_COMMANDS) }), output: z.void() },

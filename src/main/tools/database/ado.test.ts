@@ -150,6 +150,9 @@ describe('describeConnectionString', () => {
     expect(target('Server=db;Database=Shop;TrustServerCertificate=True').provider).toBe(
       'sqlserver',
     );
+    expect(target('Server=.\\SQLEXPRESS;Database=Shop', ['postgresql', 'sqlserver']).provider).toBe(
+      'sqlserver',
+    );
     expect(describe_('Server=db,1500;Database=Shop;Uid=x')).toEqual({
       target: { provider: 'unknown', host: 'db', port: 1500, database: 'Shop', file: null },
       skip: 'The database provider is unknown',

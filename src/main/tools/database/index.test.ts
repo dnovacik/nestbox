@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
 import type { LogSnapshot } from '@shared/processes';
 import { makeDetectedForTest } from '@shared/test-fixtures';
-import type { DbStatus } from '@shared/tools/database/contract';
+import { databaseDefinition, type DbStatus } from '@shared/tools/database/contract';
 import { createMemoryLogger } from '../../logger';
 import { fakePlatform, flushIo } from '../../processes/fake-child';
-import { createEnvFileAccess } from '../env/env-files';
+import { createConfigFileAccess, createEnvFileAccess } from '../env/env-files';
 import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
 import { createDatabaseTool } from './index';
@@ -40,7 +40,7 @@ function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schem
   const logger = createMemoryLogger();
   const checkReachable = vi.fn(async () => reach);
   const firstFreePort = vi.fn(async () => 5556);
-  tool = createDatabaseTool({ envFiles: createEnvFileAccess(), checkReachable, firstFreePort, logger });
+  tool = createDatabaseTool({ envFiles: createEnvFileAccess(), configFiles: createConfigFileAccess(), checkReachable, firstFreePort, logger });
   const emit = vi.fn();
   const ctx = {
     project: makeDetectedForTest({ path: root, envFiles: ['.env'], ...project }),
@@ -67,6 +67,7 @@ describe('database tool: status', () => {
       url: { state: 'set', target: { provider: 'postgresql', host: 'localhost', port: 5432, database: 'shop', file: null, source: '.env' } },
       reach: { result: 'reachable', reason: null },
       running: { command: null, studio: null },
+      dotnet: null,
     });
     expect(JSON.stringify(status)).not.toMatch(/s3cr3t|alice/);
     expect(checkReachable).toHaveBeenCalledTimes(1);
@@ -241,5 +242,114 @@ describe('database tool: test login', () => {
   it('is not offered for MongoDB', async () => {
     await files({ 'prisma/schema.prisma': SCHEMA.replace('postgresql', 'mongodb'), '.env': 'DATABASE_URL=mongodb://localhost/app\n' });
     await expect(setup().call('testLogin')).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+});
+
+describe('database tool: .NET connection strings', () => {
+  const dotnet = (over: Record<string, unknown> = {}): Partial<DetectedProject> => ({
+    prismaSchema: null,
+    packageJson: null,
+    packageManager: null,
+    envFiles: [],
+    ecosystems: [
+      {
+        id: 'dotnet',
+        info: {
+          solution: null,
+          project: 'Shop.Api.csproj',
+          targetFrameworks: ['net10.0'],
+          isWeb: true,
+          isTest: false,
+          dbProviders: ['postgresql'],
+          sdk: null,
+          launchProfiles: [
+            { name: 'http', ports: [5283], environment: 'Development' },
+            { name: 'prod', ports: [], environment: 'Production' },
+          ],
+          ...over,
+        },
+      },
+    ],
+  });
+
+  beforeEach(async () =>
+    files({
+      'appsettings.json': `{
+  // base
+  "ConnectionStrings": { "Shop": "Host=prod.db;Port=5432;Database=shop;Username=alice;Password=s3cr3t", "Cache": "Server=.\\\\SQLEXPRESS" }
+}`,
+      'appsettings.Development.json': '{ "ConnectionStrings": { "Shop": "Host=localhost;Port=5433;Database=shop_dev;Password=s3cr3t" } }',
+    }),
+  );
+
+  it("describes each connection for the first profile's environment and checks it", async () => {
+    const { call, checkReachable } = setup(dotnet());
+    const status = await call<DbStatus>('status');
+    expect(status.dotnet).toEqual({
+      environment: 'Development',
+      environments: ['Development', 'Production'],
+      connections: [
+        {
+          name: 'Shop',
+          file: 'appsettings.Development.json',
+          target: { provider: 'postgresql', host: 'localhost', port: 5433, database: 'shop_dev', file: null },
+          reach: { result: 'reachable', reason: null },
+        },
+        {
+          // Only one provider is referenced (Npgsql), so it wins over the SQL Server-looking string.
+          name: 'Cache',
+          file: 'appsettings.json',
+          target: { provider: 'postgresql', host: '.\\SQLEXPRESS', port: 5432, database: null, file: null },
+          reach: { result: 'reachable', reason: null },
+        },
+      ],
+      truncated: false,
+    });
+    expect(checkReachable).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(status)).not.toMatch(/s3cr3t|alice/);
+  });
+
+  it('reads another environment on request, and skips servers it cannot check', async () => {
+    const { call, checkReachable } = setup(dotnet({ dbProviders: ['postgresql', 'sqlserver'] }));
+    const status = await call<DbStatus>('status', { environment: 'Production' });
+    expect(status.dotnet?.environment).toBe('Production');
+    expect(status.dotnet?.connections).toEqual([
+      expect.objectContaining({ name: 'Shop', file: 'appsettings.json', target: expect.objectContaining({ host: 'prod.db', database: 'shop' }) }),
+      expect.objectContaining({
+        name: 'Cache',
+        target: expect.objectContaining({ provider: 'sqlserver' }),
+        reach: { result: 'not-checked', reason: 'A named instance is found through SQL Browser' },
+      }),
+    ]);
+    expect(checkReachable).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults to Production without launch profiles, and logs counts only', async () => {
+    const { call, logger } = setup(dotnet({ launchProfiles: [] }));
+    expect((await call<DbStatus>('status')).dotnet).toMatchObject({ environment: 'Production', environments: ['Development', 'Production'] });
+    expect(JSON.stringify(logger.entries)).not.toMatch(/s3cr3t|alice|Shop|prod\.db|localhost/);
+  });
+
+  it('lists a non-text value as unknown and not checked', async () => {
+    await files({ 'appsettings.json': '{ "ConnectionStrings": { "Odd": 42 } }' });
+    const { call, checkReachable } = setup(dotnet({ launchProfiles: [] }));
+    expect((await call<DbStatus>('status')).dotnet?.connections).toEqual([
+      {
+        name: 'Odd',
+        file: 'appsettings.json',
+        target: { provider: 'unknown', host: null, port: null, database: null, file: null },
+        reach: { result: 'not-checked', reason: 'Not a text value' },
+      },
+    ]);
+    expect(checkReachable).not.toHaveBeenCalled();
+  });
+
+  it('is null for a package without a .NET project', async () => {
+    expect((await setup({ prismaSchema: null }).call<DbStatus>('status')).dotnet).toBeNull();
+  });
+
+  it('applies to a .NET project without env files or Prisma', () => {
+    expect(databaseDefinition.appliesTo(makeDetectedForTest({ ...dotnet() }))).toBe(true);
+    expect(databaseDefinition.appliesTo(makeDetectedForTest({ ...dotnet({ project: null, solution: 'Shop.slnx' }) }))).toBe(false);
   });
 });

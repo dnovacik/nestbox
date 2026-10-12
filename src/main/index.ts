@@ -143,6 +143,7 @@ if (!app.requestSingleInstanceLock()) {
     const assetEnv = { isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath };
     const shared = createSharedContext();
     const envFiles = createEnvFileAccess();
+    const configFiles = createConfigFileAccess();
     // Scripts ask the Node tool and drive the Compose tool through the host (created below), so validation applies.
     let toolHostRef: ToolHost | null = null;
     const invokeCompose = async (projectId: string, method: 'up' | 'stop', input: object) => {
@@ -227,7 +228,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       env: {
         files: envFiles,
-        configFiles: createConfigFileAccess(),
+        configFiles,
         clipboard: { writeText: (text) => clipboard.writeText(text) },
         watch: (dir, onChange) => {
           try {
@@ -265,7 +266,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       git: { watch: watchDir, logger },
-      database: { envFiles, checkReachable, firstFreePort, logger },
+      database: { envFiles, configFiles, checkReachable, firstFreePort, logger },
       todos: { logger },
       health: {
         // Gated: while Health is off it sees no live scripts, so no checks run.

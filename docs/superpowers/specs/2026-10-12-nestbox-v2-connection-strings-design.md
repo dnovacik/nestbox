@@ -37,7 +37,7 @@ The Database tool knows Prisma and `.env` URLs only, but a .NET package keeps it
      - `MongoDB.Driver`, `MongoDB.EntityFrameworkCore` → `mongodb`.
   2. Otherwise the string's own keys:
      - `Host` → `postgresql`;
-     - `Initial Catalog`, `Trusted_Connection`, `Integrated Security`, `Encrypt`, `TrustServerCertificate`, `MultipleActiveResultSets` or a `tcp:`/`np:` server → `sqlserver`;
+     - `Initial Catalog`, `Trusted_Connection`, `Integrated Security`, `Encrypt`, `TrustServerCertificate`, `MultipleActiveResultSets` or a `tcp:`/`np:`/`(localdb)` or `host\Instance` server → `sqlserver`;
      - a `Data Source`/`Filename` ending in `.db`, `.sqlite`, `.sqlite3` or `:memory:` → `sqlite`.
   3. Else `unknown` (host, port and database are still shown when present).
 - **Detection:** `parseProjectFile` keeps `dbProviders` (the provider names above, sorted, no duplicates) in the .NET info. Package names themselves are already read for the test flag; nothing else is kept.
