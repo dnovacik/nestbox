@@ -38,8 +38,8 @@ describe('dotnet tasks', () => {
     const tasks = module.tasks(
       info({
         launchProfiles: [
-          { name: 'http', ports: [5283] },
-          { name: 'IIS Profile 2', ports: [] },
+          { name: 'http', ports: [5283], environment: 'Production' },
+          { name: 'IIS Profile 2', ports: [], environment: 'Production' },
         ],
       }),
     );
@@ -158,8 +158,8 @@ describe('dotnet ports and summary', () => {
       module.ports?.(
         info({
           launchProfiles: [
-            { name: 'http', ports: [5283] },
-            { name: 'https', ports: [5283, 5000] },
+            { name: 'http', ports: [5283], environment: 'Production' },
+            { name: 'https', ports: [5283, 5000], environment: 'Production' },
           ],
         }),
       ),

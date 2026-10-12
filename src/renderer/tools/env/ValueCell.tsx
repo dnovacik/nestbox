@@ -2,7 +2,6 @@ import { Copy, Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { errorMessage } from '@/lib/errors';
-import { revealValue } from './use-env';
 
 /** A revealed value hides itself after this long, even if the cell keeps focus. */
 const REVEAL_MS = 30_000;
@@ -10,7 +9,8 @@ const REVEAL_MS = 30_000;
 export type CellState = 'set' | 'empty' | 'absent';
 
 interface Props {
-  projectId: string;
+  /** Fetches this one value (env or settings file). */
+  reveal(): Promise<string>;
   file: string;
   envKey: string;
   state: CellState;
@@ -36,7 +36,7 @@ function IconButton({ label, onClick, children }: { label: string; onClick(): vo
 }
 
 /** One key in one file: masked by default; reveal shows this value only, until focus leaves the cell. */
-export function ValueCell({ projectId, file, envKey, state, readOnly, onCopy, onEdit, onAdd, onRemove }: Props) {
+export function ValueCell({ reveal: fetchValue, file, envKey, state, readOnly, onCopy, onEdit, onAdd, onRemove }: Props) {
   const [revealed, setRevealed] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hide = () => {
@@ -47,7 +47,7 @@ export function ValueCell({ projectId, file, envKey, state, readOnly, onCopy, on
 
   const reveal = async () => {
     try {
-      setRevealed(await revealValue(projectId, file, envKey));
+      setRevealed(await fetchValue());
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setRevealed(null), REVEAL_MS);
     } catch (error) {

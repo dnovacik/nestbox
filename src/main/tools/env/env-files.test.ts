@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createEnvFileAccess, MAX_ENV_FILE_BYTES } from './env-files';
+import { createConfigFileAccess, createEnvFileAccess, MAX_ENV_FILE_BYTES } from './env-files';
 
 let dir = '';
 const files = createEnvFileAccess();
@@ -106,5 +106,27 @@ describe('env file access', () => {
     await utimes(join(dir, '.env'), new Date(), new Date(Date.now() + 5_000));
     const error = await files.write(dir, '.env', 'SECRET=hunter4\n', version).catch((e: unknown) => e);
     expect(String((error as Error).message)).not.toMatch(/hunter/);
+  });
+});
+
+describe('settings file access', () => {
+  const config = createConfigFileAccess();
+
+  it('lists appsettings*.json only and refuses other names', async () => {
+    for (const name of ['appsettings.json', 'appsettings.Development.json', 'appsettings.json.bak', 'launchSettings.json', 'appsettings..json']) {
+      await writeFile(join(dir, name), '{}');
+    }
+    expect((await config.list(dir)).map((f) => f.name)).toEqual(['appsettings.Development.json', 'appsettings.json']);
+    await expect(config.read(dir, 'launchSettings.json')).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(config.write(dir, '.env', '', null)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('keeps a BOM and CRLF byte for byte through read and write', async () => {
+    const text = '﻿{\r\n  "A": 1\r\n}\r\n';
+    await writeFile(join(dir, 'appsettings.json'), text);
+    const read = await config.read(dir, 'appsettings.json');
+    expect(read.text).toBe(text);
+    await config.write(dir, 'appsettings.json', read.text, read.version);
+    expect(await readFile(join(dir, 'appsettings.json'))).toEqual(Buffer.from(text, 'utf8'));
   });
 });

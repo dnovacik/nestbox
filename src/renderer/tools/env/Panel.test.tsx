@@ -34,6 +34,7 @@ function setup(over: Partial<Record<string, (input: Record<string, unknown>) => 
       const handler = over[method];
       if (handler) return handler(input);
       if (method === 'matrix') return matrix;
+      if (method === 'configMatrix') return { dotnet: false, files: [], keys: [], profiles: [], truncated: false };
       if (method === 'reveal') return { value: input['key'] === 'DATABASE_URL' ? SECRET : 'redis://localhost:6379' };
       if (method === 'copy') return {};
       if (['setValue', 'addKey', 'removeKey'].includes(method)) return { version: 'v2' };

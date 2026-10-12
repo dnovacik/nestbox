@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { envMatrixKey } from './use-env';
+import { configMatrixKey, envMatrixKey } from './use-env';
 
 /**
  * One env file as text (every value shown: the user asked for it). Saving sends the version it was read at,
@@ -23,11 +23,14 @@ export function RawEditDialog({
   projectId,
   file,
   readOnly,
+  kind = 'env',
   onClose,
 }: {
   projectId: string;
   file: string;
   readOnly: boolean;
+  /** config: an appsettings file, which must stay JSON (main refuses a save that doesn't parse). */
+  kind?: 'env' | 'config';
   onClose(): void;
 }) {
   const queryClient = useQueryClient();
@@ -38,7 +41,7 @@ export function RawEditDialog({
 
   const load = useCallback(async () => {
     try {
-      const raw = await api.tools.invoke('env', projectId, 'readRaw', { file });
+      const raw = await api.tools.invoke('env', projectId, kind === 'env' ? 'readRaw' : 'readConfigRaw', { file });
       setText(raw.text);
       setVersion(raw.version);
       setStale(false);
@@ -48,7 +51,7 @@ export function RawEditDialog({
     }
     // onClose is a fresh closure each render; loading depends on the file only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, file]);
+  }, [projectId, file, kind]);
 
   useEffect(() => {
     void load();
@@ -58,8 +61,8 @@ export function RawEditDialog({
     if (text === null || version === null) return;
     setSaving(true);
     try {
-      await api.tools.invoke('env', projectId, 'writeRaw', { file, text, version });
-      await queryClient.invalidateQueries({ queryKey: envMatrixKey(projectId) });
+      await api.tools.invoke('env', projectId, kind === 'env' ? 'writeRaw' : 'writeConfigRaw', { file, text, version });
+      await queryClient.invalidateQueries({ queryKey: kind === 'env' ? envMatrixKey(projectId) : configMatrixKey(projectId) });
       toast.success(`Saved ${file}`);
       onClose();
     } catch (error) {
@@ -78,7 +81,9 @@ export function RawEditDialog({
           <DialogDescription>
             {readOnly
               ? 'A symlinked file: shown, not edited.'
-              : 'The whole file, values included. Saving replaces it as written.'}
+              : kind === 'config'
+                ? 'The whole file, values included. It must stay valid JSON (comments are fine).'
+                : 'The whole file, values included. Saving replaces it as written.'}
           </DialogDescription>
         </DialogHeader>
         <form

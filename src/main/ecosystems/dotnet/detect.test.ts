@@ -77,10 +77,22 @@ describe('parseLaunchSettings', () => {
   it('keeps Project profiles with safe names and their http ports, never their variables', () => {
     const profiles = parseLaunchSettings(LAUNCH_SETTINGS);
     expect(profiles).toEqual([
-      { name: 'http', ports: [5283] },
-      { name: 'https', ports: [5283] },
+      { name: 'http', ports: [5283], environment: 'Development' },
+      { name: 'https', ports: [5283], environment: 'Production' },
     ]);
     expect(JSON.stringify(profiles)).not.toContain('secret');
+  });
+
+  it('takes the environment from ASPNETCORE_ENVIRONMENT, else DOTNET_ENVIRONMENT, else Production', () => {
+    const profile = (vars: Record<string, string>) =>
+      JSON.stringify({ profiles: { p: { commandName: 'Project', environmentVariables: vars } } });
+    const env = (vars: Record<string, string>) => parseLaunchSettings(profile(vars))[0]?.environment;
+    expect(env({ DOTNET_ENVIRONMENT: 'Staging', ASPNETCORE_ENVIRONMENT: 'Local' })).toBe('Local');
+    expect(env({ DOTNET_ENVIRONMENT: 'Staging' })).toBe('Staging');
+    expect(env({ ASPNETCORE_ENVIRONMENT: 'has space' })).toBe('Production');
+    expect(env({ ASPNETCORE_ENVIRONMENT: '../x' })).toBe('Production');
+    expect(env({})).toBe('Production');
+    expect(JSON.stringify(parseLaunchSettings(profile({ ASPNETCORE_ENVIRONMENT: 'Dev', TOKEN: 'secret' })))).not.toContain('secret');
   });
 
   it('returns [] for missing or invalid files', () => {
@@ -129,8 +141,8 @@ describe('detectDotnet', () => {
       isTest: false,
       sdk: { version: '10.0.100', rollForward: 'latestPatch' },
       launchProfiles: [
-        { name: 'http', ports: [5283] },
-        { name: 'https', ports: [5283] },
+        { name: 'http', ports: [5283], environment: 'Development' },
+        { name: 'https', ports: [5283], environment: 'Production' },
       ],
     });
   });

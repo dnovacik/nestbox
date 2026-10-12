@@ -4,6 +4,7 @@
 import { open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import { ENVIRONMENT_NAME } from '@shared/tools/env/contract';
 import { PROJECT_FILE, SOLUTION_FILE } from './solution';
 
 const PROJECT_MAX = 256 * 1024;
@@ -39,10 +40,18 @@ export const DotnetInfoSchema = z.object({
   isTest: z.boolean(),
   /** The SDK global.json asks for (this folder or above), with its roll-forward policy. */
   sdk: z.object({ version: z.string(), rollForward: z.enum(ROLL_FORWARD) }).nullable(),
-  /** `Project` launch profiles: the name and the http (not https) ports of applicationUrl. */
-  launchProfiles: z.array(z.object({ name: z.string(), ports: z.array(z.number().int()) })),
+  /**
+   * `Project` launch profiles: the name, the http (not https) ports of applicationUrl and the environment it
+   * runs as (ASPNETCORE_ENVIRONMENT, else DOTNET_ENVIRONMENT, else Production; the only variable read).
+   */
+  launchProfiles: z.array(
+    z.object({ name: z.string(), ports: z.array(z.number().int()), environment: z.string().default('Production') }),
+  ),
 });
 export type DotnetInfo = z.infer<typeof DotnetInfoSchema>;
+
+/** .NET's environment when none is set. */
+export const DEFAULT_ENVIRONMENT = 'Production';
 
 /** A small text file, BOM stripped; null when it is missing, too big or unreadable. */
 export async function readSmall(path: string, max: number): Promise<string | null> {
@@ -112,6 +121,16 @@ function httpPorts(applicationUrl: unknown): number[] {
   return ports;
 }
 
+/** The environment name only: every other variable stays unread. */
+function environmentOf(variables: unknown): string {
+  if (!isObject(variables)) return DEFAULT_ENVIRONMENT;
+  for (const name of ['ASPNETCORE_ENVIRONMENT', 'DOTNET_ENVIRONMENT']) {
+    const value = variables[name];
+    if (typeof value === 'string') return ENVIRONMENT_NAME.test(value) ? value : DEFAULT_ENVIRONMENT;
+  }
+  return DEFAULT_ENVIRONMENT;
+}
+
 export function parseLaunchSettings(text: string | null): DotnetInfo['launchProfiles'] {
   const json = parseJson(text);
   const profiles = isObject(json) ? json['profiles'] : null;
@@ -122,6 +141,7 @@ export function parseLaunchSettings(text: string | null): DotnetInfo['launchProf
     .map(([name, p]) => ({
       name,
       ports: httpPorts((p as Record<string, unknown>)['applicationUrl']),
+      environment: environmentOf((p as Record<string, unknown>)['environmentVariables']),
     }));
 }
 

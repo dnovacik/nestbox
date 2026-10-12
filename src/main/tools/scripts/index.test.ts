@@ -566,6 +566,19 @@ describe('scripts tool: ecosystem commands', () => {
     expect(await call(svc.id, 'start', { script: 'ef' })).toMatchObject({ warning: expect.stringContaining('9.0.100') });
     expect(spawnCalls(platform)[0]?.env).toMatchObject({ DOTNET_NOLOGO: '1' });
   });
+
+  it('gives .NET commands no env file by default, and keeps an explicit .env', async () => {
+    const { call, deps } = dotnetSetup();
+    await call(svc.id, 'saveCommand', { name: 'ef', argv: ['dotnet', 'ef', 'database', 'update'] });
+    const envFileOf = async (name: string) =>
+      ((await call(svc.id, 'list')) as { scripts: { name: string; envFile: string | null }[] }).scripts.find((s) => s.name === name)?.envFile;
+    expect(await envFileOf('ef')).toBeNull();
+    expect(await envFileOf('run')).toBeNull();
+    await call(svc.id, 'start', { script: 'ef' });
+    expect(deps.envFiles.read).not.toHaveBeenCalled();
+    await call(svc.id, 'setEnvFile', { script: 'ef', file: '.env' });
+    expect(await envFileOf('ef')).toBe('.env');
+  });
 });
 
 describe('scripts tool: custom commands', () => {

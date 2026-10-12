@@ -28,6 +28,20 @@ const EnvTextSchema = z
 
 export const CELL_STATES = ['set', 'empty', 'absent'] as const;
 
+/** appsettings.json and appsettings.<Environment>.json (.NET configuration files). */
+export const APPSETTINGS_FILE = /^appsettings(\.[A-Za-z0-9_-]{1,40})?\.json$/;
+/** A .NET configuration path: segments joined by ':' (`Logging:LogLevel:Default`, `AllowedOrigins:0`). */
+export const CONFIG_KEY = /^[A-Za-z0-9_.$-]+(:[A-Za-z0-9_.$-]+)*$/;
+/** An ASP.NET Core environment name (`Development`), also the middle of its file name. */
+export const ENVIRONMENT_NAME = /^[A-Za-z0-9_-]{1,40}$/;
+/** A JSON number literal. */
+export const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
+export const CONFIG_TYPES = ['string', 'number', 'boolean', 'null', 'object', 'array'] as const;
+/** The types a value can be edited to (containers are edited as raw text). */
+export const EDITABLE_CONFIG_TYPES = ['string', 'number', 'boolean', 'null'] as const;
+export type ConfigType = (typeof CONFIG_TYPES)[number];
+export type EditableConfigType = (typeof EDITABLE_CONFIG_TYPES)[number];
+
 /** Presence only: the matrix never carries values. */
 export const EnvMatrixSchema = z.object({
   /** Columns: the example first, then .env, then the rest alphabetically. */
@@ -58,6 +72,48 @@ export const EnvMatrixSchema = z.object({
 export type EnvMatrix = z.infer<typeof EnvMatrixSchema>;
 
 const CellInput = z.strictObject({ file: EnvFileNameSchema, key: EnvKeySchema });
+
+export const AppSettingsFileSchema = z.string().regex(APPSETTINGS_FILE);
+export const ConfigKeySchema = z.string().max(200).regex(CONFIG_KEY);
+const ConfigTypeInput = z.enum(EDITABLE_CONFIG_TYPES);
+const ConfigCell = z.strictObject({ file: AppSettingsFileSchema, key: ConfigKeySchema });
+
+/** appsettings*.json keys × files, presence only (like the env matrix). */
+export const ConfigMatrixSchema = z.object({
+  /** The package has a .NET ecosystem (the section comes first, the .env one only with files). */
+  dotnet: z.boolean(),
+  /** Columns: appsettings.json, Development, Staging, Production, then the rest alphabetically. */
+  files: z.array(
+    z.object({
+      name: z.string(),
+      /** null when the file couldn't be read (too large). */
+      version: z.string().nullable(),
+      readOnly: z.boolean(),
+      /** Over 1 MiB or 2,000 keys: listed, not read. */
+      tooLarge: z.boolean(),
+      /** Not JSON with an object at the root: only raw edit. */
+      invalid: z.boolean(),
+      entries: z.number().int().nonnegative(),
+      /** Keys that appear more than once when case is ignored (.NET takes the last). */
+      caseDuplicates: z.array(z.string()),
+    }),
+  ),
+  keys: z.array(
+    z.object({
+      key: z.string(),
+      cells: z.record(z.string(), z.enum(CELL_STATES)),
+      /** In appsettings.json and in an environment file. */
+      overridden: z.boolean(),
+      /** Only in environment files (appsettings.json exists). */
+      envOnly: z.boolean(),
+    }),
+  ),
+  /** Each launch profile and the environment it runs as; file = appsettings.<environment>.json. */
+  profiles: z.array(z.object({ name: z.string(), environment: z.string(), file: z.string(), exists: z.boolean() })),
+  /** More than 20 settings files: the rest aren't shown. */
+  truncated: z.boolean(),
+});
+export type ConfigMatrix = z.infer<typeof ConfigMatrixSchema>;
 
 export const envContract = defineContract({
   matrix: { input: z.strictObject({}), output: EnvMatrixSchema },
@@ -103,6 +159,41 @@ export const envContract = defineContract({
   createFile: {
     input: z.strictObject({ file: EnvFileNameSchema, keys: z.array(EnvKeySchema).max(500) }),
     output: z.object({ version: z.string() }),
+  },
+  /** appsettings*.json, presence only. */
+  configMatrix: { input: z.strictObject({}), output: ConfigMatrixSchema },
+  /** One value, shown on request: a string as is, other values as JSON text. */
+  configReveal: { input: ConfigCell, output: z.object({ value: z.string(), type: z.enum(CONFIG_TYPES) }) },
+  configCopy: { input: ConfigCell, output: z.object({}) },
+  configSetValue: {
+    input: z.strictObject({ file: AppSettingsFileSchema, key: ConfigKeySchema, value: EnvValueSchema, type: ConfigTypeInput, version: Version }),
+    output: z.object({ version: z.string() }),
+  },
+  /** version null creates the file. CONFLICT when the key exists. */
+  configAddKey: {
+    input: z.strictObject({
+      file: AppSettingsFileSchema,
+      key: ConfigKeySchema,
+      value: EnvValueSchema,
+      type: ConfigTypeInput,
+      version: Version.nullable(),
+    }),
+    output: z.object({ version: z.string() }),
+  },
+  configRemoveKey: {
+    input: z.strictObject({ file: AppSettingsFileSchema, key: ConfigKeySchema, version: Version }),
+    output: z.object({ version: z.string() }),
+  },
+  readConfigRaw: { input: z.strictObject({ file: AppSettingsFileSchema }), output: z.object({ text: z.string(), version: z.string() }) },
+  /** The text must be JSON (comments allowed) with an object at the root. */
+  writeConfigRaw: {
+    input: z.strictObject({ file: AppSettingsFileSchema, text: EnvTextSchema, version: Version }),
+    output: z.object({ version: z.string() }),
+  },
+  /** appsettings.<environment>.json as {}; CONFLICT when it exists. */
+  createConfigFile: {
+    input: z.strictObject({ environment: z.string().regex(ENVIRONMENT_NAME) }),
+    output: z.object({ version: z.string(), file: z.string() }),
   },
   /** PORT from .env (for the Ports card), never other values. */
   facts: { input: z.strictObject({}), output: z.object({ port: z.number().int().nullable() }) },

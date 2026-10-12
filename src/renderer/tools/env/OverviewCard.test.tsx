@@ -7,16 +7,33 @@ import { EnvCard } from './OverviewCard';
 describe('EnvCard', () => {
   it('shows the file count, flagged keys and the active profile', async () => {
     installMockBridge({
-      'tools:invoke': (() => ({
-        files: [{ name: '.env', version: 'v', readOnly: false, entries: 1, duplicates: [] }],
-        keys: [{ key: 'A', cells: { '.env': 'set' }, missing: false, undocumented: true }],
-        example: null,
-        profiles: [{ name: 'staging', file: '.env.staging', active: true }],
-      })) as never,
+      'tools:invoke': (({ method }: { method: string }) =>
+        method === 'configMatrix'
+          ? { dotnet: false, files: [], keys: [], profiles: [], truncated: false }
+          : {
+              files: [{ name: '.env', version: 'v', readOnly: false, entries: 1, duplicates: [] }],
+              keys: [{ key: 'A', cells: { '.env': 'set' }, missing: false, undocumented: true }],
+              example: null,
+              profiles: [{ name: 'staging', file: '.env.staging', active: true }],
+            }) as never,
     });
     renderWithProviders(<EnvCard projectId="p1" />);
     const card = await screen.findByRole('region', { name: 'Env' });
     expect(await within(card).findByText('staging')).toBeInTheDocument();
     expect(within(card).getByText('Flagged keys').nextSibling).toHaveTextContent('1');
+    expect(within(card).queryByText('Settings files')).toBeNull();
+  });
+
+  it('counts settings files in a .NET package and warns about an invalid one', async () => {
+    const file = (name: string, invalid: boolean) => ({ name, version: 'v', readOnly: false, tooLarge: false, invalid, entries: 0, caseDuplicates: [] });
+    installMockBridge({
+      'tools:invoke': (({ method }: { method: string }) =>
+        method === 'configMatrix'
+          ? { dotnet: true, files: [file('appsettings.json', false), file('appsettings.Development.json', true)], keys: [], profiles: [], truncated: false }
+          : { files: [], keys: [], example: null, profiles: [] }) as never,
+    });
+    renderWithProviders(<EnvCard projectId="p1" />);
+    const card = await screen.findByRole('region', { name: 'Env' });
+    expect((await within(card).findByText('Settings files')).nextSibling).toHaveTextContent('2 (1 invalid)');
   });
 });
