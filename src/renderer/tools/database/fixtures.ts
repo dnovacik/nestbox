@@ -9,6 +9,7 @@ export function dbStatus(patch: Partial<DbStatus> = {}): DbStatus {
     reach: { result: 'reachable', reason: null },
     running: { command: null, studio: null },
     dotnet: null,
+    ef: null,
     ...patch,
   };
 }

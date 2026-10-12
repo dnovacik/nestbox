@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -36,11 +37,20 @@ async function files(entries: Record<string, string>) {
 }
 
 function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schema.prisma', packageManager: 'pnpm' }, reach: Reach = { result: 'reachable', reason: null }) {
-  const platform = { ...fakePlatform(), openTerminal: vi.fn(async () => undefined) };
+  const platform = { ...fakePlatform(), openTerminal: vi.fn(async () => undefined), commandExists: vi.fn(async () => false) };
   const logger = createMemoryLogger();
   const checkReachable = vi.fn(async () => reach);
   const firstFreePort = vi.fn(async () => 5556);
-  tool = createDatabaseTool({ envFiles: createEnvFileAccess(), configFiles: createConfigFileAccess(), checkReachable, firstFreePort, logger });
+  const dotnetRunEnv = vi.fn(async () => ({ pathPrepend: join(root, 'sdk') }));
+  tool = createDatabaseTool({
+    envFiles: createEnvFileAccess(),
+    configFiles: createConfigFileAccess(),
+    checkReachable,
+    firstFreePort,
+    logger,
+    home: join(root, 'home'),
+    dotnetRunEnv,
+  });
   const emit = vi.fn();
   const ctx = {
     project: makeDetectedForTest({ path: root, envFiles: ['.env'], ...project }),
@@ -68,6 +78,7 @@ describe('database tool: status', () => {
       reach: { result: 'reachable', reason: null },
       running: { command: null, studio: null },
       dotnet: null,
+      ef: null,
     });
     expect(JSON.stringify(status)).not.toMatch(/s3cr3t|alice/);
     expect(checkReachable).toHaveBeenCalledTimes(1);
@@ -351,5 +362,243 @@ describe('database tool: .NET connection strings', () => {
   it('applies to a .NET project without env files or Prisma', () => {
     expect(databaseDefinition.appliesTo(makeDetectedForTest({ ...dotnet() }))).toBe(true);
     expect(databaseDefinition.appliesTo(makeDetectedForTest({ ...dotnet({ project: null, solution: 'Shop.slnx' }) }))).toBe(false);
+  });
+});
+
+describe('database tool: EF Core', () => {
+  const readFixture = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
+  const efDotnet = (over: Record<string, unknown> = {}): Partial<DetectedProject> => ({
+    prismaSchema: null,
+    packageJson: null,
+    packageManager: null,
+    envFiles: [],
+    ecosystems: [
+      {
+        id: 'dotnet',
+        info: {
+          solution: null,
+          project: 'Shop.csproj',
+          targetFrameworks: ['net10.0'],
+          isWeb: true,
+          isTest: false,
+          dbProviders: ['postgresql'],
+          efDesign: true,
+          sdk: null,
+          launchProfiles: [{ name: 'http', ports: [5000], environment: 'Development' }],
+          ...over,
+        },
+      },
+    ],
+  });
+  async function efProject(contexts = ['ShopDbContext']) {
+    await files({
+      'dotnet-tools.json': JSON.stringify({ version: 1, isRoot: true, tools: { 'dotnet-ef': { version: '10.0.0', commands: ['dotnet-ef'] } } }),
+      ...Object.fromEntries(contexts.map((c) => [`Data/${c}.cs`, `public class ${c} : DbContext {}`])),
+    });
+  }
+  type Setup = ReturnType<typeof setup>;
+  /** Writes stdout to the last spawned child and closes it with code. */
+  async function finish(platform: Setup['platform'], code: number, stdout: string) {
+    const child = platform.last();
+    child.stdout.write(stdout);
+    child.exit(code);
+    await flushIo();
+  }
+  const logText = async (call: Setup['call']) => (await call<LogSnapshot>('getLogs', {})).lines.map((l) => l.text);
+
+  it('reports the tool, the contexts and no list before one is read', async () => {
+    await efProject(['ShopDbContext', 'AuthContext']);
+    const { call } = setup(efDotnet());
+    expect((await call<DbStatus>('status', {})).ef).toEqual({
+      tool: 'local',
+      contexts: ['AuthContext', 'ShopDbContext'],
+      context: 'AuthContext',
+      needsRestore: false,
+      migrations: null,
+    });
+    expect((await call<DbStatus>('status', { context: 'ShopDbContext' })).ef?.context).toBe('ShopDbContext');
+  });
+
+  it('is null without the Design package, and says when no tool is installed', async () => {
+    expect((await setup(efDotnet({ efDesign: false })).call<DbStatus>('status', {})).ef).toBeNull();
+    const { call } = setup(efDotnet());
+    expect((await call<DbStatus>('status', {})).ef?.tool).toBeNull();
+    await expect(call('ef', { action: 'list', environment: 'Development' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('lists migrations with the environment set, keeps data lines out of the log, and reads the list', async () => {
+    await efProject();
+    const { call, spawned, platform } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    const opts = spawned();
+    expect(opts?.command).toBe('dotnet');
+    expect(opts?.cwd).toBe(root);
+    expect(opts?.args).toEqual(['ef', 'migrations', 'list', '--json', '--project', 'Shop.csproj', '--prefix-output', '--', '--environment', 'Development']);
+    expect(opts?.env).toMatchObject({ ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_ENVIRONMENT: 'Development', DOTNET_NOLOGO: '1' });
+    expect(String(opts?.env.PATH).startsWith(join(root, 'sdk'))).toBe(true);
+    expect((await call<DbStatus>('status', {})).running.command).toBe('ef-list');
+    await finish(platform, 0, readFixture('ef10-list.txt'));
+    const status = await call<DbStatus>('status', {});
+    expect(status.running.command).toBeNull();
+    expect(status.ef?.migrations).toEqual({
+      environment: 'Development',
+      items: [
+        { id: '20261012151146_Init', name: 'Init', applied: true },
+        { id: '20261012151151_AddOrders', name: 'AddOrders', applied: false },
+      ],
+    });
+    const log = await logText(call);
+    expect(log[0]).toBe('▸ dotnet ef migrations list --json (Development)');
+    expect(log).toContain('Build succeeded.');
+    expect(log.some((t) => t.includes('"id"'))).toBe(false);
+    expect(log.at(-1)).toBe('■ done');
+  });
+
+  it('passes --context only with several contexts', async () => {
+    await efProject(['ShopDbContext', 'AuthContext']);
+    const { call, spawned, platform } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    const args = spawned()?.args ?? [];
+    expect(args[args.indexOf('--context') + 1]).toBe('AuthContext');
+    await finish(platform, 0, '');
+    await call('ef', { action: 'script', environment: 'Development', context: 'ShopDbContext' });
+    expect(spawned(1)?.args).toContain('ShopDbContext');
+  });
+
+  it('passes no --context with a single one', async () => {
+    await efProject();
+    const { call, spawned } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    expect(spawned()?.args).not.toContain('--context');
+  });
+
+  it('refuses an unknown context or target, a missing name and missing confirmations', async () => {
+    await efProject();
+    const { call, platform } = setup(efDotnet());
+    const refused = (input: object) =>
+      expect(call('ef', { environment: 'Development', ...input })).rejects.toMatchObject({ code: 'VALIDATION' });
+    await refused({ action: 'list', context: 'Nope' });
+    await refused({ action: 'update', target: '20260101000000_X', confirmed: true });
+    await refused({ action: 'add' });
+    await refused({ action: 'update', environment: 'Production' });
+    await refused({ action: 'update', target: '0' });
+    await refused({ action: 'remove' });
+    expect(platform.spawnCommand).not.toHaveBeenCalled();
+  });
+
+  it('runs a confirmed Production update, and restore only for a local tool', async () => {
+    await efProject();
+    const { call, spawned, platform } = setup(efDotnet());
+    await call('ef', { action: 'update', environment: 'Production', confirmed: true });
+    expect(spawned()?.args).toEqual(['ef', 'database', 'update', '--project', 'Shop.csproj', '--prefix-output', '--', '--environment', 'Production']);
+    expect(spawned()?.env).toMatchObject({ ASPNETCORE_ENVIRONMENT: 'Production' });
+    await finish(platform, 1, 'error:   Failed.\n');
+    await call('ef', { action: 'restore', environment: 'Development' });
+    expect(spawned(1)?.args).toEqual(['tool', 'restore']);
+    expect(await logText(call)).toContain('▸ dotnet tool restore');
+  });
+
+  it('refuses restore for a global tool', async () => {
+    const { call, platform } = setup(efDotnet());
+    platform.commandExists.mockResolvedValue(true);
+    expect((await call<DbStatus>('status', {})).ef?.tool).toBe('global');
+    await expect(call('ef', { action: 'restore', environment: 'Development' })).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('forgets a list read for another environment', async () => {
+    await efProject();
+    const { call, platform } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    await finish(platform, 0, readFixture('ef10-list.txt'));
+    expect((await call<DbStatus>('status', { environment: 'Production' })).ef?.migrations).toBeNull();
+    await expect(
+      call('ef', { action: 'update', environment: 'Production', target: '20261012151146_Init', confirmed: true }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    await call('ef', { action: 'update', environment: 'Development', target: '20261012151146_Init', confirmed: true });
+  });
+
+  it('lists again after a successful add, but not after a stop or a failure', async () => {
+    await efProject();
+    const { call, platform, spawned } = setup(efDotnet());
+    await call('ef', { action: 'add', environment: 'Development', name: 'AddOrders' });
+    expect(spawned()?.args.slice(0, 4)).toEqual(['ef', 'migrations', 'add', 'AddOrders']);
+    await finish(platform, 0, 'info:    Done.\n');
+    expect(platform.spawnCommand).toHaveBeenCalledTimes(2);
+    expect(spawned(1)?.args.slice(0, 3)).toEqual(['ef', 'migrations', 'list']);
+    await finish(platform, 0, readFixture('ef10-list.txt'));
+    await call('ef', { action: 'add', environment: 'Development', name: 'Again' });
+    await call('stop', { what: 'command' });
+    await flushIo();
+    expect(await logText(call)).toContain('■ stopped');
+    await call('ef', { action: 'add', environment: 'Development', name: 'Third' });
+    await finish(platform, 1, 'error:   Build failed.\n');
+    expect(platform.spawnCommand).toHaveBeenCalledTimes(4);
+    expect(await logText(call)).toContain('■ exited with code 1');
+  });
+
+  it('keeps the old list when the output is unreadable', async () => {
+    await efProject();
+    const { call, platform } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    await finish(platform, 0, readFixture('ef10-list.txt'));
+    await call('ef', { action: 'list', environment: 'Development' });
+    await finish(platform, 0, 'data:    not json\n');
+    expect((await call<DbStatus>('status', {})).ef?.migrations?.items).toHaveLength(2);
+    expect(await logText(call)).toContain("■ Couldn't read the migration list");
+  });
+
+  it('is CONFLICT while any command runs, and says when dotnet could not start', async () => {
+    await efProject();
+    const { call, platform } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    await expect(call('ef', { action: 'script', environment: 'Development' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    await finish(platform, 0, '');
+    platform.failNextSpawn();
+    await call('ef', { action: 'script', environment: 'Development' });
+    await flushIo();
+    expect(await logText(call)).toContain('■ dotnet could not be started');
+  });
+
+  it('flags a local tool that needs restoring, and never logs EF output', async () => {
+    await efProject();
+    const { call, platform, logger } = setup(efDotnet());
+    await call('ef', { action: 'list', environment: 'Development' });
+    await finish(platform, 1, `${readFixture('not-restored.txt')}\nerror:   Host=db;Password=s3cr3t\n`);
+    expect((await call<DbStatus>('status', {})).ef?.needsRestore).toBe(true);
+    expect(await logText(call)).toContain('Host=db;Password=s3cr3t');
+    expect(JSON.stringify(logger.entries)).not.toMatch(/s3cr3t|restore|Shop/);
+    expect(logger.entries.find((e) => e.message === 'database ef')?.fields).toEqual({ projectId: expect.any(String), action: 'list', code: '1' });
+    await call('ef', { action: 'list', environment: 'Development' });
+    await finish(platform, 0, readFixture('ef10-list.txt'));
+    expect((await call<DbStatus>('status', {})).ef?.needsRestore).toBe(false);
+    expect(logger.entries.filter((e) => e.message === 'database ef').at(-1)?.fields).toEqual({
+      projectId: expect.any(String),
+      action: 'list',
+      code: '0',
+      migrations: 2,
+      pending: 1,
+    });
+  });
+
+  it('scripts without --idempotent when SQLite is the only provider', async () => {
+    await efProject();
+    const { call, spawned } = setup(efDotnet({ dbProviders: ['sqlite'] }));
+    await call('ef', { action: 'script', environment: 'Development' });
+    expect(spawned()?.args).not.toContain('--idempotent');
+  });
+
+  it('stops a run after 10 minutes', async () => {
+    await efProject();
+    const { call, platform } = setup(efDotnet());
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await call('ef', { action: 'update', environment: 'Development' });
+      vi.advanceTimersByTime(10 * 60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flushIo();
+    expect(platform.killTree).toHaveBeenCalled();
+    expect(await logText(call)).toContain('■ stopped after 10 minutes');
   });
 });

@@ -53,6 +53,33 @@ export const EfMigrationSchema = z.object({
 });
 export type EfMigration = z.infer<typeof EfMigrationSchema>;
 
+/** EF Core in a .NET package that references Microsoft.EntityFrameworkCore.Design. */
+export const EfStatusSchema = z.object({
+  /** Where dotnet-ef comes from; null: not installed (NestBox never installs it). */
+  tool: z.enum(['local', 'global']).nullable(),
+  /** DbContext classes found in the package's source. */
+  contexts: z.array(z.string()),
+  /** The one in use: the asked one, else the first; null when none is found (EF decides). */
+  context: z.string().nullable(),
+  /** The last run said `dotnet tool restore` is needed (a local tool). */
+  needsRestore: z.boolean(),
+  /** The last list read this session for this context and environment; null until listed. Memory only. */
+  migrations: z.object({ environment: z.string(), items: z.array(EfMigrationSchema) }).nullable(),
+});
+
+export const EfInputSchema = z.strictObject({
+  action: z.enum(EF_ACTIONS),
+  environment: z.string().regex(ENVIRONMENT_NAME),
+  context: z.string().regex(CLASS_NAME).optional(),
+  /** add: the migration's name. */
+  name: z.string().regex(MIGRATION_NAME).optional(),
+  /** update: '0' (revert all) or an id from the current list; none = the latest. */
+  target: z.union([z.literal('0'), z.string().regex(MIGRATION_ID)]).optional(),
+  /** Required for updates outside Development, rollbacks and remove: the renderer asked first. */
+  confirmed: z.boolean().optional(),
+});
+export type EfInput = z.infer<typeof EfInputSchema>;
+
 /** Where one .NET connection string points: like DbTarget, from an appsettings file. */
 export const DbConnectionSchema = z.object({
   name: z.string(),
@@ -77,7 +104,7 @@ export const DbStatusSchema = z.object({
   ]),
   reach: z.object({ result: z.enum(REACH_RESULTS), reason: z.string().nullable() }).nullable(),
   running: z.object({
-    command: z.enum([...PRISMA_COMMANDS, 'test-login']).nullable(),
+    command: z.enum([...PRISMA_COMMANDS, 'test-login', ...EF_KINDS]).nullable(),
     studio: z.object({ port: z.number().int() }).nullable(),
   }),
   /** ConnectionStrings from appsettings for one environment; null when the package has no .NET project. */
@@ -91,12 +118,18 @@ export const DbStatusSchema = z.object({
       truncated: z.boolean(),
     })
     .nullable(),
+  ef: EfStatusSchema.nullable(),
 });
 export type DbStatus = z.infer<typeof DbStatusSchema>;
 
 export const databaseContract = defineContract({
-  /** environment: the .NET environment to read ConnectionStrings for (default: the first launch profile's). */
-  status: { input: z.strictObject({ environment: z.string().regex(ENVIRONMENT_NAME).optional() }), output: DbStatusSchema },
+  /** environment: the .NET environment for ConnectionStrings and EF (default: the first launch profile's); context: the DbContext. */
+  status: {
+    input: z.strictObject({ environment: z.string().regex(ENVIRONMENT_NAME).optional(), context: z.string().regex(CLASS_NAME).optional() }),
+    output: DbStatusSchema,
+  },
+  /** An EF Core command; output goes to the log, the list to status.ef (a list follows add, update and remove). */
+  ef: { input: EfInputSchema, output: z.void() },
   /** Runs SELECT 1 through Prisma; message is NestBox's own text for the P-code, never Prisma's. */
   testLogin: { input: z.strictObject({}), output: z.object({ ok: z.boolean(), message: z.string() }) },
   run: { input: z.strictObject({ command: z.enum(PRISMA_COMMANDS) }), output: z.void() },
