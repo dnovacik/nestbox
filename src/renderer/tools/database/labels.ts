@@ -3,7 +3,7 @@ import type { DbStatus, DbTargetView } from '@shared/tools/database/contract';
 type Reach = NonNullable<DbStatus['reach']>;
 
 /** "postgresql · localhost:5432/shop" or "SQLite · dev.db": never more than the main side sent. */
-export function targetLabel(target: DbTargetView): string {
+export function targetLabel(target: Omit<DbTargetView, 'source'>): string {
   if (target.provider === 'sqlite') return `SQLite · ${target.database ?? 'file'}`;
   const address = [target.host, target.port === null ? null : `:${target.port}`].filter(Boolean).join('');
   const where = `${address}${target.database ? `/${target.database}` : ''}`;
