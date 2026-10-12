@@ -28,6 +28,20 @@ const EnvTextSchema = z
 
 export const CELL_STATES = ['set', 'empty', 'absent'] as const;
 
+/** appsettings.json and appsettings.<Environment>.json (.NET configuration files). */
+export const APPSETTINGS_FILE = /^appsettings(\.[A-Za-z0-9_-]{1,40})?\.json$/;
+/** A .NET configuration path: segments joined by ':' (`Logging:LogLevel:Default`, `AllowedOrigins:0`). */
+export const CONFIG_KEY = /^[A-Za-z0-9_.$-]+(:[A-Za-z0-9_.$-]+)*$/;
+/** An ASP.NET Core environment name (`Development`), also the middle of its file name. */
+export const ENVIRONMENT_NAME = /^[A-Za-z0-9_-]{1,40}$/;
+/** A JSON number literal. */
+export const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
+export const CONFIG_TYPES = ['string', 'number', 'boolean', 'null', 'object', 'array'] as const;
+/** The types a value can be edited to (containers are edited as raw text). */
+export const EDITABLE_CONFIG_TYPES = ['string', 'number', 'boolean', 'null'] as const;
+export type ConfigType = (typeof CONFIG_TYPES)[number];
+export type EditableConfigType = (typeof EDITABLE_CONFIG_TYPES)[number];
+
 /** Presence only: the matrix never carries values. */
 export const EnvMatrixSchema = z.object({
   /** Columns: the example first, then .env, then the rest alphabetically. */
