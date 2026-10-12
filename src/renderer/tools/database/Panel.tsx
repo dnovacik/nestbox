@@ -1,11 +1,12 @@
 import { ExternalLink, Loader2, Play, RefreshCw, Square, SquareTerminal } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { DbStatus, PrismaCommand } from '@shared/tools/database/contract';
 import { LogView } from '@/components/log/LogView';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
+import { ConnectionsCard } from './ConnectionsCard';
 import { REACH_LABELS, TONE_TEXT, targetLabel, urlProblem } from './labels';
 import { databaseLogSource, useDatabaseActions, useDatabaseStatus } from './use-database';
 
@@ -110,9 +111,13 @@ function PrismaActions({ status, projectId }: { status: DbStatus; projectId: str
   );
 }
 
-/** Where DATABASE_URL points, whether it answers and logs in, and the project's Prisma commands. */
+/**
+ * Where DATABASE_URL points, whether it answers and logs in, and the project's Prisma commands; in a .NET
+ * package, its ConnectionStrings for the environment picked here (kept while the tab is open, never stored).
+ */
 export default function DatabasePanel({ projectId }: ToolPanelProps) {
-  const { data: status, isError, refetch, isFetching } = useDatabaseStatus(projectId);
+  const [environment, setEnvironment] = useState<string | undefined>(undefined);
+  const { data: status, isError, refetch, isFetching } = useDatabaseStatus(projectId, environment);
   const source = useMemo(() => databaseLogSource(projectId), [projectId]);
   if (isError) return <p className="text-sm text-fg-muted">Couldn't read the database settings.</p>;
   if (!status) return <p className="text-sm text-fg-muted">Loading…</p>;
@@ -125,7 +130,9 @@ export default function DatabasePanel({ projectId }: ToolPanelProps) {
           Refresh
         </Button>
       </div>
-      <Summary status={status} projectId={projectId} />
+      {status.dotnet && <ConnectionsCard dotnet={status.dotnet} onEnvironment={setEnvironment} />}
+      {/* A .NET package shows the DATABASE_URL card only when it has Prisma or the URL. */}
+      {(status.dotnet === null || status.prisma !== null || status.url.state === 'set') && <Summary status={status} projectId={projectId} />}
       {status.prisma ? (
         <>
           <PrismaActions status={status} projectId={projectId} />
@@ -134,7 +141,7 @@ export default function DatabasePanel({ projectId }: ToolPanelProps) {
           </div>
         </>
       ) : (
-        <p className="text-xs text-fg-muted">No Prisma schema in this package: only the connection check is available.</p>
+        status.dotnet === null && <p className="text-xs text-fg-muted">No Prisma schema in this package: only the connection check is available.</p>
       )}
     </section>
   );

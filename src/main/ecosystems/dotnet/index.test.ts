@@ -13,6 +13,7 @@ const info = (over: Partial<DotnetInfo> = {}): DotnetInfo => ({
   targetFrameworks: ['net8.0'],
   isWeb: true,
   isTest: false,
+  dbProviders: [],
   sdk: null,
   launchProfiles: [],
   ...over,

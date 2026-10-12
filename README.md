@@ -21,7 +21,7 @@ Built with Electron, React and Vite. Runs on Windows and macOS (macOS is a previ
 | **Static** | Serves the build output with SPA fallback, CORS, no-cache and simulated latency. It can share on the LAN with a QR code, and HTTPS uses a self-signed certificate. Dotfiles are never served. |
 | **Claude Code** | Shows whether the CLI is installed, previews and edits `CLAUDE.md`/`CLAUDE.local.md`, and lists commands, agents, skills, settings and MCP servers. It runs a quick `claude -p` prompt, and it writes a generated project-context block into `CLAUDE.md` after showing a diff. |
 | **Git** | A read-only glance on the overview: branch (or detached commit), a merge or rebase in progress, uncommitted changes, ahead/behind the upstream as of the last fetch, and the last commit. The Git tab lists the changed files and opens them in the editor. NestBox never fetches or writes. |
-| **Database** | Where `DATABASE_URL` points (provider, host, port and database; never the user or password) and whether the server answers. Test login runs `SELECT 1` through Prisma. Prisma buttons: migrate status and generate with their output, migrate dev in a terminal, and Prisma Studio. |
+| **Database** | Where `DATABASE_URL` points (provider, host, port and database; never the user or password) and whether the server answers. Test login runs `SELECT 1` through Prisma. Prisma buttons: migrate status and generate with their output, migrate dev in a terminal, and Prisma Studio. In .NET packages: each `ConnectionStrings` entry from `appsettings.json` and `appsettings.<Environment>.json` for an environment you pick (the launch profile's by default), described the same way and checked, with the file it came from. |
 | **TODOs** | `TODO`, `FIXME`, `HACK`, `XXX` and `BUG` comments (the tags are editable per project), grouped by file, with counts on the overview. Files come from git (so `.gitignore` applies), or a folder walk outside git. A click opens the file at that line in the editor. |
 | **Health** | HTTP checks that run while a package's scripts run: a URL, or the host of a `.env` key such as `API_URL` plus a path (the value never leaves the app). Green when it answers 2xx/3xx (or the status you expect) within 5 s, with the latency on the overview, and a desktop notification when a check that was green starts failing. `localhost:<PORT>` (or a .NET launch profile's port) and URL-like keys are one-click suggestions. |
 | **Compose** | For a package with a compose file: each service's state, health and published ports. Start, stop and restart one service, Up all or Stop all, and Down after a confirmation (volumes are never removed). One service's logs stream into the log viewer, and the output of the actions has its own log. A run group can include services, so one click starts the database and then the API. Docker runs the containers, so quitting NestBox leaves them as they are. |
@@ -190,6 +190,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 | v1.22.0 | Ecosystem modules with .NET, and system CPU/RAM in the status bar |
 | v1.23.0 | .NET solutions, SDK checks and NuGet dependencies |
 | v1.24.0 | appsettings.json in the Env tool |
+| v1.25.0 | ConnectionStrings in the Database tool |
 
 See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 started.
 
@@ -197,7 +198,7 @@ See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 s
 
 - **Python:** a Python ecosystem module, with detection (`pyproject.toml`, `requirements.txt`, `Pipfile`), detected commands (Django, FastAPI, Flask, pytest) and the package's virtual environment for every command. Its Env work: `.env` files read by the venv's commands, and keys the code reads (`os.getenv`, `os.environ`) checked against them.
 - **Version and dependency checks for every ecosystem:** the Node and Dependencies tools' checks for .NET's SDK and Python's interpreter and packages.
-- **More from .NET:** `ConnectionStrings` in the Database tool ([#41](https://github.com/dnovacik/nestbox/issues/41)), EF Core migrations (like Prisma's), and the Inspector targeting a launch profile's port.
+- **More from .NET:** EF Core migrations, like Prisma's ([#43](https://github.com/dnovacik/nestbox/issues/43)), and the Inspector targeting a launch profile's port.
 - **Beyond package managers:** Node behind the same ecosystem interface, any git repository as a project, and Makefile and justfile targets as detected commands.
 
 ## License

@@ -8,14 +8,16 @@ import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/queries';
 import { subscribeToolEvent, useToolEvent } from '@/lib/tool-events';
 
+/** Every status query of the project (any environment): invalidating it refetches them all. */
 export const databaseStatusKey = (projectId: string) => queryKeys.tool('database', projectId, 'status');
 
 /**
  * Where DATABASE_URL points and whether it answers. Refetched when a command starts or stops, when the
  * env tool changes a .env file of the same package (an edit or a profile switch), and on window focus
- * (a database started outside NestBox).
+ * (a database started outside NestBox). environment: the .NET environment whose ConnectionStrings to read
+ * (undefined: the first launch profile's); switching keeps the previous result on screen while it loads.
  */
-export function useDatabaseStatus(projectId: string) {
+export function useDatabaseStatus(projectId: string, environment?: string) {
   const queryClient = useQueryClient();
   const refetch = () => void queryClient.invalidateQueries({ queryKey: databaseStatusKey(projectId) });
   useToolEvent('database', projectId, 'changed', refetch);
@@ -25,7 +27,12 @@ export function useDatabaseStatus(projectId: string) {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [queryClient, projectId]);
-  return useQuery({ queryKey: databaseStatusKey(projectId), queryFn: () => api.tools.invoke('database', projectId, 'status', {}) });
+  return useQuery({
+    queryKey: [...databaseStatusKey(projectId), environment ?? null],
+    queryFn: () => api.tools.invoke('database', projectId, 'status', environment === undefined ? {} : { environment }),
+    // The other environment's result, never another project's.
+    placeholderData: (previous, query) => (query?.queryKey[2] === projectId ? previous : undefined),
+  });
 }
 
 export function useDatabaseActions(projectId: string) {

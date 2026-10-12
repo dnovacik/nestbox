@@ -41,6 +41,7 @@ describe('parseProjectFile', () => {
       targetFrameworks: ['net10.0'],
       isWeb: true,
       isTest: false,
+      dbProviders: [],
     });
   });
 
@@ -52,6 +53,7 @@ describe('parseProjectFile', () => {
       targetFrameworks: ['net8.0', 'net48'],
       isWeb: false,
       isTest: false,
+      dbProviders: [],
     });
   });
 
@@ -66,6 +68,28 @@ describe('parseProjectFile', () => {
         `<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>${snippet}</ItemGroup></Project>`,
       ).isTest,
     ).toBe(true);
+  });
+
+  it('keeps the database providers the project references, never commented-out ones', () => {
+    const xml = `<Project Sdk="Microsoft.NET.Sdk.Web"><ItemGroup>
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+      <PackageReference Include="Npgsql" Version="10.0.0" />
+      <!-- <PackageReference Include="MySqlConnector" Version="2.4.0" /> -->
+      <PackageReference Include="Serilog" Version="4.0.0" />
+    </ItemGroup></Project>`;
+    expect(parseProjectFile(xml).dbProviders).toEqual(['postgresql', 'sqlite']);
+    const each = (pkg: string) =>
+      parseProjectFile(`<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="${pkg}" Version="1.0.0" /></ItemGroup></Project>`).dbProviders;
+    expect(each('Microsoft.Data.SqlClient')).toEqual(['sqlserver']);
+    expect(each('System.Data.SqlClient')).toEqual(['sqlserver']);
+    expect(each('Microsoft.EntityFrameworkCore.SqlServer')).toEqual(['sqlserver']);
+    expect(each('Microsoft.Data.Sqlite.Core')).toEqual(['sqlite']);
+    expect(each('System.Data.SQLite')).toEqual(['sqlite']);
+    expect(each('Pomelo.EntityFrameworkCore.MySql')).toEqual(['mysql']);
+    expect(each('MySql.Data')).toEqual(['mysql']);
+    expect(each('MongoDB.Driver')).toEqual(['mongodb']);
+    expect(each('Microsoft.EntityFrameworkCore')).toEqual([]);
   });
 
   it('recognises the MSTest SDK', () => {
@@ -139,6 +163,7 @@ describe('detectDotnet', () => {
       targetFrameworks: ['net10.0'],
       isWeb: true,
       isTest: false,
+      dbProviders: [],
       sdk: { version: '10.0.100', rollForward: 'latestPatch' },
       launchProfiles: [
         { name: 'http', ports: [5283], environment: 'Development' },

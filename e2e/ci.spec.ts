@@ -32,10 +32,11 @@ test("lists the branch's runs, tails a failed job's log, and re-runs the failed 
   await page.getByRole('tab', { name: 'CI', exact: true }).click();
 
   const runs = page.getByRole('list', { name: 'Runs' });
+  // The first gh call on a cold Windows runner can take most of the tool's own 30 s cap.
   await expect(
     runs.getByRole('button', { name: 'Run Fix the cart totals', exact: true }),
   ).toBeVisible({
-    timeout: 15_000,
+    timeout: 30_000,
   });
   await expect(runs.getByRole('listitem')).toHaveCount(2);
 

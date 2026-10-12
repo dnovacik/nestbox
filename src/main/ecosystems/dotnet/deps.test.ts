@@ -107,6 +107,7 @@ describe('checkDotnet', () => {
     targetFrameworks: ['net8.0'],
     isWeb: false,
     isTest: false,
+    dbProviders: [],
     sdk: null,
     launchProfiles: [],
   };
