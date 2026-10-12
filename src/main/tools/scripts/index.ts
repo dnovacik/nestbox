@@ -143,11 +143,15 @@ function renamed<T extends RunGroupEntry>(list: T[], relPath: string, from: stri
 function envFileOf(settings: ScriptsSettings, project: DetectedProject, runnable: Runnable): string | null {
   const override = settings.envFiles.find(isEntry(project.relPath, runnable.name));
   if (override) return override.file;
-  return defaultEnvFile(runnable);
+  return defaultEnvFile(project, runnable);
 }
 
-/** Custom commands get .env; package.json scripts none (Vite, Next and friends load it themselves). */
-const defaultEnvFile = (runnable: Runnable): string | null => (runnable.kind === 'npm' ? null : '.env');
+/**
+ * Commands get .env; package.json scripts none (Vite, Next and friends load it themselves), and neither do
+ * commands in a .NET package (.NET reads appsettings*.json, never .env).
+ */
+const defaultEnvFile = (project: DetectedProject, runnable: Runnable): string | null =>
+  runnable.kind === 'npm' || project.ecosystems[0]?.id === 'dotnet' ? null : '.env';
 
 const mainOf = (settings: ScriptsSettings, project: DetectedProject): string | null =>
   settings.main.find((e) => e.relPath === project.relPath)?.script ?? null;
@@ -506,7 +510,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           envFiles: [
             ...s.envFiles.filter((e) => !isEntry(relPath, script)(e)),
             // Only a choice that differs from the default is kept.
-            ...(file === defaultEnvFile(runnable) ? [] : [{ relPath, script, file }]),
+            ...(file === defaultEnvFile(ctx.project, runnable) ? [] : [{ relPath, script, file }]),
           ],
         }));
       },
