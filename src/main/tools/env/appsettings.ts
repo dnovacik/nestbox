@@ -161,7 +161,7 @@ export function addConfigKey(text: string, key: string, value: unknown): string 
     if (node === undefined) {
       path.push(seg);
     } else if (node.type === 'object') {
-      const prop = properties(node).findLast((p) => same(p.name, seg));
+      const prop: { name: string; value: Node } | undefined = properties(node).findLast((p) => same(p.name, seg));
       path.push(prop ? prop.name : seg);
       node = prop?.value;
     } else if (node.type === 'array') {
