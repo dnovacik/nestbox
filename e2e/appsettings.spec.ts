@@ -32,7 +32,7 @@ test('appsettings in the Env tab: matrix, profiles, reveal, typed edits that kee
   await expect(profiles).toContainText('http → Development');
 
   await table.getByRole('button', { name: 'Reveal ConnectionStrings:Shop in appsettings.json' }).click();
-  await expect(table.getByText('Host=localhost;Password=s3cr3t')).toBeVisible();
+  await expect(table.getByText('Host=127.0.0.1;Port=1;Database=shop;Username=shop;Password=s3cr3t')).toBeVisible();
   await table.getByRole('button', { name: 'Hide ConnectionStrings:Shop in appsettings.json' }).click();
   await expect(table).not.toContainText('s3cr3t');
 
