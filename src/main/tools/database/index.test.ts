@@ -41,6 +41,7 @@ function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schem
   const logger = createMemoryLogger();
   const checkReachable = vi.fn(async () => reach);
   const firstFreePort = vi.fn(async () => 5556);
+  const clipboard = { writeText: vi.fn() };
   const dotnetRunEnv = vi.fn(async () => ({ pathPrepend: join(root, 'sdk') }));
   tool = createDatabaseTool({
     envFiles: createEnvFileAccess(),
@@ -48,6 +49,7 @@ function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schem
     checkReachable,
     firstFreePort,
     logger,
+    clipboard,
     home: join(root, 'home'),
     dotnetRunEnv,
   });
@@ -63,7 +65,7 @@ function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schem
   /** The options of the nth spawnCommand call (fakePlatform's mock declares no parameters). */
   const spawned = (n = 0) =>
     (vi.mocked(platform.spawnCommand).mock.calls as unknown as [{ cwd: string; command: string; args: string[]; env: NodeJS.ProcessEnv; stdin?: string }][])[n]?.[0];
-  return { call, ctx, emit, platform, logger, checkReachable, firstFreePort, spawned };
+  return { call, ctx, emit, platform, logger, checkReachable, firstFreePort, spawned, clipboard };
 }
 
 describe('database tool: status', () => {
@@ -496,6 +498,12 @@ describe('database tool: EF Core', () => {
     await call('ef', { action: 'restore', environment: 'Development' });
     expect(spawned(1)?.args).toEqual(['tool', 'restore']);
     expect(await logText(call)).toContain('▸ dotnet tool restore');
+  });
+
+  it('copies the install command from main', async () => {
+    const { call, clipboard } = setup(efDotnet());
+    await call('copyInstallCommand', {});
+    expect(clipboard.writeText).toHaveBeenCalledWith('dotnet tool install dotnet-ef');
   });
 
   it('refuses restore for a global tool', async () => {

@@ -7,6 +7,7 @@ import {
   databaseContract,
   databaseDefinition,
   type DbConnection,
+  EF_INSTALL_COMMAND,
   type DbStatus,
   type EfInput,
   type EfKind,
@@ -40,6 +41,8 @@ export interface DatabaseToolDeps {
   checkReachable: typeof CheckReachable;
   firstFreePort(start: number, host: string): Promise<number | null>;
   logger: Logger;
+  /** Electron's clipboard in production. */
+  clipboard: { writeText(text: string): void };
   /** The user's home folder: a global dotnet-ef can sit in ~/.dotnet/tools. */
   home: string;
   /** The dotnet ecosystem's runEnv (dotnet from ~/.dotnet when it isn't on PATH). */
@@ -526,6 +529,8 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
           throw new NestboxError('CONFLICT', 'A command is already running for this package');
         await runEf(ctx, state, input, { info: { ...info, project }, tool, contexts, context });
       },
+
+      copyInstallCommand: async () => deps.clipboard.writeText(EF_INSTALL_COMMAND),
 
       testLogin: async (ctx: Ctx) => {
         const args = ['db', 'execute', '--stdin', ...schemaArgs(ctx)];

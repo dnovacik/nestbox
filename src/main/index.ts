@@ -268,7 +268,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       git: { watch: watchDir, logger },
-      database: { envFiles, configFiles, checkReachable, firstFreePort, logger, home: homedir(), dotnetRunEnv: (c, i) => dotnetModule.runEnv(c, i) },
+      database: { envFiles, configFiles, checkReachable, firstFreePort, logger, clipboard: { writeText: (text) => clipboard.writeText(text) }, home: homedir(), dotnetRunEnv: (c, i) => dotnetModule.runEnv(c, i) },
       todos: { logger },
       health: {
         // Gated: while Health is off it sees no live scripts, so no checks run.

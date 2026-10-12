@@ -42,6 +42,8 @@ export type EfKind = (typeof EF_KINDS)[number];
 /** EF's migration ids: a 14-digit timestamp and the name. */
 export const MIGRATION_ID = /^\d{14}_[A-Za-z_][A-Za-z0-9_]*$/;
 export const MIGRATION_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
+/** Shown when no dotnet-ef is found: NestBox never installs it. */
+export const EF_INSTALL_COMMAND = 'dotnet tool install dotnet-ef';
 /** A DbContext class name (no namespace). */
 export const CLASS_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,199}$/;
 
@@ -130,6 +132,8 @@ export const databaseContract = defineContract({
   },
   /** An EF Core command; output goes to the log, the list to status.ef (a list follows add, update and remove). */
   ef: { input: EfInputSchema, output: z.void() },
+  /** Writes EF_INSTALL_COMMAND to the clipboard from main. */
+  copyInstallCommand: { input: z.strictObject({}), output: z.void() },
   /** Runs SELECT 1 through Prisma; message is NestBox's own text for the P-code, never Prisma's. */
   testLogin: { input: z.strictObject({}), output: z.object({ ok: z.boolean(), message: z.string() }) },
   run: { input: z.strictObject({ command: z.enum(PRISMA_COMMANDS) }), output: z.void() },

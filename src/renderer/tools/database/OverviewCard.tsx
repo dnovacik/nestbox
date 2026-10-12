@@ -14,6 +14,7 @@ export function DatabaseCard({ projectId }: ToolPanelProps) {
   const connections = data?.dotnet?.connections ?? [];
   const answering = connections.filter((c) => c.reach.result === 'reachable').length;
   const failing = connections.some((c) => c.reach.result === 'refused' || c.reach.result === 'timeout' || c.reach.result === 'dns');
+  const pending = data?.ef?.migrations?.items.filter((m) => m.applied === false).length ?? 0;
   // A .NET package without Prisma or a URL has nothing to say about DATABASE_URL.
   const showUrl = data !== undefined && (data.dotnet === null || data.prisma !== null || data.url.state === 'set');
   return (
@@ -27,6 +28,7 @@ export function DatabaseCard({ projectId }: ToolPanelProps) {
             : `${connections.length} ${connections.length === 1 ? 'connection' : 'connections'} · ${answering} ${answering === 1 ? 'answers' : 'answer'}`}
         </p>
       )}
+      {pending > 0 && <p className="text-xs text-warn">{`${pending} pending ${pending === 1 ? 'migration' : 'migrations'}`}</p>}
       {showUrl && data.url.state === 'set' && (
         <div className="space-y-1 text-xs">
           <p className="flex min-w-0 items-baseline gap-2">
