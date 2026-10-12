@@ -1,10 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { useUiStore } from '@/state/ui-store';
 import type { ToolPanelProps } from '../types';
-import { useEnvMatrix } from './use-env';
+import { useConfigMatrix, useEnvMatrix } from './use-env';
 
 export function EnvCard({ projectId }: ToolPanelProps) {
   const { data } = useEnvMatrix(projectId);
+  const { data: config } = useConfigMatrix(projectId);
+  const invalid = config?.files.filter((f) => f.invalid).length ?? 0;
+  const showSettings = config !== undefined && (config.dotnet || config.files.length > 0);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const flagged = data?.keys.filter((k) => k.missing || k.undocumented).length ?? 0;
   const active = data?.profiles.find((p) => p.active)?.name ?? null;
@@ -17,6 +20,15 @@ export function EnvCard({ projectId }: ToolPanelProps) {
           <dd className="text-fg">{data.files.length === 0 ? 'none' : data.files.length}</dd>
           <dt className="text-fg-muted">Flagged keys</dt>
           <dd className={flagged > 0 ? 'text-warn' : 'text-fg'}>{flagged}</dd>
+          {showSettings && (
+            <>
+              <dt className="text-fg-muted">Settings files</dt>
+              <dd className={invalid > 0 ? 'text-warn' : 'text-fg'}>
+                {config.files.length === 0 ? 'none' : config.files.length}
+                {invalid > 0 && ` (${invalid} invalid)`}
+              </dd>
+            </>
+          )}
           {data.profiles.length > 0 && (
             <>
               <dt className="text-fg-muted">Profile</dt>

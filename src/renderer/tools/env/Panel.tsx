@@ -1,4 +1,4 @@
-import { FileText, Lock, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Lock, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import type { EnvMatrix } from '@shared/tools/env/contract';
 import {
@@ -12,19 +12,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { AddVariableDialog } from './AddVariableDialog';
+import { ConfigSection } from './ConfigSection';
+import { EditAsText, type TextFile } from './EditAsText';
 import { EditValueDialog, type EditTarget } from './EditValueDialog';
 import { RawEditDialog } from './RawEditDialog';
-import { useCodeKeys, useCreateEnvFile, useEnvCopy, useEnvEdit, useEnvMatrix } from './use-env';
+import { revealValue, useCodeKeys, useConfigMatrix, useCreateEnvFile, useEnvCopy, useEnvEdit, useEnvMatrix } from './use-env';
 import { ValueCell } from './ValueCell';
 
 /** A matrix row, plus whether the code reads the key (and in how many files). */
@@ -74,49 +70,42 @@ function Profiles({ matrix, onSwitch }: { matrix: EnvMatrix; onSwitch(file: stri
   );
 }
 
-type EnvFile = { name: string; readOnly: boolean };
+/**
+ * The Env tab: .env files and, for .NET (or where they exist), appsettings*.json. In a .NET package the
+ * Configuration section comes first and the .env one shows only when there are .env files.
+ */
+export default function EnvPanel({ projectId }: ToolPanelProps) {
+  const { data: matrix, isError } = useEnvMatrix(projectId);
+  const config = useConfigMatrix(projectId);
 
-/** Opens an env file in the raw editor: the only one at once, otherwise picked from a menu. */
-function EditAsText({ files, onPick }: { files: readonly EnvFile[]; onPick(file: EnvFile): void }) {
-  const button = (props: { onClick?: () => void }) => (
-    <Button variant="ghost" size="sm" title="Edit a whole env file as plain text" {...props}>
-      <FileText />
-      Edit as text
-    </Button>
-  );
-  const [only] = files;
-  if (only === undefined) return null;
-  if (files.length === 1) return button({ onClick: () => onPick(only) });
+  if (isError) return <p className="text-sm text-err">Couldn't read the env files.</p>;
+  // A settings matrix that can't be read leaves the .env section as it was.
+  if (!matrix || (config.isPending && !config.isError)) return <p className="text-sm text-fg-muted">Loading…</p>;
+  const settings = config.data ?? null;
+  const dotnet = settings?.dotnet ?? false;
+  const showSettings = settings !== null && (dotnet || settings.files.length > 0);
+  const showEnv = !dotnet || matrix.files.length > 0;
+
   return (
-    // modal={false}: opening the editor from a menu item must not leave pointer-events locked.
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>{button({})}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {files.map((f) => (
-          <DropdownMenuItem key={f.name} className="font-mono text-xs" onSelect={() => onPick(f)}>
-            {f.readOnly ? `${f.name} (view only)` : f.name}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="space-y-8">
+      {dotnet && showSettings && <ConfigSection projectId={projectId} matrix={settings} />}
+      {showEnv && <EnvFilesSection projectId={projectId} matrix={matrix} />}
+      {!dotnet && showSettings && <ConfigSection projectId={projectId} matrix={settings} />}
+    </div>
   );
 }
 
 /** Every .env* file of the package side by side, values masked. */
-export default function EnvPanel({ projectId }: ToolPanelProps) {
-  const { data: matrix, isError } = useEnvMatrix(projectId);
+function EnvFilesSection({ projectId, matrix }: { projectId: string; matrix: EnvMatrix }) {
   const edit = useEnvEdit(projectId);
   const copy = useEnvCopy(projectId);
   const code = useCodeKeys(projectId);
   const createFile = useCreateEnvFile(projectId);
   const [adding, setAdding] = useState(false);
-  const [rawFile, setRawFile] = useState<EnvFile | null>(null);
+  const [rawFile, setRawFile] = useState<TextFile | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
-
-  if (isError) return <p className="text-sm text-err">Couldn't read the env files.</p>;
-  if (!matrix) return <p className="text-sm text-fg-muted">Loading…</p>;
 
   const versionOf = (file: string) => matrix.files.find((f) => f.name === file)?.version ?? null;
   const codeKeys = code.data?.keys ?? [];
@@ -231,7 +220,7 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
                   {matrix.files.map((f) => (
                     <td key={f.name} className="max-w-64 px-3 py-1.5">
                       <ValueCell
-                        projectId={projectId}
+                        reveal={() => revealValue(projectId, f.name, k.key)}
                         file={f.name}
                         envKey={k.key}
                         state={k.cells[f.name] ?? 'absent'}
@@ -256,7 +245,12 @@ export default function EnvPanel({ projectId }: ToolPanelProps) {
           </table>
         </div>
       )}
-      <EditValueDialog projectId={projectId} target={editing} onClose={() => setEditing(null)} onSave={save} />
+      <EditValueDialog
+        target={editing}
+        load={(file, key) => revealValue(projectId, file, key).then((value) => ({ value }))}
+        onClose={() => setEditing(null)}
+        onSave={save}
+      />
       {rawFile && (
         <RawEditDialog
           projectId={projectId}
