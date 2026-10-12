@@ -16,3 +16,4 @@ e2e/fixtures/fake-gh/gh text eol=lf
 src/main/tools/ci/__fixtures__/* -text
 e2e/fixtures/fake-dotnet/dotnet.cmd text eol=crlf
 e2e/fixtures/fake-dotnet/dotnet text eol=lf
+src/main/tools/database/__fixtures__/* -text

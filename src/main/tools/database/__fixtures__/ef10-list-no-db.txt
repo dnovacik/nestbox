@@ -1,0 +1,17 @@
+info:    Build started...
+info:    Build succeeded.
+warn:    An error occurred while accessing the database. Continuing without the information provided by the database. Error: You specified a password in the connection string, but the native SQLite library 'e_sqlite3' doesn't support encryption.
+data:    [
+data:      {
+data:        "id": "20261012151146_Init",
+data:        "name": "Init",
+data:        "safeName": "Init",
+data:        "applied": null
+data:      },
+data:      {
+data:        "id": "20261012151151_AddOrders",
+data:        "name": "AddOrders",
+data:        "safeName": "AddOrders",
+data:        "applied": null
+data:      }
+data:    ]

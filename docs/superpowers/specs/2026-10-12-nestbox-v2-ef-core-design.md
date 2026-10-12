@@ -13,7 +13,7 @@
 
 - **The Design package:** the package's .NET project references `Microsoft.EntityFrameworkCore.Design` (`DotnetInfo.efDesign`, read from PackageReferences like `dbProviders`, Zod default `false`). Without it `status.ef` is `null` and there is no card. `dotnet ef` needs this package to build its design-time services.
 - **The tool:** where `dotnet-ef` comes from, in this order:
-  1. `local`: a `.config/dotnet-tools.json` in the package folder or a parent (up to the drive root) whose `tools` has a `dotnet-ef` entry (64 KiB cap, JSON; an unreadable manifest counts as absent).
+  1. `local`: a tool manifest in the package folder or a parent (up to the drive root), as the `dotnet` CLI finds it: `.config/dotnet-tools.json`, then `dotnet-tools.json` (SDK 10's `dotnet new tool-manifest` writes the latter). The first manifest whose `tools` has a `dotnet-ef` entry wins (64 KiB cap, JSON; an unreadable manifest counts as absent). The walk stops after a manifest with `"isRoot": true`.
   2. `global`: `dotnet-ef` resolves on the PATH or in `~/.dotnet/tools` (the adapter's command lookup, no subprocess).
   3. `null`: the card shows how to install it (`dotnet tool install dotnet-ef`, as text with a Copy button) and no command buttons. NestBox never installs or downloads it.
 - **DbContexts:** the package's `.cs` files are scanned for `class <Name> … : <Base>` where the base's last name ends with `DbContext` (`DbContext`, `IdentityDbContext<User>`, `My.Data.AppDbContext`). The scan:
@@ -37,12 +37,12 @@
   | `ef-list` | `migrations list --json --prefix-output` | Fills the migration list |
   | `ef-add` | `migrations add <Name>` | Name from a dialog |
   | `ef-update` | `database update [<target>]` | No target = the latest |
-  | `ef-script` | `migrations script --idempotent` | The SQL goes to the log |
+  | `ef-script` | `migrations script --idempotent` | The SQL goes to the log; no `--idempotent` when SQLite is the only provider (EF can't script it) |
   | `ef-remove` | `migrations remove` | EF refuses when it's applied |
   | `ef-restore` | `dotnet tool restore` (not `ef`) | Only for a local tool |
 
 - **One at a time:** EF and Prisma commands share the package's single command slot (`running.command`), so a second command while one runs is CONFLICT. Stop kills the tree and logs `■ stopped`. A run that takes longer than 10 minutes is stopped and logs `■ stopped after 10 minutes`.
-- **Log lines:** `▸ dotnet ef migrations list (Development)` before a run; after it, `■ done`, `■ exited with code N` or `■ dotnet could not be started`. With `--prefix-output`, the `data:` lines are kept out of the log (the list shows them) and the other prefixes are stripped. Everything else is logged as it arrives.
+- **Log lines:** `▸ dotnet ef migrations list (Development)` before a run; after it, `■ done`, `■ exited with code N` or `■ dotnet could not be started`. Every `ef` run passes `--prefix-output`: EF's own lines start with a 9-character prefix (`info:    `, `warn:    `, `error:   `, `data:    `, `verbose: `), which is stripped for the log. The app's own logging (`info: Microsoft.EntityFrameworkCore…` and its indented lines) has no such prefix and is logged as is. A list's `data:` lines are kept out of the log (the list shows them); a script's are its SQL and go to the log.
 - **After a change:** `ef-add`, `ef-update` and `ef-remove` that exit 0 are followed by `ef-list`, so the list and pending count stay true.
 - **Restore hint:** when a local-tool run fails and its output contains `dotnet tool restore`, the status sets `ef.needsRestore` (in memory, cleared by the next successful run). The card then shows **Restore tools**, which runs `ef-restore`. It may download packages, but only on that click (like a Dependencies check).
 
@@ -93,7 +93,7 @@
 - **Unit (main):**
   - **Context scan:** generic and qualified bases, comments, abstract classes, duplicates, the cap, `bin/obj` skipped.
   - **Tool lookup:** a manifest in the folder, in a parent, without `dotnet-ef`, unreadable; global; none.
-  - **`ef-parse`:** real `migrations list --json --prefix-output` output from EF Core 9 and 10, written into fixtures with `applied` true, false and null. Bad ids, non-JSON output and the cap.
+  - **`ef-parse`:** real `migrations list --json --prefix-output` output captured from dotnet-ef 10.0.0 (applied true and false, with the app's SQL logging in between; applied null after a database error) and dotnet-ef 8.0.27 (with its version warning), and the real "not restored" message. Also bad ids, non-JSON output and the cap.
   - **Argument builder:** context, target, environment and project file; never `--connection`/`--verbose`/`--force`.
   - **Handlers with a fake platform:**
     - spawn arguments and env;
@@ -111,7 +111,7 @@
   1. lists two migrations, one pending;
   2. adds `AddOrders`;
   3. switches to Production and updates after the confirmation;
-  4. checks the calls and the log, and that the log holds no `Password=`.
+  4. checks the calls (`--project`, `-- --environment Production`, never `--connection`) and the log. That NestBox's own logs carry no EF output is pinned by the handler tests.
 
 ## Docs and version
 
