@@ -1,16 +1,30 @@
 import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
 import { envContract, envDefinition } from '@shared/tools/env/contract';
+import { DotnetInfoSchema } from '../../ecosystems/dotnet/detect';
 import type { Logger } from '../../logger';
 import { LS_MAX_BYTES, listFiles } from '../todos/files';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
+import {
+  addConfigKey,
+  assertConfigText,
+  findLeaf,
+  leafValue,
+  parseConfig,
+  removeConfigKey,
+  setConfigValue,
+  toJsonValue,
+} from './appsettings';
 import { MAX_CODE_FILES, scanCodeKeys } from './code-keys';
+import { buildConfigMatrix, configFileFor, MAX_CONFIG_FILES } from './config-matrix';
 import { addEntry, entries, parseEnv, removeEntry, serializeEnv, setValue } from './dotenv';
-import type { EnvFileAccess } from './env-files';
+import type { ConfigFileAccess, EnvFileAccess } from './env-files';
 import { activeProfile, BACKUP_FILE, buildMatrix, profileFiles } from './matrix';
 
 export interface EnvToolDeps {
   files: EnvFileAccess;
+  /** appsettings*.json in the package folder. */
+  configFiles: ConfigFileAccess;
   /** Electron's clipboard in production: copy never sends the value to the renderer. */
   clipboard: { writeText(text: string): void };
   /** Watches a folder (not recursive); returns a function that stops watching, or null when it can't watch. */
@@ -84,6 +98,36 @@ export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
   ): Promise<{ version: string }> {
     const text = version === null ? '' : (await deps.files.read(ctx.project.path, file)).text;
     const written = await deps.files.write(ctx.project.path, file, serializeEnv(change(parseEnv(text))), version);
+    deps.logger.info('env write', { method, file });
+    ctx.emit('changed', undefined);
+    return written;
+  }
+
+  /** A settings file's leaves; VALIDATION when it isn't JSON with an object root. */
+  async function readConfig(ctx: ToolContext, file: string) {
+    const { text, version } = await deps.configFiles.read(ctx.project.path, file);
+    const leaves = parseConfig(text);
+    if (!leaves) throw new NestboxError('VALIDATION', 'The settings file is not valid JSON');
+    return { text, version, leaves };
+  }
+
+  async function configValue(ctx: ToolContext, file: string, key: string) {
+    const { text, leaves } = await readConfig(ctx, file);
+    const leaf = findLeaf(leaves, key);
+    if (!leaf) throw new NestboxError('NOT_FOUND', 'That key is not in this file');
+    return { value: leafValue(text, leaf), type: leaf.type };
+  }
+
+  /** Like edit() for .env: the change applies to the file as read, written only if it is still at version. */
+  async function editConfig(
+    ctx: ToolContext,
+    file: string,
+    version: string | null,
+    change: (text: string) => string,
+    method: string,
+  ): Promise<{ version: string }> {
+    const text = version === null ? '{}\n' : (await deps.configFiles.read(ctx.project.path, file)).text;
+    const written = await deps.configFiles.write(ctx.project.path, file, change(text), version);
     deps.logger.info('env write', { method, file });
     ctx.emit('changed', undefined);
     return written;
@@ -170,6 +214,64 @@ export function createEnvTool(deps: EnvToolDeps): AnyMainTool {
       createFile: async (ctx, { file, keys }) => {
         const unique = [...new Set(keys)];
         return edit(ctx, file, null, (doc) => unique.reduce((d, key) => addEntry(d, key, ''), doc), 'createFile');
+      },
+
+      configMatrix: async (ctx) => {
+        ensureWatcher(ctx);
+        const dir = ctx.project.path;
+        const listed = await deps.configFiles.list(dir);
+        const files = await Promise.all(
+          listed.slice(0, MAX_CONFIG_FILES).map(async (f) => {
+            try {
+              const { text, version } = await deps.configFiles.read(dir, f.name);
+              return { ...f, text, version };
+            } catch (error) {
+              // Over the size cap: listed as too large. Gone since the listing: left out.
+              return error instanceof NestboxError && error.code === 'VALIDATION' ? { ...f, text: null, version: null } : null;
+            }
+          }),
+        );
+        const entry = ctx.project.ecosystems.find((e) => e.id === 'dotnet');
+        const info = entry ? DotnetInfoSchema.safeParse(entry.info) : null;
+        return buildConfigMatrix(
+          files.filter((f): f is NonNullable<typeof f> => f !== null),
+          info?.success ? info.data.launchProfiles : [],
+          { dotnet: entry !== undefined, truncated: listed.length > MAX_CONFIG_FILES },
+        );
+      },
+
+      configReveal: (ctx, { file, key }) => configValue(ctx, file, key),
+
+      configCopy: async (ctx, { file, key }) => {
+        deps.clipboard.writeText((await configValue(ctx, file, key)).value);
+        return {};
+      },
+
+      configSetValue: async (ctx, { file, key, value, type, version }) => {
+        const json = toJsonValue(value, type);
+        return editConfig(ctx, file, version, (text) => setConfigValue(text, key, json), 'configSetValue');
+      },
+      configAddKey: async (ctx, { file, key, value, type, version }) => {
+        const json = toJsonValue(value, type);
+        return editConfig(ctx, file, version, (text) => addConfigKey(text, key, json), 'configAddKey');
+      },
+      configRemoveKey: (ctx, { file, key, version }) =>
+        editConfig(ctx, file, version, (text) => removeConfigKey(text, key), 'configRemoveKey'),
+
+      readConfigRaw: (ctx, { file }) => deps.configFiles.read(ctx.project.path, file),
+
+      writeConfigRaw: async (ctx, { file, text, version }) => {
+        assertConfigText(text);
+        return editConfig(ctx, file, version, () => text, 'writeConfigRaw');
+      },
+
+      createConfigFile: async (ctx, { environment }) => {
+        const file = configFileFor(environment);
+        const listed = await deps.configFiles.list(ctx.project.path);
+        // .NET on Linux would read only the exact name, but Windows and macOS folders ignore case.
+        if (listed.some((f) => f.name.toLowerCase() === file.toLowerCase())) throw new NestboxError('CONFLICT', 'That settings file already exists');
+        const written = await editConfig(ctx, file, null, (text) => text, 'createConfigFile');
+        return { ...written, file };
       },
 
       facts: async (ctx) => {

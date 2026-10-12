@@ -40,7 +40,11 @@ const keys = (text: string) => parseConfig(text)?.map((l) => l.key);
 
 describe('parseConfig', () => {
   it('flattens objects with ":" and arrays by index', () => {
-    expect(keys(WEBAPI)).toEqual(['Logging:LogLevel:Default', 'Logging:LogLevel:Microsoft.AspNetCore', 'AllowedHosts']);
+    expect(keys(WEBAPI)).toEqual([
+      'Logging:LogLevel:Default',
+      'Logging:LogLevel:Microsoft.AspNetCore',
+      'AllowedHosts',
+    ]);
     expect(keys(COMMENTED)).toEqual([
       'ConnectionStrings:Default',
       'Retries',
@@ -64,7 +68,11 @@ describe('parseConfig', () => {
       Nothing: ['null', true],
       Flag: ['boolean', false],
     });
-    expect(parseConfig('{"List": []}')?.[0]).toMatchObject({ key: 'List', type: 'array', empty: true });
+    expect(parseConfig('{"List": []}')?.[0]).toMatchObject({
+      key: 'List',
+      type: 'array',
+      empty: true,
+    });
   });
 
   it('is null for syntax errors and roots that are not objects', () => {
@@ -82,9 +90,19 @@ describe('parseConfig', () => {
   });
 
   it('shows strings as they are and other values as their JSON text', () => {
-    const leaves = parseConfig('{"S": "a\\"b", "N": 1.50, "B": false, "Z": null, "O": {}}') ?? [];
-    const value = (key: string) => leafValue('{"S": "a\\"b", "N": 1.50, "B": false, "Z": null, "O": {}}', findLeaf(leaves, key)!);
-    expect([value('S'), value('N'), value('B'), value('Z'), value('O')]).toEqual(['a"b', '1.50', 'false', 'null', '{}']);
+    const text = '{"S": "a\\"b", "N": 1.50, "B": false, "Z": null, "O": {}}';
+    const leaves = parseConfig(text) ?? [];
+    const value = (key: string) => {
+      const leaf = findLeaf(leaves, key);
+      return leaf ? leafValue(text, leaf) : undefined;
+    };
+    expect([value('S'), value('N'), value('B'), value('Z'), value('O')]).toEqual([
+      'a"b',
+      '1.50',
+      'false',
+      'null',
+      '{}',
+    ]);
   });
 });
 
@@ -112,7 +130,11 @@ describe('edits', () => {
 
   it('adds keys at the end of their parent, creating missing parents', () => {
     const out = addConfigKey(WEBAPI, 'Logging:LogLevel:System', 'Error');
-    expect(keys(out)).toEqual([...(keys(WEBAPI) ?? []).slice(0, 2), 'Logging:LogLevel:System', 'AllowedHosts']);
+    expect(keys(out)).toEqual([
+      ...(keys(WEBAPI) ?? []).slice(0, 2),
+      'Logging:LogLevel:System',
+      'AllowedHosts',
+    ]);
     const nested = addConfigKey(WEBAPI, 'Jwt:Issuer', 'me');
     expect(keys(nested)?.at(-1)).toBe('Jwt:Issuer');
     expect(nested).toMatch(/\n {2}"Jwt": \{\n {4}"Issuer": "me"\n {2}\}\n\}/);
@@ -121,22 +143,38 @@ describe('edits', () => {
   it('appends to an array at its length and refuses an index past the end', () => {
     const out = addConfigKey(COMMENTED, 'AllowedOrigins:2', 'https://c.test');
     expect(findLeaf(parseConfig(out) ?? [], 'AllowedOrigins:2')).toBeDefined();
-    expect(() => addConfigKey(COMMENTED, 'AllowedOrigins:5', 'x')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
-    expect(() => addConfigKey(COMMENTED, 'AllowedOrigins:x', 'x')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+    expect(() => addConfigKey(COMMENTED, 'AllowedOrigins:5', 'x')).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
+    expect(() => addConfigKey(COMMENTED, 'AllowedOrigins:x', 'x')).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
   });
 
   it('refuses a key that exists, a parent that is a value and a key that holds others', () => {
-    expect(() => addConfigKey(WEBAPI, 'allowedhosts', 'x')).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
-    expect(() => addConfigKey(WEBAPI, 'AllowedHosts:Inner', 'x')).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
-    expect(() => addConfigKey(WEBAPI, 'Logging', 'x')).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
+    expect(() => addConfigKey(WEBAPI, 'allowedhosts', 'x')).toThrow(
+      expect.objectContaining({ code: 'CONFLICT' }),
+    );
+    expect(() => addConfigKey(WEBAPI, 'AllowedHosts:Inner', 'x')).toThrow(
+      expect.objectContaining({ code: 'CONFLICT' }),
+    );
+    expect(() => addConfigKey(WEBAPI, 'Logging', 'x')).toThrow(
+      expect.objectContaining({ code: 'CONFLICT' }),
+    );
     // An empty object can take keys.
     expect(keys(addConfigKey(COMMENTED, 'Features:Beta', true))).toContain('Features:Beta');
   });
 
   it('refuses edits to a missing key and to an invalid file', () => {
-    expect(() => setConfigValue(WEBAPI, 'Nope', 'x')).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
-    expect(() => removeConfigKey(WEBAPI, 'Nope')).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
-    expect(() => setConfigValue('{ "A": ', 'A', 'x')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+    expect(() => setConfigValue(WEBAPI, 'Nope', 'x')).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' }),
+    );
+    expect(() => removeConfigKey(WEBAPI, 'Nope')).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' }),
+    );
+    expect(() => setConfigValue('{ "A": ', 'A', 'x')).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
   });
 
   it('removes a key and leaves {} after the last one', () => {
@@ -160,16 +198,29 @@ describe('toJsonValue', () => {
     expect(toJsonValue('true', 'boolean')).toBe(true);
     expect(toJsonValue('anything', 'null')).toBeNull();
     for (const bad of ['abc', '1e999', '01', '', 'NaN']) {
-      expect(() => toJsonValue(bad, 'number')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+      expect(() => toJsonValue(bad, 'number')).toThrow(
+        expect.objectContaining({ code: 'VALIDATION' }),
+      );
     }
-    expect(() => toJsonValue('yes', 'boolean')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+    expect(() => toJsonValue('yes', 'boolean')).toThrow(
+      expect.objectContaining({ code: 'VALIDATION' }),
+    );
   });
 });
 
 describe('configColumnRank', () => {
   it('orders the base file, the standard environments, then the rest', () => {
-    const names = ['appsettings.Zeta.json', 'appsettings.Production.json', 'appsettings.json', 'appsettings.Alpha.json', 'appsettings.Development.json', 'appsettings.Staging.json'];
-    const sorted = [...names].sort((a, b) => configColumnRank(a) - configColumnRank(b) || a.localeCompare(b));
+    const names = [
+      'appsettings.Zeta.json',
+      'appsettings.Production.json',
+      'appsettings.json',
+      'appsettings.Alpha.json',
+      'appsettings.Development.json',
+      'appsettings.Staging.json',
+    ];
+    const sorted = [...names].sort(
+      (a, b) => configColumnRank(a) - configColumnRank(b) || a.localeCompare(b),
+    );
     expect(sorted).toEqual([
       'appsettings.json',
       'appsettings.Development.json',

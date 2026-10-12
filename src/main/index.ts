@@ -28,13 +28,14 @@ import { createPidLedger } from './processes/pid-ledger';
 import { type ProcessEvent, ProcessManager } from './processes/process-manager';
 import { belongsTo } from '@shared/processes';
 import { isToolEnabled } from '@shared/tools';
+import { APPSETTINGS_FILE } from '@shared/tools/env/contract';
 import { PortService } from './ports/port-service';
 import { throttle } from './processes/throttle';
 import { createMainTools } from './tools';
 import { createClaudeCli } from './tools/claude/cli';
 import { createClaudeDocs } from './tools/claude/docs';
 import { entries, parseEnv } from './tools/env/dotenv';
-import { createEnvFileAccess } from './tools/env/env-files';
+import { createConfigFileAccess, createEnvFileAccess } from './tools/env/env-files';
 import { watchDir } from './fs/watch-dir';
 import { createCertStore, generateWithSelfsigned } from './tools/static/cert-store';
 import { firstFreePort, lanAddresses } from './tools/net';
@@ -226,11 +227,12 @@ if (!app.requestSingleInstanceLock()) {
       },
       env: {
         files: envFiles,
+        configFiles: createConfigFileAccess(),
         clipboard: { writeText: (text) => clipboard.writeText(text) },
         watch: (dir, onChange) => {
           try {
             const watcher = watch(dir, { persistent: false }, (_event, name) => {
-              if (name === null || ENV_FILE_PATTERN.test(String(name))) onChange(name === null ? null : String(name));
+              if (name === null || ENV_FILE_PATTERN.test(String(name)) || APPSETTINGS_FILE.test(String(name))) onChange(name === null ? null : String(name));
             });
             watcher.on('error', () => watcher.close());
             return () => watcher.close();

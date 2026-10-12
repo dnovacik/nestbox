@@ -1,15 +1,15 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeDetectedForTest } from '@shared/test-fixtures';
-import type { EnvMatrix } from '@shared/tools/env/contract';
+import type { ConfigMatrix, EnvMatrix } from '@shared/tools/env/contract';
 import { createMemoryLogger } from '../../logger';
 import { createDarwinAdapter } from '../../platform/darwin';
 import { noopRunner } from '../../platform/testing';
 import { createSharedContext } from '../shared-context';
 import type { ToolContext } from '../types';
-import { createEnvFileAccess } from './env-files';
+import { createConfigFileAccess, createEnvFileAccess } from './env-files';
 import { createEnvTool, ENV_FACTS } from './index';
 
 const SECRET = 's3cr3t-value';
@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 afterEach(async () => rm(dir, { recursive: true, force: true }));
 
-function setup() {
+function setup(project = makeDetectedForTest({ path: dir })) {
   const clipboard = { writeText: vi.fn() };
   const watchers: { dir: string; onChange: () => void; close: ReturnType<typeof vi.fn> }[] = [];
   const watch = vi.fn((watched: string, onChange: () => void) => {
@@ -36,11 +36,11 @@ function setup() {
     return close;
   });
   const logger = createMemoryLogger();
-  const tool = createEnvTool({ files: createEnvFileAccess(), clipboard, watch, logger });
+  const tool = createEnvTool({ files: createEnvFileAccess(), configFiles: createConfigFileAccess(), clipboard, watch, logger });
   const shared = createSharedContext();
   const emit = vi.fn();
   const ctx = {
-    project: makeDetectedForTest({ path: dir }),
+    project,
     shared: shared.forProject('p1'),
     emit,
     // git answers "not a repository", so the code scan walks the folder.
@@ -223,7 +223,7 @@ describe('env tool', () => {
 
   it('retries a watcher that could not start', async () => {
     const watch = vi.fn((): (() => void) | null => null);
-    const tool = createEnvTool({ files: createEnvFileAccess(), clipboard: { writeText: vi.fn() }, watch, logger: createMemoryLogger() });
+    const tool = createEnvTool({ files: createEnvFileAccess(), configFiles: createConfigFileAccess(), clipboard: { writeText: vi.fn() }, watch, logger: createMemoryLogger() });
     const shared = createSharedContext();
     const context = {
       project: makeDetectedForTest({ path: dir }),
@@ -243,5 +243,160 @@ describe('env tool', () => {
     await call('matrix');
     await tool.dispose?.();
     expect(watchers[0]?.close).toHaveBeenCalled();
+  });
+});
+
+describe('env tool: appsettings', () => {
+  const BASE = `{
+  // Kept by every edit
+  "Logging": { "LogLevel": { "Default": "Information" } },
+  "ConnectionStrings": { "Default": "Server=db;${SECRET}" },
+  "Retries": 3,
+}
+`;
+  const dotnet = () =>
+    makeDetectedForTest({
+      path: dir,
+      ecosystems: [
+        {
+          id: 'dotnet',
+          info: {
+            solution: null,
+            project: 'Api.csproj',
+            targetFrameworks: ['net10.0'],
+            isWeb: true,
+            isTest: false,
+            sdk: null,
+            launchProfiles: [
+              { name: 'http', ports: [5283], environment: 'Development' },
+              { name: 'prod', ports: [], environment: 'Production' },
+            ],
+          },
+        },
+      ],
+    });
+  const read = (name: string) => readFile(join(dir, name), 'utf8');
+  const versionOf = (m: ConfigMatrix, name: string) => m.files.find((f) => f.name === name)?.version ?? '';
+
+  beforeEach(async () => {
+    await writeFile(join(dir, 'appsettings.json'), BASE);
+    await writeFile(join(dir, 'appsettings.Development.json'), '{ "Logging": { "LogLevel": { "Default": "Debug" } } }');
+  });
+
+  it('builds the matrix with profiles, presence only', async () => {
+    const { call } = setup(dotnet());
+    const m = await call<ConfigMatrix>('configMatrix');
+    expect(m.dotnet).toBe(true);
+    expect(m.files.map((f) => f.name)).toEqual(['appsettings.json', 'appsettings.Development.json']);
+    expect(m.keys.find((k) => k.key === 'Logging:LogLevel:Default')?.overridden).toBe(true);
+    expect(m.profiles).toEqual([
+      { name: 'http', environment: 'Development', file: 'appsettings.Development.json', exists: true },
+      { name: 'prod', environment: 'Production', file: 'appsettings.Production.json', exists: false },
+    ]);
+    expect(JSON.stringify(m)).not.toContain(SECRET);
+    // A Node package: no profiles, not .NET.
+    const node = await setup().call<ConfigMatrix>('configMatrix');
+    expect(node).toMatchObject({ dotnet: false, profiles: [] });
+  });
+
+  it('reveals a string as is and a number as JSON text; copies through main', async () => {
+    const { call, clipboard } = setup();
+    expect(await call('configReveal', { file: 'appsettings.json', key: 'connectionstrings:default' })).toEqual({
+      value: `Server=db;${SECRET}`,
+      type: 'string',
+    });
+    expect(await call('configReveal', { file: 'appsettings.json', key: 'Retries' })).toEqual({ value: '3', type: 'number' });
+    expect(await call('configCopy', { file: 'appsettings.json', key: 'Retries' })).toEqual({});
+    expect(clipboard.writeText).toHaveBeenCalledWith('3');
+    await expect(call('configReveal', { file: 'appsettings.json', key: 'Nope' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('sets, adds and removes keys keeping the comment, logging no keys or values', async () => {
+    const { call, emit, logger } = setup();
+    let m = await call<ConfigMatrix>('configMatrix');
+    await call('configSetValue', { file: 'appsettings.json', key: 'Retries', value: '5', type: 'number', version: versionOf(m, 'appsettings.json') });
+    m = await call<ConfigMatrix>('configMatrix');
+    await call('configAddKey', {
+      file: 'appsettings.json',
+      key: 'Jwt:Issuer',
+      value: 'nestbox',
+      type: 'string',
+      version: versionOf(m, 'appsettings.json'),
+    });
+    m = await call<ConfigMatrix>('configMatrix');
+    await call('configRemoveKey', { file: 'appsettings.json', key: 'Logging:LogLevel:Default', version: versionOf(m, 'appsettings.json') });
+    const text = await read('appsettings.json');
+    expect(text).toContain('// Kept by every edit');
+    expect(text).toContain('"Retries": 5,');
+    expect(text).toContain('"Issuer": "nestbox"');
+    expect(text).not.toContain('Information');
+    expect(emit).toHaveBeenCalledWith('changed', undefined);
+    const logs = JSON.stringify(logger.entries);
+    for (const s of ['Retries', 'Jwt', 'nestbox', 'Logging', SECRET]) expect(logs).not.toContain(s);
+  });
+
+  it('refuses a stale version, an existing key and a bad number', async () => {
+    const { call } = setup();
+    const m = await call<ConfigMatrix>('configMatrix');
+    const version = versionOf(m, 'appsettings.json');
+    await call('configSetValue', { file: 'appsettings.json', key: 'Retries', value: '4', type: 'number', version });
+    await expect(
+      call('configSetValue', { file: 'appsettings.json', key: 'Retries', value: '6', type: 'number', version }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    const fresh = versionOf(await call<ConfigMatrix>('configMatrix'), 'appsettings.json');
+    await expect(
+      call('configAddKey', { file: 'appsettings.json', key: 'retries', value: '1', type: 'string', version: fresh }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(
+      call('configSetValue', { file: 'appsettings.json', key: 'Retries', value: 'many', type: 'number', version: fresh }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('creates a file with configAddKey and a null version', async () => {
+    const { call } = setup();
+    await call('configAddKey', { file: 'appsettings.Staging.json', key: 'Feature:On', value: 'true', type: 'boolean', version: null });
+    expect(await read('appsettings.Staging.json')).toBe('{\n  "Feature": {\n    "On": true\n  }\n}\n');
+  });
+
+  it('lists an invalid file, refuses single edits on it and raw saves that do not parse', async () => {
+    await writeFile(join(dir, 'appsettings.Broken.json'), '{ "A": ');
+    const { call, logger } = setup();
+    const m = await call<ConfigMatrix>('configMatrix');
+    expect(m.files.find((f) => f.name === 'appsettings.Broken.json')).toMatchObject({ invalid: true, entries: 0 });
+    const version = versionOf(m, 'appsettings.Broken.json');
+    await expect(
+      call('configAddKey', { file: 'appsettings.Broken.json', key: 'B', value: '', type: 'string', version }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    for (const text of ['{ "A": ', '[]', '"x"']) {
+      const error = await call('writeConfigRaw', { file: 'appsettings.Broken.json', text, version }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: 'VALIDATION' });
+      expect(String((error as Error).message)).not.toContain('"A"');
+    }
+    await call('writeConfigRaw', { file: 'appsettings.Broken.json', text: '{ "A": 1 // fixed\n}', version });
+    expect((await call<{ text: string }>('readConfigRaw', { file: 'appsettings.Broken.json' })).text).toBe('{ "A": 1 // fixed\n}');
+    expect(JSON.stringify(logger.entries)).not.toContain('fixed');
+  });
+
+  it('creates appsettings.<Environment>.json as {}, never over an existing one (any case)', async () => {
+    const { call } = setup(dotnet());
+    expect(await call('createConfigFile', { environment: 'Production' })).toMatchObject({ file: 'appsettings.Production.json' });
+    expect(await read('appsettings.Production.json')).toBe('{}\n');
+    await expect(call('createConfigFile', { environment: 'development' })).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('refuses writes to a symlinked settings file', async (ctx) => {
+    await writeFile(join(dir, 'shared.json'), '{}');
+    try {
+      await symlink(join(dir, 'shared.json'), join(dir, 'appsettings.Linked.json'));
+    } catch {
+      ctx.skip();
+    }
+    const { call } = setup();
+    const m = await call<ConfigMatrix>('configMatrix');
+    const linked = m.files.find((f) => f.name === 'appsettings.Linked.json');
+    expect(linked?.readOnly).toBe(true);
+    await expect(
+      call('writeConfigRaw', { file: 'appsettings.Linked.json', text: '{"A":1}', version: linked?.version ?? '' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

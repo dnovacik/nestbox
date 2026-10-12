@@ -2,7 +2,14 @@
 // paths (`Logging:LogLevel:Default`, arrays by index). Edits go through jsonc-parser's modify, so only the
 // edited value changes: comments, order, indentation, line endings and a BOM stay as they were.
 // Messages never contain keys or values.
-import { applyEdits, modify, parseTree, type FormattingOptions, type Node, type ParseError } from 'jsonc-parser';
+import {
+  applyEdits,
+  modify,
+  parseTree,
+  type FormattingOptions,
+  type Node,
+  type ParseError,
+} from 'jsonc-parser';
 import { NestboxError } from '@shared/errors';
 import { JSON_NUMBER, type ConfigType, type EditableConfigType } from '@shared/tools/env/contract';
 
@@ -26,7 +33,10 @@ const stripBom = (text: string) => (text.startsWith(BOM) ? text.slice(1) : text)
 
 function tree(text: string): Node | null {
   const errors: ParseError[] = [];
-  const root = parseTree(stripBom(text), errors, { allowTrailingComma: true, disallowComments: false });
+  const root = parseTree(stripBom(text), errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  });
   return errors.length === 0 && root?.type === 'object' ? root : null;
 }
 
@@ -59,7 +69,8 @@ export function parseConfig(text: string): ConfigLeaf[] | null {
           ? (node.children ?? []).map((child, i) => ({ seg: i as string | number, node: child }))
           : null;
     if (children && children.length > 0) {
-      for (const c of children) visit(c.node, key === '' ? String(c.seg) : `${key}:${c.seg}`, [...path, c.seg]);
+      for (const c of children)
+        visit(c.node, key === '' ? String(c.seg) : `${key}:${c.seg}`, [...path, c.seg]);
       return;
     }
     const type = node.type as ConfigType;
@@ -102,7 +113,10 @@ export function leafValue(text: string, leaf: ConfigLeaf): string {
 }
 
 /** Typed input as the JSON value to write. */
-export function toJsonValue(value: string, type: EditableConfigType): string | number | boolean | null {
+export function toJsonValue(
+  value: string,
+  type: EditableConfigType,
+): string | number | boolean | null {
   switch (type) {
     case 'string':
       return value;
@@ -114,7 +128,8 @@ export function toJsonValue(value: string, type: EditableConfigType): string | n
       throw new NestboxError('VALIDATION', 'Not true or false');
     case 'number': {
       const n = Number(value.trim());
-      if (!JSON_NUMBER.test(value.trim()) || !Number.isFinite(n)) throw new NestboxError('VALIDATION', 'Not a number');
+      if (!JSON_NUMBER.test(value.trim()) || !Number.isFinite(n))
+        throw new NestboxError('VALIDATION', 'Not a number');
       return n;
     }
   }
@@ -124,7 +139,11 @@ export function toJsonValue(value: string, type: EditableConfigType): string | n
 function formatting(text: string): FormattingOptions {
   const indent = /\n([ \t]+)\S/.exec(text)?.[1] ?? '  ';
   const tabs = indent.startsWith('\t');
-  return { insertSpaces: !tabs, tabSize: tabs ? 1 : indent.length, eol: text.includes('\r\n') ? '\r\n' : '\n' };
+  return {
+    insertSpaces: !tabs,
+    tabSize: tabs ? 1 : indent.length,
+    eol: text.includes('\r\n') ? '\r\n' : '\n',
+  };
 }
 
 function edit(text: string, path: (string | number)[], value: unknown): string {
@@ -161,14 +180,18 @@ export function addConfigKey(text: string, key: string, value: unknown): string 
     if (node === undefined) {
       path.push(seg);
     } else if (node.type === 'object') {
-      const prop: { name: string; value: Node } | undefined = properties(node).findLast((p) => same(p.name, seg));
+      const prop: { name: string; value: Node } | undefined = properties(node).findLast((p) =>
+        same(p.name, seg),
+      );
       path.push(prop ? prop.name : seg);
       node = prop?.value;
     } else if (node.type === 'array') {
       const items = node.children ?? [];
-      if (!/^\d+$/.test(seg)) throw new NestboxError('VALIDATION', 'Array items are numbered from 0');
+      if (!/^\d+$/.test(seg))
+        throw new NestboxError('VALIDATION', 'Array items are numbered from 0');
       const index = Number(seg);
-      if (index > items.length) throw new NestboxError('VALIDATION', 'Add array items in order, at the end');
+      if (index > items.length)
+        throw new NestboxError('VALIDATION', 'Add array items in order, at the end');
       if (index === items.length && i < segments.length - 1)
         throw new NestboxError('VALIDATION', 'Add the array item first');
       path.push(index === items.length ? -1 : index);
