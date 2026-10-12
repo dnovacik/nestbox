@@ -27,6 +27,18 @@ export const ROLL_FORWARD = [
 export const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,40}$/;
 const SDK_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
+export const DB_PROVIDERS = ['postgresql', 'sqlserver', 'sqlite', 'mysql', 'mongodb'] as const;
+export type DbProvider = (typeof DB_PROVIDERS)[number];
+
+/** NuGet packages that mean a database provider. */
+const DB_PACKAGES: [RegExp, DbProvider][] = [
+  [/^Npgsql(..+)?$/i, 'postgresql'],
+  [/^(Microsoft|System).Data.SqlClient$|^Microsoft.EntityFrameworkCore.SqlServer$/i, 'sqlserver'],
+  [/^Microsoft.Data.Sqlite(..+)?$|^Microsoft.EntityFrameworkCore.Sqlite(..+)?$|^System.Data.SQLite(..+)?$/i, 'sqlite'],
+  [/^MySqlConnector$|^MySql.Data$|^MySql.EntityFrameworkCore$|^Pomelo.EntityFrameworkCore.MySql$/i, 'mysql'],
+  [/^MongoDB.Driver$|^MongoDB.EntityFrameworkCore$/i, 'mongodb'],
+];
+
 export const DotnetInfoSchema = z.object({
   /** A solution file in this folder (.sln or .slnx), by name. */
   solution: z.string().nullable(),
@@ -38,6 +50,8 @@ export const DotnetInfoSchema = z.object({
   isWeb: z.boolean(),
   /** A test project (IsTestProject, or a test SDK or framework package). */
   isTest: z.boolean(),
+  /** The database providers the project references (Npgsql, SqlClient, …), by provider name. */
+  dbProviders: z.array(z.enum(DB_PROVIDERS)).default([]),
   /** The SDK global.json asks for (this folder or above), with its roll-forward policy. */
   sdk: z.object({ version: z.string(), rollForward: z.enum(ROLL_FORWARD) }).nullable(),
   /**
@@ -88,7 +102,7 @@ const TEST_PACKAGES =
 
 export function parseProjectFile(
   xml: string,
-): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest'> {
+): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest' | 'dbProviders'> {
   const text = xml.replace(/<!--[\s\S]*?-->/g, '');
   const sdk = /<Project\b[^>]*\bSdk\s*=\s*"([^"]*)"/i.exec(text)?.[1] ?? '';
   const frameworks =
@@ -106,6 +120,9 @@ export function parseProjectFile(
       /<IsTestProject>\s*true\s*<\/IsTestProject>/i.test(text) ||
       /\bMSTest\.Sdk\b/i.test(sdk) ||
       packages.some((p) => TEST_PACKAGES.test(p)),
+    dbProviders: DB_PROVIDERS.filter((provider) =>
+      packages.some((p) => DB_PACKAGES.some(([pattern, of]) => of === provider && pattern.test(p))),
+    ),
   };
 }
 
@@ -175,7 +192,7 @@ export async function detectDotnet(
   if (solution === null && project === null) return null;
   const facts =
     project === null
-      ? { targetFrameworks: [], isWeb: false, isTest: false }
+      ? { targetFrameworks: [], isWeb: false, isTest: false, dbProviders: [] }
       : parseProjectFile((await readSmall(join(dir, project), PROJECT_MAX)) ?? '');
   const launchProfiles =
     project === null
