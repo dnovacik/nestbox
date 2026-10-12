@@ -14,6 +14,7 @@ const info = (over: Partial<DotnetInfo> = {}): DotnetInfo => ({
   isWeb: true,
   isTest: false,
   dbProviders: [],
+  efDesign: false,
   sdk: null,
   launchProfiles: [],
   ...over,
