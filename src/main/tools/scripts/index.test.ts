@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
-import { resolve } from 'node:path';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DetectedProject } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
@@ -127,6 +129,7 @@ describe('scripts tool: list and lifecycle', () => {
       ],
       envFiles: ['.env', '.env.local'],
       hidden: [],
+      install: null,
     });
   });
 
@@ -614,6 +617,7 @@ describe('scripts tool: custom commands', () => {
       packages: null,
       envFiles: ['.env', '.env.local'],
       hidden: [],
+      install: null,
     });
     expect(await call('r2', 'list')).toMatchObject({
       scripts: [],
@@ -782,5 +786,42 @@ describe('scripts tool: main command', () => {
     await call(backend.id, 'setMain', { script: 'server', main: true });
     await call(backend.id, 'deleteCommand', { name: 'server' });
     expect(toolSettings.get('r2/scripts')).toMatchObject({ main: [] });
+  });
+});
+
+describe('scripts tool: dependencies to install', () => {
+  async function fresh() {
+    const dir = await mkdtemp(join(tmpdir(), 'nestbox-scripts-install-'));
+    await writeFile(join(dir, 'package-lock.json'), '{}');
+    return makeDetectedForTest({
+      id: 'f1',
+      rootId: 'f1',
+      path: dir,
+      packageJson: { name: 'fresh', scripts: { dev: 'vite' } },
+      ecosystems: [
+        {
+          id: 'node',
+          info: nodeInfo({ lockfiles: ['package-lock.json'], hasDependencies: true }),
+        },
+      ],
+    });
+  }
+
+  it('offers the install task while node_modules is missing, and warns other starts', async () => {
+    const project = await fresh();
+    const { call } = setup([project]);
+    expect(await call('f1', 'list')).toMatchObject({ install: { state: 'missing', task: 'install' } });
+    expect(await call('f1', 'start', { script: 'dev' })).toMatchObject({
+      warning: "Dependencies aren't installed (run install)",
+    });
+    // Not on the install itself: it's the fix.
+    expect(await call('f1', 'start', { script: 'install' })).toMatchObject({ warning: null });
+  });
+
+  it('offers nothing once the task is hidden', async () => {
+    const project = await fresh();
+    const { call } = setup([project]);
+    await call('f1', 'hideCommand', { name: 'install' });
+    expect(await call('f1', 'list')).toMatchObject({ install: null });
   });
 });

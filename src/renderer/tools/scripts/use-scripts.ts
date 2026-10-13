@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { toast } from 'sonner';
 import type { RunGroup } from '@shared/types';
 import { api } from '@/lib/api';
@@ -17,6 +18,15 @@ export function useScriptList(projectId: string) {
     queryKey: scriptListKey(projectId),
     queryFn: () => api.tools.invoke('scripts', projectId, 'list', {}),
   });
+}
+
+/** Reads the list again (e.g. after an install changed what it reports). */
+export function useRefetchScriptList(projectId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: scriptListKey(projectId) }),
+    [queryClient, projectId],
+  );
 }
 
 function useRefreshAfter(projectId: string) {

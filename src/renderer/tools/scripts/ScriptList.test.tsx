@@ -1,12 +1,13 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { NestboxError } from '@shared/errors';
+import { queryKeys } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { makeProcess } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { ScriptList } from './ScriptList';
-import { installScriptsBridge } from './test-bridge';
+import { installScriptsBridge, type ScriptsFixture } from './test-bridge';
 
 const scripts = [
   { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm' as const, envFile: null, main: false },
@@ -207,5 +208,41 @@ describe('ScriptList: detected commands', () => {
     renderWithProviders(<ScriptList projectId="p1" />);
     expect(await screen.findByRole('button', { name: 'Hide run' })).toBeDisabled();
     expect(screen.getByLabelText('Version warning: global.json asks for .NET SDK 9.0.100')).toHaveTextContent('.NET');
+  });
+
+  it('offers Install while dependencies are older than the lockfile, and reads the list again after', async () => {
+    const install = {
+      name: 'install',
+      command: 'npm install',
+      autoRestart: false,
+      kind: 'detected' as const,
+      envFile: null,
+      main: false,
+    };
+    const fixture: ScriptsFixture = { scripts: [...scripts, install], install: { state: 'stale', task: 'install' } };
+    const { callsTo } = installScriptsBridge(fixture);
+    const { client } = renderWithProviders(<ScriptList projectId="p1" />);
+    const processesChanged = () => act(() => void client.invalidateQueries({ queryKey: queryKeys.processes }));
+    expect(await screen.findByText('Dependencies are older than the lockfile.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Install dependencies' }));
+    await waitFor(() => expect(callsTo('start')).toEqual([{ script: 'install' }]));
+    expect(useUiStore.getState().scriptPanes['p1']?.scripts).toContain('install');
+    // The install runs, then exits: the list is read again (and no longer reports anything).
+    const lists = () => callsTo('list').length;
+    fixture.processes = [makeProcess({ script: 'install', state: 'running' })];
+    processesChanged();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Install dependencies' })).toBeDisabled());
+    const before = lists();
+    fixture.install = null;
+    fixture.processes = [makeProcess({ script: 'install', state: 'exited' })];
+    processesChanged();
+    await waitFor(() => expect(lists()).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByText('Dependencies are older than the lockfile.')).toBeNull());
+  });
+
+  it("says when dependencies aren't installed, and shows nothing when they are", async () => {
+    installScriptsBridge({ scripts, install: { state: 'missing', task: 'install' } });
+    renderWithProviders(<ScriptList projectId="p1" />);
+    expect(await screen.findByText("Dependencies aren't installed.")).toBeInTheDocument();
   });
 });

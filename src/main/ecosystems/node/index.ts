@@ -7,6 +7,7 @@ import type { EcosystemModule, RunEnv } from '../types';
 import { checkNode, nodeUpdateCommand } from './deps';
 import { detectNode, lockfileManager, type NodeInfo, NodeInfoSchema } from './detect';
 import { frameworkLabel } from './framework';
+import { installState, installWarning } from './install-state';
 import { lockfileWarning } from './package-manager';
 import { nodeTasks } from './tasks';
 import { nodeVersionCheck, type NodeVersionCheck } from './version-check';
@@ -53,6 +54,11 @@ export function createNodeModule(
 
     depsUpdateCommand: nodeUpdateCommand,
 
+    async installHint(ctx, info: NodeInfo) {
+      const state = await installState(ctx.dir, ctx.rootDir, info);
+      return state === 'missing' || state === 'stale' ? { state, task: 'install' } : null;
+    },
+
     /** Health suggestions and the Inspector's default target, after PORT in .env. */
     ports: (info: NodeInfo) => info.ports,
 
@@ -67,8 +73,14 @@ export function createNodeModule(
         fnm: ctx.settings.fnm === true,
         platform: ctx.platform,
       });
+      // Not on install/ci themselves: they're the fix.
+      const install =
+        ctx.task === 'install' || ctx.task === 'ci'
+          ? null
+          : installWarning(await installState(ctx.dir, ctx.rootDir ?? null, info));
+      const warning = [advice.warning, install].filter((w) => w !== null).join('; ') || null;
       return {
-        ...(advice.warning === null ? {} : { warning: advice.warning }),
+        ...(warning === null ? {} : { warning }),
         ...(advice.pathPrepend === null ? {} : { pathPrepend: advice.pathPrepend }),
         ...(advice.note === null ? {} : { note: advice.note }),
       };

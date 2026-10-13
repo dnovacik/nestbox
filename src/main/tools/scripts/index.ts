@@ -14,7 +14,7 @@ import {
   type SkippedEntry,
 } from '@shared/tools/scripts/contract';
 import type { RunGroup, RunGroupCompose, RunGroupEntry } from '@shared/types';
-import { ECOSYSTEM_MODULES, type RunEnv } from '../../ecosystems';
+import { ECOSYSTEM_MODULES, type InstallHint, type RunEnv } from '../../ecosystems';
 import type { Logger } from '../../logger';
 import type { ProcessManager, StartRequest } from '../../processes/process-manager';
 import type { SharedContext } from '../shared-context';
@@ -230,7 +230,8 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           : project.ecosystems[0];
     const module = ECOSYSTEM_MODULES.find((m) => m.id === entry?.id);
     if (!entry || !module) return start;
-    const runEnv = await runEnvFor(module, project, entry.info);
+    const task = runnable.kind === 'detected' ? runnable.name : undefined;
+    const runEnv = await runEnvFor(module, project, entry.info, task);
     return {
       ...start,
       ...(runEnv.pathPrepend ? { pathPrepend: runEnv.pathPrepend } : {}),
@@ -245,6 +246,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     module: (typeof ECOSYSTEM_MODULES)[number],
     project: DetectedProject,
     info: unknown,
+    task?: string,
   ): Promise<RunEnv> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<RunEnv>((resolve) => {
@@ -253,7 +255,16 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     try {
       const settings = deps.runEnvSettings(project.rootId, module.id);
       return await Promise.race([
-        module.runEnv({ dir: project.path, rootDir: rootDirOf(project), platform: deps.platform, settings }, info),
+        module.runEnv(
+          {
+            dir: project.path,
+            rootDir: rootDirOf(project),
+            platform: deps.platform,
+            settings,
+            ...(task ? { task } : {}),
+          },
+          info,
+        ),
         timeout,
       ]);
     } catch {
@@ -262,6 +273,22 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /** The first ecosystem's install hint whose task is a row here (not hidden); failures count as none. */
+  async function installHintOf(project: DetectedProject, settings: ScriptsSettings): Promise<InstallHint | null> {
+    const rows = runnables(project, settings);
+    for (const entry of project.ecosystems) {
+      const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
+      const parsed = module?.infoSchema.safeParse(entry.info);
+      if (!module?.installHint || !parsed?.success) continue;
+      const hint = await module
+        .installHint({ dir: project.path, rootDir: rootDirOf(project) }, parsed.data)
+        .catch(() => null);
+      if (hint && rows.some((r) => r.kind === 'detected' && r.ecosystemId === module.id && r.name === hint.task))
+        return hint;
+    }
+    return null;
   }
 
   function rootDirOf(project: DetectedProject): string | null {
@@ -368,7 +395,9 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
           .sort((a, b) => Number(b.main) - Number(a.main));
         const envFiles = await deps.envFiles.list(ctx.project.path).catch(() => []);
         const hidden = hiddenOf(ctx.project, settings);
-        if (ctx.project.relPath !== '') return { scripts, runGroups: null, packages: null, envFiles, hidden };
+        const install = await installHintOf(ctx.project, settings);
+        if (ctx.project.relPath !== '')
+          return { scripts, runGroups: null, packages: null, envFiles, hidden, install };
         const packages = [ctx.project, ...ctx.project.workspaces].map((p) => {
           const names = runnables(p, settings).map((r) => r.name);
           const pkgMain = mainOf(settings, p);
@@ -380,7 +409,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
             main: pkgMain !== null && names.includes(pkgMain) ? pkgMain : null,
           };
         });
-        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles, hidden };
+        return { scripts, runGroups: deps.runGroups.get(ctx.project.rootId), packages, envFiles, hidden, install };
       },
 
       start: async (ctx: Ctx, { script }) => {

@@ -14,6 +14,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -25,6 +26,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -36,6 +38,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -47,6 +50,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -58,6 +62,7 @@ describe('detectNode', () => {
       lockfiles: [],
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -74,6 +79,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -98,6 +104,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
     // The root's lockfile wins over the package's own, as in DetectedProject.packageManager.
     const yarn = new Set(['package.json', 'yarn.lock']);
@@ -107,6 +114,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
     // A root without a lockfile leaves the package's own.
     const bare = { ...root, files: new Set(['package.json']) };
@@ -116,6 +124,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -132,6 +141,7 @@ describe('detectNode', () => {
       lockfiles: [],
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
     const ctx = { root: { path: root, files, dirs: new Set<string>() } };
     expect(await detectNode(pkg, files, new Set(), ctx)).toEqual({
@@ -140,6 +150,7 @@ describe('detectNode', () => {
       lockfiles: [],
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
     // A lockfile still decides when package.json can't be read; without one that is npm.
     await writeFile(join(root, 'package.json'), '{ not json');
@@ -149,6 +160,7 @@ describe('detectNode', () => {
       lockfiles: expect.any(Array),
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
     expect(await detectNode(root, files, new Set())).toEqual({
       packageManager: 'npm',
@@ -156,6 +168,7 @@ describe('detectNode', () => {
       lockfiles: [],
       framework: null,
       ports: [],
+      hasDependencies: false,
     });
   });
 
@@ -204,6 +217,15 @@ describe('detectNode', () => {
     expect((await detectNode(dir, new Set(['package.json']), new Set()))?.ports).toEqual([
       3001, 5173,
     ]);
+  });
+
+  it('knows whether package.json lists anything to install', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nestbox-node-deps-'));
+    const files = new Set(['package.json']);
+    await writeFile(join(dir, 'package.json'), '{"devDependencies":{"vitest":"^3"}}');
+    expect((await detectNode(dir, files, new Set()))?.hasDependencies).toBe(true);
+    await writeFile(join(dir, 'package.json'), '{"dependencies":{},"scripts":{"x":"y"}}');
+    expect((await detectNode(dir, files, new Set()))?.hasDependencies).toBe(false);
   });
 
   it('returns null without package.json', async () => {

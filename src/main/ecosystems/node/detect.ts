@@ -21,12 +21,23 @@ export const NodeInfoSchema = z.object({
   framework: FrameworkSchema.nullable(),
   /** Where the dev server listens: ports the dev/start scripts name, then the framework's default. */
   ports: z.array(z.number().int().min(1).max(65_535)),
+  /** package.json lists dependencies or devDependencies (so there is something to install). */
+  hasDependencies: z.boolean(),
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
 /** The manager a lockfile names; null when it came from the packageManager field or npm's default. */
 export function lockfileManager(info: NodeInfo): NodeInfo['packageManager'] | null {
   return info.packageManagerSource === 'lockfile' ? info.packageManager : null;
+}
+
+function hasDependencies(json: Record<string, unknown> | null): boolean {
+  return ['dependencies', 'devDependencies'].some((field) => {
+    const deps = json?.[field];
+    return (
+      !!deps && typeof deps === 'object' && !Array.isArray(deps) && Object.keys(deps).length > 0
+    );
+  });
 }
 
 function scriptsOf(json: Record<string, unknown> | null): Record<string, string> {
@@ -73,5 +84,6 @@ export async function detectNode(
     lockfiles: rootLockfiles.length > 0 ? rootLockfiles : lockfilesIn(files),
     framework,
     ports: nodePorts(scriptsOf(json), framework),
+    hasDependencies: hasDependencies(json),
   };
 }
