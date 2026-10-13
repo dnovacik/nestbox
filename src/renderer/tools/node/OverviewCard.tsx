@@ -46,6 +46,7 @@ export function NodeCard({ projectId }: ToolPanelProps) {
               </span>
             </p>
           )}
+          {data.lockfileWarning && <p className="text-warn">▲ {data.lockfileWarning}</p>}
         </div>
       )}
       <div className="flex gap-2">

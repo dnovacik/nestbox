@@ -65,4 +65,17 @@ describe('NodePanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'refresh')).toBe(true));
   });
+
+  it('warns about lockfiles of more than one manager', async () => {
+    setup(
+      nodeStatus({
+        lockfileWarning: 'Two lockfiles: yarn.lock and package-lock.json; NestBox uses yarn',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        '▲ Two lockfiles: yarn.lock and package-lock.json; NestBox uses yarn',
+      ),
+    ).toBeInTheDocument();
+  });
 });

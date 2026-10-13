@@ -15,7 +15,9 @@ import { createDepsTool } from './index';
 type SpawnArgs = { cwd: string; command: string; args: string[]; env?: Record<string, string | undefined> };
 const fixture = (name: string) =>
   readFileSync(join(__dirname, '..', '..', 'ecosystems', 'node', '__fixtures__', name), 'utf8');
-const NODE = [{ id: 'node' as const, info: { packageManager: 'npm', packageManagerSource: 'lockfile' } }];
+const NODE = [
+  { id: 'node' as const, info: { packageManager: 'npm', packageManagerSource: 'lockfile', lockfiles: [] } },
+];
 
 function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'nestbox-deps-tool-'));
