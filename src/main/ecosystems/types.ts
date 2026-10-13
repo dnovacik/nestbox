@@ -51,6 +51,8 @@ export interface WorkspaceContext {
 
 export interface RunEnvContext<Settings = unknown> {
   dir: string;
+  /** The project root's folder when dir is a workspace package (inherited config); null or absent for a root. */
+  rootDir?: string | null;
   platform: PlatformAdapter;
   settings: Settings;
 }

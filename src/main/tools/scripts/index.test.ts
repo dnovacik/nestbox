@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DetectedProject } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { makeDetectedForTest } from '@shared/test-fixtures';
 import type { RunGroup } from '@shared/types';
+import { nodeVersionCheck } from '../../ecosystems/node/version-check';
 import { createMemoryLogger } from '../../logger';
 import { createDarwinAdapter } from '../../platform/darwin';
 import type { SpawnOpts } from '../../platform/adapter';
@@ -16,6 +17,15 @@ import { createToolHost } from '../tool-host';
 import { createScriptsTool, PROCESSES_FACT } from './index';
 
 const ROOT = resolve('/dev/shop');
+/** What detection gives a folder with a package.json. */
+const NODE = [{ id: 'node' as const, info: { packageManager: 'npm' } }];
+
+/** The Node module's version advice, faked at the shared check (the real one would run node --version). */
+let advice: MockInstance<typeof nodeVersionCheck.advice>;
+beforeEach(() => {
+  advice = vi.spyOn(nodeVersionCheck, 'advice').mockResolvedValue({ warning: null, pathPrepend: null, note: null });
+});
+afterEach(() => advice.mockRestore());
 const API = resolve(ROOT, 'packages/api');
 
 const api = makeDetectedForTest({
@@ -60,15 +70,10 @@ function setup(projects: DetectedProject[] = [root, api]) {
     emit: vi.fn(),
     logger: createMemoryLogger(),
     platform: createDarwinAdapter({ runner: noopRunner, getEditorCommand: () => 'code' }),
-    node: {
-      advice: vi.fn(
-        async (_projectId: string): Promise<{ warning: string | null; pathPrepend: string | null; note: string | null }> => ({
-          warning: null,
-          pathPrepend: null,
-          note: null,
-        }),
-      ),
-    },
+    // The Node tool on, fnm off.
+    runEnvSettings: vi.fn((_rootId: string, ecosystemId: string): unknown =>
+      ecosystemId === 'node' ? { checkVersions: true, fnm: false } : {},
+    ),
     compose: {
       up: vi.fn(async (_projectId: string, _services: string[], _opts: { wait: boolean }) => ({ ok: true })),
       stop: vi.fn(async (_projectId: string, _services: string[]) => ({ ok: true })),
@@ -269,15 +274,22 @@ describe('scripts tool: openFileAt', () => {
 });
 
 describe('scripts tool: Node advice', () => {
-  it('starts with the Node tool\'s warning, note and PATH', async () => {
-    const { call, deps, processes, platform } = setup();
-    deps.node.advice.mockResolvedValue({
+  // As detection gives them: a package.json makes a folder a Node package.
+  const nodeApi = { ...api, ecosystems: NODE };
+  const nodeRoot = { ...root, ecosystems: NODE, workspaces: [nodeApi] };
+  const nodeSetup = () => setup([nodeRoot, nodeApi]);
+
+  it("starts an npm script with the Node module's warning, note and PATH", async () => {
+    const { call, deps, processes, platform } = nodeSetup();
+    advice.mockResolvedValue({
       warning: "Node v20.11.1 doesn't match 18 (.nvmrc)",
       pathPrepend: '/fnm/18/bin',
       note: '▸ fnm: Node 18 from /fnm/18/bin',
     });
     expect(await call(api.id, 'start', { script: 'dev' })).toMatchObject({ warning: "Node v20.11.1 doesn't match 18 (.nvmrc)" });
-    expect(deps.node.advice).toHaveBeenCalledWith(api.id);
+    expect(deps.runEnvSettings).toHaveBeenCalledWith('r1', 'node');
+    // A workspace package: its root's folder too (inherited .nvmrc and engines).
+    expect(advice).toHaveBeenCalledWith(expect.objectContaining({ dir: API, rootDir: ROOT, packageManager: 'npm', fnm: false }));
     expect(processes.logs(api.id, 'dev').lines.map((l) => l.text).slice(0, 2)).toEqual([
       '▸ fnm: Node 18 from /fnm/18/bin',
       "▲ Node v20.11.1 doesn't match 18 (.nvmrc)",
@@ -286,14 +298,21 @@ describe('scripts tool: Node advice', () => {
     expect(env?.['PATH']).toMatch(/^\/fnm\/18\/bin/);
   });
 
-  it('starts without advice when the Node tool fails or takes over 3 s', async () => {
-    const { call, deps } = setup();
-    deps.node.advice.mockRejectedValueOnce(new NestboxError('INTERNAL', 'boom'));
+  it('starts without advice when the check fails or takes over 3 s', async () => {
+    const { call } = nodeSetup();
+    advice.mockRejectedValueOnce(new NestboxError('INTERNAL', 'boom'));
     expect(await call('r1', 'start', { script: 'dev' })).toMatchObject({ state: 'starting', warning: null });
-    deps.node.advice.mockReturnValueOnce(new Promise(() => undefined));
+    advice.mockReturnValueOnce(new Promise(() => undefined));
     const slow = call('r1', 'start', { script: 'build' });
     await vi.advanceTimersByTimeAsync(3_000);
     expect(await slow).toMatchObject({ state: 'starting', warning: null });
+  });
+
+  it('gives no advice while the Node tool is off', async () => {
+    const { call, deps } = nodeSetup();
+    deps.runEnvSettings.mockReturnValue({});
+    expect(await call('r1', 'start', { script: 'dev' })).toMatchObject({ state: 'starting', warning: null });
+    expect(advice).not.toHaveBeenCalled();
   });
 });
 
@@ -541,13 +560,13 @@ describe('scripts tool: ecosystem commands', () => {
   });
 
   it("starts a detected task with the module's env and SDK warning, without the Node tool", async () => {
-    const { call, platform, deps } = dotnetSetup();
+    const { call, platform } = dotnetSetup();
     expect(await call(svc.id, 'start', { script: 'run' })).toMatchObject({
       warning: 'global.json asks for .NET SDK 9.0.100 (rollForward latestPatch); installed: 8.0.414',
     });
     expect(spawnCalls(platform)[0]).toMatchObject({ cwd: SVC, command: 'dotnet', args: ['run', '--project', 'Svc.csproj'] });
     expect(spawnCalls(platform)[0]?.env).toMatchObject({ DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' });
-    expect(deps.node.advice).not.toHaveBeenCalled();
+    expect(advice).not.toHaveBeenCalled();
   });
 
   it('hides a detected task until it is restored', async () => {
@@ -606,10 +625,10 @@ describe('scripts tool: custom commands', () => {
   });
 
   it('runs a custom command as typed, without a shell or the Node tool', async () => {
-    const { call, platform, deps } = await appSetup();
+    const { call, platform } = await appSetup();
     await call(backend.id, 'start', { script: 'dev' });
     expect(spawnCalls(platform)[0]).toMatchObject({ cwd: BACKEND, command: 'node', args: ['server.js', '--port', '8000'] });
-    expect(deps.node.advice).not.toHaveBeenCalled();
+    expect(advice).not.toHaveBeenCalled();
   });
 
   it('keeps names unique within a package', async () => {

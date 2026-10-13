@@ -38,10 +38,11 @@ export interface ScriptsToolDeps {
   isFile(path: string): Promise<boolean>;
   emit(projectId: string, event: 'logs', payload: { script: string; lines: LogLine[] }): void;
   logger: Logger;
-  /** The Node tool's advice for a start (version warning, fnm's PATH); asked before every start. */
-  node: {
-    advice(projectId: string): Promise<{ warning: string | null; pathPrepend: string | null; note: string | null }>;
-  };
+  /**
+   * What an ecosystem's runEnv gets as settings for a root project (Node: whether the Node tool is on and
+   * its fnm switch); {} when the ecosystem has none.
+   */
+  runEnvSettings(rootId: string, ecosystemId: string): unknown;
   /** The Compose tool's actions for a package (services empty = the whole stack). */
   compose: {
     up(projectId: string, services: string[], opts: { wait: boolean }): Promise<{ ok: boolean }>;
@@ -201,23 +202,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
   const isAuto = (settings: ScriptsSettings, project: DetectedProject, script: string): boolean =>
     settings.autoRestart.some((e) => e.relPath === project.relPath && e.script === script);
 
-  /** The Node tool's advice, or none when it fails or is slow: a start never waits on it for long. */
-  async function adviceFor(projectId: string) {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), ADVICE_TIMEOUT_MS);
-    });
-    try {
-      return await Promise.race([deps.node.advice(projectId), timeout]);
-    } catch {
-      deps.logger.warn('node advice failed', { projectId });
-      return null;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  /** The Node tool is asked only about package.json scripts. The env file is read at every spawn. */
+  /** Every runnable starts in its ecosystem's run environment. The env file is read at every spawn. */
   const requestFor = async (
     settings: ScriptsSettings,
     project: DetectedProject,
@@ -233,23 +218,21 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       ...(envFile === null ? {} : { loadEnv: { file: envFile, read: () => deps.envFiles.read(project.path, envFile) } }),
     };
 
-    // npm scripts: use package manager with Node advice
-    if (runnable.argv === null) {
-      return { ...base, ...(await adviceFor(project.id)) };
-    }
-
-    // Custom or detected commands: argv as is, in the environment of the ecosystem that offers the task
-    // (detected) or of the package's first ecosystem (custom).
-    const withArgv: StartRequest = { ...base, argv: runnable.argv };
+    // package.json scripts run through the package manager, in Node's environment; custom and detected
+    // commands run their argv as is, in the environment of the ecosystem that offers the task (detected)
+    // or of the package's first ecosystem (custom).
+    const start: StartRequest = runnable.argv === null ? base : { ...base, argv: runnable.argv };
     const entry =
-      runnable.kind === 'detected'
-        ? project.ecosystems.find((e) => e.id === runnable.ecosystemId)
-        : project.ecosystems[0];
+      runnable.kind === 'npm'
+        ? project.ecosystems.find((e) => e.id === 'node')
+        : runnable.kind === 'detected'
+          ? project.ecosystems.find((e) => e.id === runnable.ecosystemId)
+          : project.ecosystems[0];
     const module = ECOSYSTEM_MODULES.find((m) => m.id === entry?.id);
-    if (!entry || !module) return withArgv;
+    if (!entry || !module) return start;
     const runEnv = await runEnvFor(module, project, entry.info);
     return {
-      ...withArgv,
+      ...start,
       ...(runEnv.pathPrepend ? { pathPrepend: runEnv.pathPrepend } : {}),
       ...(runEnv.env ? { env: runEnv.env } : {}),
       ...(runEnv.note ? { note: runEnv.note } : {}),
@@ -257,7 +240,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
     };
   };
 
-  /** A module's run environment, or none when it fails or is slow (like the Node tool's advice). */
+  /** A module's run environment, or none when it fails or is slow: a start never waits on it for long. */
   async function runEnvFor(
     module: (typeof ECOSYSTEM_MODULES)[number],
     project: DetectedProject,
@@ -268,8 +251,9 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       timer = setTimeout(() => resolve({}), ADVICE_TIMEOUT_MS);
     });
     try {
+      const settings = deps.runEnvSettings(project.rootId, module.id);
       return await Promise.race([
-        module.runEnv({ dir: project.path, platform: deps.platform, settings: {} }, info),
+        module.runEnv({ dir: project.path, rootDir: rootDirOf(project), platform: deps.platform, settings }, info),
         timeout,
       ]);
     } catch {
@@ -277,6 +261,15 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       return {};
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  function rootDirOf(project: DetectedProject): string | null {
+    if (project.relPath === '') return null;
+    try {
+      return deps.getDetected(project.rootId).path;
+    } catch {
+      return null;
     }
   }
 

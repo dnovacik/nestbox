@@ -127,8 +127,11 @@ export const pythonModule: EcosystemModule<PythonInfo> = {
   },
 
   /**
-   * Customize the runtime environment for tasks.
-   * Return PATH prepends, env vars, and an optional note.
+   * Customize the runtime environment for every command of the package.
+   * Return PATH prepends, env vars, an optional note and warning.
+   * ctx.dir is the package folder, ctx.rootDir the project root's for a workspace
+   * package (null for a root), ctx.settings what main's runEnvSettings gives your
+   * ecosystem (Node: whether the Node tool is on and its fnm switch; {} by default).
    */
   async runEnv(ctx, info: PythonInfo) {
     if (info.venvPath) {

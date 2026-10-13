@@ -9,9 +9,11 @@ import { splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import type { EventChannel } from '@shared/ipc-names';
 import { healthDefinition } from '@shared/tools/health/contract';
+import { nodeDefinition } from '@shared/tools/node/contract';
 import { brandAsset } from './assets';
 import { detectProject } from './detection/detect-project';
 import { dotnetModule } from './ecosystems/dotnet';
+import { nodeVersionCheck } from './ecosystems/node/version-check';
 import { isDirectory } from './detection/fs-utils';
 import { createCoreHandlers } from './ipc/core-handlers';
 import { registerIpc } from './ipc/register';
@@ -212,15 +214,11 @@ if (!app.requestSingleInstanceLock()) {
             }
           },
         },
-        node: {
-          advice: async (projectId) => {
-            if (!toolHostRef) throw new NestboxError('INTERNAL', 'Tools are not ready');
-            return (await toolHostRef.invoke('node', projectId, 'startAdvice', {})) as {
-              warning: string | null;
-              pathPrepend: string | null;
-              note: string | null;
-            };
-          },
+        // Node's version advice follows the Node tool: off with the tool, fnm from its root setting.
+        runEnvSettings: (rootId, ecosystemId) => {
+          if (ecosystemId !== 'node' || !toolEnabled('node')) return {};
+          const parsed = nodeDefinition.settingsSchema.safeParse(projects.getToolSettings(rootId, 'node') ?? {});
+          return { checkVersions: true, fnm: parsed.success && parsed.data.fnm };
         },
         compose: {
           up: (projectId, services, { wait }) =>
@@ -307,7 +305,7 @@ if (!app.requestSingleInstanceLock()) {
       compose: { logger },
       mock: { logger },
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
-      node: { logger, getDetected: (id) => projects.getDetected(id) },
+      node: { logger, getDetected: (id) => projects.getDetected(id), check: nodeVersionCheck },
       deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       deploy: { logger, envFiles, tools: { invoke: invokeTool }, runScript: runScriptToEnd },
       ci: { logger },

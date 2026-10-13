@@ -5,7 +5,7 @@ This directory contains ecosystem modules that detect and provide commands for d
 ## Current Modules
 
 - **dotnet/** - .NET solutions (.sln, .slnx) and projects (.csproj, .fsproj, .vbproj): launch profiles, SDK check, NuGet dependencies
-- **node/** - Node.js projects (package.json): package manager from the lockfile, install and ci
+- **node/** - Node.js projects (package.json): package manager from the lockfile, npm/pnpm/yarn workspaces, install and ci, dependency checks, the Node version advice and fnm
 
 ## Adding a New Module
 
