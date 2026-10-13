@@ -420,6 +420,59 @@ describe('win32 killTree', () => {
   });
 });
 
+describe('win32 killLeftovers', () => {
+  const since = Date.parse('2026-10-13T10:00:00.000Z');
+  const at = (offsetMs: number) => new Date(since + offsetMs).toISOString();
+  // npm (2000) was still starting its shell when taskkill listed the tree: 3000 started after the list.
+  const taskkill = {
+    code: 0,
+    stdout:
+      'SUCCESS: The process with PID 2000 (child process of PID 1000) has been terminated.\r\n' +
+      'SUCCESS: The process with PID 1000 (child process of PID 900) has been terminated.\r\n',
+  };
+  const processes = [
+    `900 1 ${at(-60_000)}`, // NestBox, the root's parent
+    `3000 2000 ${at(500)}`, // missed by taskkill: its parent was stopped
+    `4000 3000 ${at(600)}`, // 3000's child: its /T covers it
+    `3002 900 ${at(100)}`, // another script NestBox started
+    `3001 2000 ${at(-60_000)}`, // older than the script: a reused parent PID
+    `5000 7777 ${at(700)}`, // a dead parent that wasn't in the tree
+  ].join('\r\n');
+
+  it("stops what the tree's kill missed: processes it orphaned that started after the script", async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': taskkill, 'powershell.exe': { code: 0, stdout: processes } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.killTree(1000);
+    expect(await adapter.killLeftovers(1000, since)).toBe(1);
+    expect(runner.execCalls.map((c) => [c.file, ...c.args.slice(0, 2)])).toEqual([
+      ['taskkill.exe', '/PID', '1000'],
+      ['powershell.exe', '-NoProfile', '-NonInteractive'],
+      ['taskkill.exe', '/PID', '3000'],
+    ]);
+    expect(runner.execCalls[2]?.args).toEqual(['/PID', '3000', '/T', '/F']);
+  });
+
+  it('lists nothing without an earlier kill of that tree, and only once after it', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': taskkill, 'powershell.exe': { code: 0, stdout: processes } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    expect(await adapter.killLeftovers(1000, since)).toBe(0);
+    expect(runner.execCalls).toEqual([]);
+    await adapter.killTree(1000);
+    await adapter.killLeftovers(1000, since);
+    const calls = runner.execCalls.length;
+    expect(await adapter.killLeftovers(1000, since)).toBe(0);
+    expect(runner.execCalls).toHaveLength(calls);
+  });
+
+  it('stops nothing when the process list cannot be read', async () => {
+    const runner = fakeRunner([], { 'taskkill.exe': taskkill, 'powershell.exe': { code: 1, stdout: '' } });
+    const adapter = createWin32Adapter({ runner, getEditorCommand: () => 'code' });
+    await adapter.killTree(1000);
+    expect(await adapter.killLeftovers(1000, since)).toBe(0);
+    expect(runner.execCalls.filter((c) => c.file === 'taskkill.exe')).toHaveLength(1);
+  });
+});
+
 describe('win32 listProcesses', () => {
   const script =
     "Get-CimInstance Win32_Process | ForEach-Object { if ($_.CreationDate) { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToUniversalTime().ToString('o') } }";

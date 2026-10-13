@@ -102,6 +102,12 @@ export interface PlatformAdapter {
   describeProcesses(pids: readonly number[]): Promise<Map<number, string | null>>;
   killTree(pid: number): Promise<void>;
   /**
+   * After killTree(pid) left the tree running: stops processes that tree's kill missed because they started
+   * after it (or during it) and no earlier than `since` (epoch ms). Resolves how many it stopped. macOS: 0,
+   * since a group kill reaches late children too.
+   */
+  killLeftovers(pid: number, since: number): Promise<number>;
+  /**
    * Every running process with its parent and start time (the start time tells a reused PID apart); null
    * when the list cannot be read. Used by the orphan check at startup.
    */

@@ -151,6 +151,9 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
       await killProcessTree(pid, { kill, list: listProcesses, sleep });
     },
 
+    // A late child joins its parent's process group, which killTree signals: nothing is left over.
+    killLeftovers: async () => 0,
+
     listProcesses,
 
     /** `<pm> run <script>` without a shell, as the leader of a new process group (so killTree reaches the tree). */

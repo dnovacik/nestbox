@@ -32,8 +32,16 @@ function assertPid(pid: number): void {
 const MAX_DESCRIBE_PIDS = 64;
 export const LIST_PROCESSES_TIMEOUT_MS = 60_000;
 
+/** How many recent tree kills keep their stopped PIDs for killLeftovers. */
+const REMEMBERED_KILLS = 32;
+/** A leftover may have started this long before the recorded spawn time (taken just after the root's creation). */
+const LEFTOVER_TOLERANCE_MS = 1_000;
+
 export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
-  return {
+  // Root PID -> every PID taskkill's output named (localised text, so all numbers: the PIDs it stopped and their
+  // parents). Only killLeftovers reads it, and only for processes whose parent is gone.
+  const stoppedByKill = new Map<number, Set<number>>();
+  const adapter: PlatformAdapter = {
     id: 'win32',
 
     async listListeningPorts() {
@@ -109,9 +117,39 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
 
     async killTree(pid) {
       assertPid(pid);
-      const { code } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { timeoutMs: 10_000 });
+      const { code, stdout } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+        timeoutMs: 10_000,
+      });
+      stoppedByKill.delete(pid);
+      stoppedByKill.set(pid, new Set((stdout.match(/\d+/g) ?? []).map(Number)));
+      if (stoppedByKill.size > REMEMBERED_KILLS) stoppedByKill.delete(stoppedByKill.keys().next().value ?? pid);
       // 128: no such process, which is the outcome we wanted.
       if (code !== 0 && code !== 128) throw new NestboxError('INTERNAL', 'Could not stop the process tree');
+    },
+
+    /**
+     * taskkill lists the tree once, so a process started after that list (npm still launching the script's
+     * shell) survives, holding the script's pipes. Its parent is one taskkill stopped, and Windows keeps that
+     * parent's PID after it exits: a process whose parent is gone, was named by that kill and started after
+     * the script is a leftover. One process list, then each leftover's own tree.
+     */
+    async killLeftovers(pid, since) {
+      const stopped = stoppedByKill.get(pid);
+      stoppedByKill.delete(pid);
+      if (!stopped || stopped.size === 0) return 0;
+      const processes = await adapter.listProcesses();
+      if (!processes) return 0;
+      const alive = new Set(processes.map((p) => p.pid));
+      const leftovers = processes.filter(
+        (p) =>
+          stopped.has(p.parentPid) && !alive.has(p.parentPid) && p.startTime >= since - LEFTOVER_TOLERANCE_MS,
+      );
+      for (const p of leftovers) {
+        await deps.runner
+          .exec('taskkill.exe', ['/PID', String(p.pid), '/T', '/F'], { timeoutMs: 10_000 })
+          .catch(() => undefined);
+      }
+      return leftovers.length;
     },
 
     async listProcesses() {
@@ -208,4 +246,5 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
 
     commandExists: (command) => commandExists(deps.runner, command),
   };
+  return adapter;
 }
