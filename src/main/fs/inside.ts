@@ -1,6 +1,17 @@
 import { isAbsolute, relative, resolve, win32 } from 'node:path';
 import { NestboxError } from '@shared/errors';
 
+/** A path or glob pattern that could leave the folder it is relative to: absolute (on either OS) or with `..`. */
+export function escapesRoot(pattern: string): boolean {
+  return (
+    isAbsolute(pattern) ||
+    pattern.startsWith('/') ||
+    pattern.startsWith('\\') ||
+    /^[a-zA-Z]:/.test(pattern) ||
+    pattern.split(/[\\/]/).includes('..')
+  );
+}
+
 /**
  * A relative path from the renderer (as git or a scan printed it), resolved inside root. VALIDATION for an
  * absolute path on either OS, any `..` segment, or anything that lands on root itself or outside it.
