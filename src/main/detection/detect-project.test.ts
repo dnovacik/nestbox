@@ -153,9 +153,27 @@ describe('detectProject workspaces', () => {
     expect(d.workspaces[0]?.rootId).toBe('root');
     // The Node module's tasks and summary use the same manager as the scripts.
     expect(d.workspaces.map((w) => w.ecosystems.find((e) => e.id === 'node')?.info)).toEqual([
-      { packageManager: 'pnpm' },
-      { packageManager: 'pnpm' },
+      { packageManager: 'pnpm', packageManagerSource: 'lockfile' },
+      { packageManager: 'pnpm', packageManagerSource: 'lockfile' },
     ]);
+  });
+
+  it("uses the root's packageManager field when nothing has a lockfile, for scripts and the Node module alike", async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ name: 'mono', workspaces: ['packages/*'], packageManager: 'yarn@4.5.0' }),
+      'packages/api/package.json': JSON.stringify({ name: '@mono/api' }),
+    });
+    const d = await detectProject({ id: 'root', path: dir });
+    expect(d.packageManager).toBe('yarn');
+    expect(d.workspaces.map((w) => [w.packageManager, w.ecosystems.find((e) => e.id === 'node')?.info])).toEqual([
+      ['yarn', { packageManager: 'yarn', packageManagerSource: 'packageManager' }],
+    ]);
+    // Without lockfile or field, scripts keep their npm default (null) and the module says npm.
+    await removeTree(dir);
+    dir = await makeTree({ 'package.json': '{}' });
+    const plain = await detectProject({ id: 'p', path: dir });
+    expect(plain.packageManager).toBeNull();
+    expect(plain.ecosystems.find((e) => e.id === 'node')?.info).toEqual({ packageManager: 'npm', packageManagerSource: 'default' });
   });
 
   it('labels warnings from workspace packages with their relative path', async () => {

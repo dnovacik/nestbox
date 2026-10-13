@@ -206,7 +206,7 @@ describe('checkNode', () => {
     const run: Run = vi.fn(async (command: string, args: string[]) =>
       command === 'yarn' && args[0] === '--version' ? ok('4.5.0\n') : ok('', 1),
     );
-    const result = await checkNode({ packageManager: 'yarn' }, run, dir);
+    const result = await checkNode({ packageManager: 'yarn', packageManagerSource: 'lockfile' }, run, dir);
     expect(result?.manager).toBe('yarn-berry');
     expect(result?.rows.map((r) => r.name)).toEqual(['lodash']);
   });
@@ -214,9 +214,9 @@ describe('checkNode', () => {
   it('is null when package.json is missing or not a JSON object', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nestbox-deps-'));
     const run: Run = vi.fn(async () => ok(''));
-    expect(await checkNode({ packageManager: 'npm' }, run, dir)).toBeNull();
+    expect(await checkNode({ packageManager: 'npm', packageManagerSource: 'lockfile' }, run, dir)).toBeNull();
     await writeFile(join(dir, 'package.json'), '[1, 2]');
-    expect(await checkNode({ packageManager: 'npm' }, run, dir)).toBeNull();
+    expect(await checkNode({ packageManager: 'npm', packageManagerSource: 'lockfile' }, run, dir)).toBeNull();
     expect(run).not.toHaveBeenCalled();
   });
 });

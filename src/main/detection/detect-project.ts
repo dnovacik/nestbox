@@ -5,6 +5,7 @@ import {
   type DeployPlatform,
   type DetectedProject,
   type EcosystemEntry,
+  type PackageManager,
   workspaceId,
 } from '@shared/detected';
 import { isRecord } from '@shared/is-record';
@@ -12,6 +13,7 @@ import { ECOSYSTEM_MODULES } from '../ecosystems';
 import type { DetectContext } from '../ecosystems/types';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
+import type { NodeInfo } from '../ecosystems/node/detect';
 import { detectPackageManager } from '../ecosystems/node/package-manager';
 import { findWorkspaceDirs } from './workspaces';
 
@@ -99,6 +101,11 @@ async function readPackageJson(
   return { info: name === undefined ? { scripts } : { name, scripts } };
 }
 
+function nodeFieldManager(ecosystems: readonly EcosystemEntry[]): PackageManager | null {
+  const info = ecosystems.find((e) => e.id === 'node')?.info as NodeInfo | undefined;
+  return info?.packageManagerSource === 'packageManager' ? info.packageManager : null;
+}
+
 async function detectPrisma(dir: string): Promise<string | null> {
   if (await isFile(join(dir, 'prisma', 'schema.prisma'))) return 'prisma/schema.prisma';
   if (await isDirectory(join(dir, 'prisma', 'schema'))) return 'prisma/schema';
@@ -180,7 +187,11 @@ async function detectDir(
     name: target.name ?? pkg?.info.name ?? basename(target.path),
     missing: false,
     packageJson: pkg?.info ?? null,
-    packageManager: (target.root ? detectPackageManager(target.root.files) : null) ?? detectPackageManager(files),
+    // A lockfile, else the Node module's packageManager field; null (npm) for the default.
+    packageManager:
+      (target.root ? detectPackageManager(target.root.files) : null) ??
+      detectPackageManager(files) ??
+      nodeFieldManager(ecosystems),
     envFiles: envFiles.sort(),
     envSymlinks: envSymlinks.sort(),
     workspaces: [],

@@ -28,7 +28,7 @@ describe('nodeModule.runEnv', () => {
   it('gives nothing while the Node tool is off (no settings)', async () => {
     const { module, check } = moduleWith({ warning: 'x', pathPrepend: null, note: null });
     expect(
-      await module.runEnv({ dir: '/x', platform, settings: {} }, { packageManager: 'npm' }),
+      await module.runEnv({ dir: '/x', platform, settings: {} }, { packageManager: 'npm', packageManagerSource: 'lockfile' }),
     ).toEqual({});
     expect(check.advice).not.toHaveBeenCalled();
   });
@@ -47,7 +47,7 @@ describe('nodeModule.runEnv', () => {
         platform,
         settings: { checkVersions: true, fnm: true },
       },
-      { packageManager: 'pnpm' },
+      { packageManager: 'pnpm', packageManagerSource: 'lockfile' },
     );
     expect(check.advice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -64,13 +64,13 @@ describe('nodeModule.runEnv', () => {
     const { module } = moduleWith({ warning: null, pathPrepend: null, note: null });
     const settings = { checkVersions: true, fnm: false };
     expect(
-      await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm' }),
+      await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm', packageManagerSource: 'lockfile' }),
     ).toEqual({});
   });
 });
 
 describe('nodeModule.summary', () => {
   it('names the package manager', () => {
-    expect(nodeModule.summary?.({ packageManager: 'yarn' })).toBe('Node.js · yarn');
+    expect(nodeModule.summary?.({ packageManager: 'yarn', packageManagerSource: 'lockfile' })).toBe('Node.js · yarn');
   });
 });

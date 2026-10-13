@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectPackageManager } from './package-manager';
+import { choosePackageManager, detectPackageManager } from './package-manager';
 
 describe('detectPackageManager', () => {
   it.each([
@@ -19,5 +19,31 @@ describe('detectPackageManager', () => {
 
   it('returns null without a lockfile', () => {
     expect(detectPackageManager(new Set(['package.json']))).toBeNull();
+  });
+});
+
+describe('choosePackageManager', () => {
+  const lock = (file: string) => new Set(['package.json', file]);
+  const bare = new Set(['package.json']);
+
+  it("uses package.json's packageManager when there is no lockfile", () => {
+    expect(choosePackageManager({ files: bare, field: 'pnpm@9.12.0' })).toEqual({ manager: 'pnpm', source: 'packageManager' });
+    expect(choosePackageManager({ files: bare, field: 'yarn@4.5.0+sha512.abc' })).toEqual({ manager: 'yarn', source: 'packageManager' });
+  });
+
+  it('keeps the lockfile over the field: it is what was installed', () => {
+    expect(choosePackageManager({ files: lock('yarn.lock'), field: 'pnpm@9.12.0' })).toEqual({ manager: 'yarn', source: 'lockfile' });
+  });
+
+  it.each([['pnpm'], ['pnpm@latest'], ['deno@2.0.0'], [42], [undefined]])('falls back to npm for %s', (field) => {
+    expect(choosePackageManager({ files: bare, field })).toEqual({ manager: 'npm', source: 'default' });
+  });
+
+  it("follows the root in a workspace package: its lockfile, then its field, then the package's own", () => {
+    const root = { files: bare, field: 'pnpm@9.12.0' };
+    expect(choosePackageManager({ files: bare, field: 'yarn@4.5.0', root })).toEqual({ manager: 'pnpm', source: 'packageManager' });
+    expect(choosePackageManager({ files: lock('yarn.lock'), root })).toEqual({ manager: 'yarn', source: 'lockfile' });
+    expect(choosePackageManager({ files: bare, root: { files: lock('bun.lock'), field: 'pnpm@9.12.0' } })).toEqual({ manager: 'bun', source: 'lockfile' });
+    expect(choosePackageManager({ files: bare, field: 'yarn@4.5.0', root: { files: bare } })).toEqual({ manager: 'yarn', source: 'packageManager' });
   });
 });
