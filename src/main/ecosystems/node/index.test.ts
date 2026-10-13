@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { StartAdvice } from '@shared/tools/node/contract';
 import { detectNode } from './detect';
+import { nodeInfo } from './fixtures';
 import { createNodeModule, nodeModule } from './index';
 import { nodeTasks } from './tasks';
 
@@ -27,12 +28,7 @@ describe('nodeModule.runEnv', () => {
 
   it('gives nothing while the Node tool is off (no settings)', async () => {
     const { module, check } = moduleWith({ warning: 'x', pathPrepend: null, note: null });
-    expect(
-      await module.runEnv(
-        { dir: '/x', platform, settings: {} },
-        { packageManager: 'npm', packageManagerSource: 'lockfile', lockfiles: [] },
-      ),
-    ).toEqual({});
+    expect(await module.runEnv({ dir: '/x', platform, settings: {} }, nodeInfo())).toEqual({});
     expect(check.advice).not.toHaveBeenCalled();
   });
 
@@ -50,7 +46,7 @@ describe('nodeModule.runEnv', () => {
         platform,
         settings: { checkVersions: true, fnm: true },
       },
-      { packageManager: 'pnpm', packageManagerSource: 'lockfile', lockfiles: [] },
+      nodeInfo({ packageManager: 'pnpm' }),
     );
     expect(check.advice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -69,11 +65,11 @@ describe('nodeModule.runEnv', () => {
     const settings = { checkVersions: true, fnm: false };
     await module.runEnv(
       { dir: '/x', platform, settings },
-      { packageManager: 'npm', packageManagerSource: 'default', lockfiles: [] },
+      nodeInfo({ packageManagerSource: 'default' }),
     );
     await module.runEnv(
       { dir: '/x', platform, settings },
-      { packageManager: 'pnpm', packageManagerSource: 'packageManager', lockfiles: [] },
+      nodeInfo({ packageManager: 'pnpm', packageManagerSource: 'packageManager' }),
     );
     expect(check.advice).toHaveBeenNthCalledWith(
       1,
@@ -88,30 +84,22 @@ describe('nodeModule.runEnv', () => {
   it('leaves out what the advice has nothing for', async () => {
     const { module } = moduleWith({ warning: null, pathPrepend: null, note: null });
     const settings = { checkVersions: true, fnm: false };
-    expect(
-      await module.runEnv(
-        { dir: '/x', platform, settings },
-        { packageManager: 'npm', packageManagerSource: 'lockfile', lockfiles: [] },
-      ),
-    ).toEqual({});
+    expect(await module.runEnv({ dir: '/x', platform, settings }, nodeInfo())).toEqual({});
   });
 });
 
 describe('nodeModule.summary', () => {
   it('names the package manager', () => {
+    expect(nodeModule.summary?.(nodeInfo({ packageManager: 'yarn' }))).toBe('Node.js · yarn');
     expect(
-      nodeModule.summary?.({
-        packageManager: 'yarn',
-        packageManagerSource: 'lockfile',
-        lockfiles: [],
-      }),
-    ).toBe('Node.js · yarn');
-    expect(
-      nodeModule.summary?.({
-        packageManager: 'yarn',
-        packageManagerSource: 'lockfile',
-        lockfiles: ['yarn.lock', 'package-lock.json'],
-      }),
+      nodeModule.summary?.(
+        nodeInfo({ packageManager: 'yarn', lockfiles: ['yarn.lock', 'package-lock.json'] }),
+      ),
     ).toBe('Node.js · yarn · 2 lockfiles');
+    expect(
+      nodeModule.summary?.(
+        nodeInfo({ packageManager: 'pnpm', framework: { id: 'next', major: 15 } }),
+      ),
+    ).toBe('Node.js · pnpm · Next.js 15');
   });
 });

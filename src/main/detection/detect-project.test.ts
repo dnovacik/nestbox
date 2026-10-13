@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detectProject } from './detect-project';
 import { makeTree, removeTree } from './test-fixtures';
+import { nodeInfo } from '../ecosystems/node/fixtures';
 
 let dir = '';
 afterEach(async () => removeTree(dir));
@@ -153,8 +154,8 @@ describe('detectProject workspaces', () => {
     expect(d.workspaces[0]?.rootId).toBe('root');
     // The Node module's tasks and summary use the same manager as the scripts.
     expect(d.workspaces.map((w) => w.ecosystems.find((e) => e.id === 'node')?.info)).toEqual([
-      { packageManager: 'pnpm', packageManagerSource: 'lockfile', lockfiles: expect.any(Array) },
-      { packageManager: 'pnpm', packageManagerSource: 'lockfile', lockfiles: expect.any(Array) },
+      nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
+      nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
     ]);
   });
 
@@ -167,7 +168,7 @@ describe('detectProject workspaces', () => {
     const d = await detectProject({ id: 'root', path: dir });
     expect(d.packageManager).toBe('yarn');
     expect(d.workspaces.map((w) => [w.packageManager, w.ecosystems.find((e) => e.id === 'node')?.info])).toEqual([
-      ['yarn', { packageManager: 'yarn', packageManagerSource: 'packageManager', lockfiles: [] }],
+      ['yarn', nodeInfo({ packageManager: 'yarn', packageManagerSource: 'packageManager' })],
     ]);
     // Without lockfile or field, scripts keep their npm default (null) and the module says npm.
     await removeTree(dir);
@@ -178,6 +179,7 @@ describe('detectProject workspaces', () => {
       packageManager: 'npm',
       packageManagerSource: 'default',
       lockfiles: [],
+      framework: null,
     });
   });
 

@@ -15,12 +15,11 @@ import { ProcessManager } from '../../processes/process-manager';
 import { createSharedContext } from '../shared-context';
 import { createToolHost } from '../tool-host';
 import { createScriptsTool, PROCESSES_FACT } from './index';
+import { nodeInfo } from '../../ecosystems/node/fixtures';
 
 const ROOT = resolve('/dev/shop');
 /** What detection gives a folder with a package.json. */
-const NODE = [
-  { id: 'node' as const, info: { packageManager: 'npm', packageManagerSource: 'lockfile', lockfiles: [] } },
-];
+const NODE = [{ id: 'node' as const, info: nodeInfo() }];
 
 /** The Node module's version advice, faked at the shared check (the real one would run node --version). */
 let advice: MockInstance<typeof nodeVersionCheck.advice>;

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeInfo } from './detect';
+import { nodeInfo } from './fixtures';
 import { nodeTasks } from './tasks';
 
 function info(packageManager: NodeInfo['packageManager'] = 'npm'): NodeInfo {
-  return { packageManager, packageManagerSource: 'lockfile', lockfiles: [] };
+  return nodeInfo({ packageManager });
 }
 
 describe('nodeTasks', () => {
