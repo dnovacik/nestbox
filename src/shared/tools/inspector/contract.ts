@@ -70,7 +70,8 @@ export const InspectorStatusSchema = z.object({
   url: z.string().nullable(),
   /** Where requests go; null when there is neither a setting nor a PORT in .env. */
   target: z.string().nullable(),
-  targetSource: z.enum(['setting', 'env']).nullable(),
+  /** Where the target comes from: the setting, PORT in .env, or a port an ecosystem detected. */
+  targetSource: z.enum(['setting', 'env', 'detected']).nullable(),
   /** Running with another port or target than configured: restart to apply. */
   configChanged: z.boolean(),
   count: z.number().int(),

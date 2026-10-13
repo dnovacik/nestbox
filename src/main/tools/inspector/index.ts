@@ -23,6 +23,7 @@ import { buildCurl } from './curl';
 import { createProxyHandler, sendRequest } from './proxy';
 import { createTunnel, type Tunnel } from './tunnel';
 import { type Entry, EntryRing, type HeaderPairs, headerOf, sideView, summarize } from './record';
+import { ecosystemPorts } from '../../ecosystems';
 
 export interface InspectorToolDeps {
   logger: Logger;
@@ -100,10 +101,14 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
     entriesChanged(state);
   }
 
-  /** The configured target, else http://localhost:<PORT> from the package's .env (only the number is read). */
+  /**
+   * The configured target, else http://localhost:<PORT> from the package's .env (only the number
+   * is read), else the first port the package's ecosystems detected (a dev script's --port, a
+   * framework's default, a .NET launch profile).
+   */
   async function resolveTarget(
     ctx: Ctx,
-  ): Promise<{ target: string; source: 'setting' | 'env' } | null> {
+  ): Promise<{ target: string; source: InspectorStatus['targetSource'] & string } | null> {
     const config = configOf(ctx);
     if (config.target) return { target: config.target, source: 'setting' };
     const text = await deps.envFiles
@@ -112,7 +117,11 @@ export function createInspectorTool(deps: InspectorToolDeps): AnyMainTool {
       .catch(() => null);
     const port = text === null ? '' : (envEntries(parseEnv(text)).get('PORT')?.trim() ?? '');
     const n = /^\d{1,5}$/.test(port) ? Number(port) : NaN;
-    return n >= 1 && n <= 65_535 ? { target: `http://localhost:${n}`, source: 'env' } : null;
+    if (n >= 1 && n <= 65_535) return { target: `http://localhost:${n}`, source: 'env' };
+    const detected = ecosystemPorts(ctx.project)[0];
+    return detected === undefined
+      ? null
+      : { target: `http://localhost:${detected}`, source: 'detected' };
   }
 
   async function statusOf(ctx: Ctx): Promise<InspectorStatus> {

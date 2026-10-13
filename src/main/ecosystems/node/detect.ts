@@ -5,6 +5,7 @@ import { PACKAGE_MANAGERS } from '@shared/detected';
 import type { DetectContext } from '../types';
 import { detectFramework, FrameworkSchema } from './framework';
 import { readPackageJson } from './package-json';
+import { nodePorts } from './ports';
 import { choosePackageManager, lockfilesIn, PACKAGE_MANAGER_SOURCES } from './package-manager';
 
 /**
@@ -18,12 +19,22 @@ export const NodeInfoSchema = z.object({
   lockfiles: z.array(z.string()),
   /** From dependency names (Next.js before Vite, …); null when none is known. */
   framework: FrameworkSchema.nullable(),
+  /** Where the dev server listens: ports the dev/start scripts name, then the framework's default. */
+  ports: z.array(z.number().int().min(1).max(65_535)),
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
 /** The manager a lockfile names; null when it came from the packageManager field or npm's default. */
 export function lockfileManager(info: NodeInfo): NodeInfo['packageManager'] | null {
   return info.packageManagerSource === 'lockfile' ? info.packageManager : null;
+}
+
+function scriptsOf(json: Record<string, unknown> | null): Record<string, string> {
+  const scripts = json?.['scripts'];
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) return {};
+  return Object.fromEntries(
+    Object.entries(scripts).filter((e): e is [string, string] => typeof e[1] === 'string'),
+  );
 }
 
 /**
@@ -55,10 +66,12 @@ export async function detectNode(
           },
         });
   const rootLockfiles = root ? lockfilesIn(root.files) : [];
+  const framework = detectFramework(json);
   return {
     packageManager: manager,
     packageManagerSource: source,
     lockfiles: rootLockfiles.length > 0 ? rootLockfiles : lockfilesIn(files),
-    framework: detectFramework(json),
+    framework,
+    ports: nodePorts(scriptsOf(json), framework),
   };
 }

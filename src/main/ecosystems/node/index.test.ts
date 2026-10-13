@@ -88,6 +88,12 @@ describe('nodeModule.runEnv', () => {
   });
 });
 
+describe('nodeModule.ports', () => {
+  it("gives detection's ports to Health and the Inspector", () => {
+    expect(nodeModule.ports?.(nodeInfo({ ports: [3001, 5173] }))).toEqual([3001, 5173]);
+  });
+});
+
 describe('nodeModule.summary', () => {
   it('names the package manager', () => {
     expect(nodeModule.summary?.(nodeInfo({ packageManager: 'yarn' }))).toBe('Node.js · yarn');

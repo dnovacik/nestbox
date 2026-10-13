@@ -19,10 +19,13 @@ import { useInspector, useInspectorActions } from './use-inspector';
 function TargetField({
   value,
   fallback,
+  fallbackSource,
   onSave,
 }: {
   value: string | null;
   fallback: string | null;
+  /** What the placeholder names as the fallback's origin. */
+  fallbackSource: string | null;
   onSave(v: string | null): void;
 }) {
   const [text, setText] = useState(value ?? '');
@@ -48,7 +51,9 @@ function TargetField({
       <Input
         aria-label="API address"
         value={text}
-        placeholder={fallback ? `${fallback} (PORT from .env)` : 'http://localhost:3000'}
+        placeholder={
+          fallback ? `${fallback} (${fallbackSource ?? 'default'})` : 'http://localhost:3000'
+        }
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
@@ -98,7 +103,13 @@ export default function InspectorPanel({ projectId }: ToolPanelProps) {
       : entries.filter((e) =>
           `${e.method} ${e.path} ${e.status ?? e.error ?? ''}`.toLowerCase().includes(needle),
         );
-  const envTarget = status.targetSource === 'env' ? status.target : null;
+  const fallback =
+    status.targetSource === 'env' || status.targetSource === 'detected'
+      ? {
+          target: status.target,
+          source: status.targetSource === 'env' ? 'PORT from .env' : 'detected',
+        }
+      : null;
 
   return (
     <section aria-label="Inspector" className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
@@ -123,7 +134,8 @@ export default function InspectorPanel({ projectId }: ToolPanelProps) {
         <ArrowRight className="mt-1 size-3.5 text-fg-faint" aria-hidden />
         <TargetField
           value={config.target}
-          fallback={envTarget}
+          fallback={fallback?.target ?? null}
+          fallbackSource={fallback?.source ?? null}
           onSave={(target) => actions.setOptions.mutate({ target })}
         />
         <div className="ml-auto flex items-center gap-2 text-xs text-fg-muted">

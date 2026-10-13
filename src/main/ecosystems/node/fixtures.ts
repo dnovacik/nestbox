@@ -8,6 +8,7 @@ export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
     packageManagerSource: 'lockfile',
     lockfiles: [],
     framework: null,
+    ports: [],
     ...over,
   };
 }
