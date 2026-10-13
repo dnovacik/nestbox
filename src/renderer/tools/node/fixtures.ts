@@ -9,6 +9,7 @@ export function nodeStatus(over: Partial<NodeStatus> = {}): NodeStatus {
     packageManager: null,
     lockfileWarning: null,
     manager: null,
+    fixes: { fnmInstall: null, nvm: null, nvmrc: null },
     fnm: { available: false, on: false, version: '20' },
     checkedAt: Date.now(),
     ...over,

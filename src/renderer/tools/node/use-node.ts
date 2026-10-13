@@ -26,6 +26,25 @@ export function useNodeActions(projectId: string) {
       onSuccess: put,
       onError,
     }),
+    fnmInstall: useMutation({
+      mutationFn: () => api.tools.invoke('node', projectId, 'fnmInstall', {}),
+      onSuccess: () => toast.success('Opened a terminal with fnm install'),
+      onError,
+    }),
+    copyNvmCommand: useMutation({
+      mutationFn: () => api.tools.invoke('node', projectId, 'copyNvmCommand', {}),
+      onSuccess: () => toast.success('Copied the nvm commands'),
+      onError,
+    }),
+    createNvmrc: useMutation({
+      mutationFn: () => api.tools.invoke('node', projectId, 'createNvmrc', {}),
+      onSuccess: (status) => {
+        put(status);
+        // The file is the root's: its workspace packages read it too.
+        void queryClient.invalidateQueries({ queryKey: ['tool', 'node'] });
+      },
+      onError,
+    }),
     setFnm: useMutation({
       mutationFn: (enabled: boolean) => api.tools.invoke('node', projectId, 'setFnm', { enabled }),
       onSuccess: (status) => {

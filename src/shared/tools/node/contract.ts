@@ -45,6 +45,17 @@ export type VersionManager = (typeof VERSION_MANAGERS)[number];
 export const NODE_STATES = ['ok', 'mismatch', 'conflict', 'unknown'] as const;
 export type NodeState = (typeof NODE_STATES)[number];
 
+/** What the Node tab can do about the status, each on the user's click. Version tokens are plain words. */
+export const NodeFixesSchema = z.object({
+  /** fnm is found and Node doesn't match: `fnm install <this>` in a terminal. */
+  fnmInstall: z.string().nullable(),
+  /** nvm or nvm-windows and Node doesn't match: the commands to copy. */
+  nvm: z.string().nullable(),
+  /** No .nvmrc or .node-version in the package or its root: the version to write to the root's .nvmrc. */
+  nvmrc: z.string().nullable(),
+});
+export type NodeFixes = z.infer<typeof NodeFixesSchema>;
+
 export const NodeStatusSchema = z.object({
   state: z.enum(NODE_STATES),
   sources: z.array(SourceViewSchema),
@@ -71,6 +82,7 @@ export const NodeStatusSchema = z.object({
   /** Lockfiles of more than one manager ("Two lockfiles: …; NestBox uses yarn"); null otherwise. */
   lockfileWarning: z.string().nullable().default(null),
   manager: z.enum(VERSION_MANAGERS).nullable(),
+  fixes: NodeFixesSchema.default({ fnmInstall: null, nvm: null, nvmrc: null }),
   fnm: z.object({
     /** fnm was found and the requirement gives it a version. */
     available: z.boolean(),
@@ -99,4 +111,10 @@ export const nodeContract = defineContract({
   setFnm: { input: z.strictObject({ enabled: z.boolean() }), output: NodeStatusSchema },
   /** Asked by the scripts tool before each start. */
   startAdvice: { input: z.strictObject({}), output: StartAdviceSchema },
+  /** Opens a terminal with `fnm install <version>` (fixes.fnmInstall); CONFLICT when there is none. */
+  fnmInstall: { input: z.strictObject({}), output: z.void() },
+  /** Writes fixes.nvm to the clipboard from main; CONFLICT when there is none. */
+  copyNvmCommand: { input: z.strictObject({}), output: z.void() },
+  /** Writes fixes.nvmrc to the root's .nvmrc (never over an existing one: CONFLICT) and checks again. */
+  createNvmrc: { input: z.strictObject({}), output: NodeStatusSchema },
 });

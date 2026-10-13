@@ -5,6 +5,7 @@
 import { dirname, join } from 'node:path';
 import type { PackageManager } from '@shared/detected';
 import {
+  type NodeFixes,
   type NodeState,
   type NodeStatus,
   SOURCE_KINDS,
@@ -196,6 +197,17 @@ async function check(input: NodeCheckInput): Promise<NodeStatus> {
     };
   }
 
+  const fixes = fixesFor({
+    nodeVersion,
+    nodeOk,
+    manager,
+    fnmAvailable: fnmFound,
+    platformId: platform.id,
+    wanted: fnmVersion,
+    hasVersionFile: sources.some((s) => s.kind === 'nvmrc' || s.kind === 'node-version'),
+    engines: sources.find((s) => s.kind === 'engines' && s.valid)?.requirement?.fnmVersion ?? null,
+  });
+
   const state: NodeState =
     nodeOk === false || packageManager?.ok === false
       ? 'mismatch'
@@ -216,8 +228,40 @@ async function check(input: NodeCheckInput): Promise<NodeStatus> {
       input.packageManager ?? detectPackageManager(new Set(input.lockfiles)) ?? 'npm',
     ),
     manager,
+    fixes,
     fnm: { available: fnmFound && fnmVersion !== null, on: fnmOn, version: fnmVersion },
     checkedAt: Date.now(),
+  };
+}
+
+/** A version that reaches a terminal or cmd.exe as one plain word: `18`, `20.11.1`, `lts/iron` (not `lts/*`). */
+const PLAIN_VERSION = /^[a-z0-9][a-z0-9./-]*$/;
+
+function fixesFor(o: {
+  nodeVersion: string | null;
+  nodeOk: boolean | null;
+  manager: NodeStatus['manager'];
+  fnmAvailable: boolean;
+  platformId: PlatformAdapter['id'];
+  /** The requirement's version as fnm and nvm spell it. */
+  wanted: string | null;
+  hasVersionFile: boolean;
+  /** engines.node's lowest major. */
+  engines: string | null;
+}): NodeFixes {
+  const wanted = o.wanted !== null && PLAIN_VERSION.test(o.wanted) ? o.wanted : null;
+  const mismatch = o.nodeOk === false && wanted !== null;
+  // nvm-windows takes numbers only (no codenames).
+  const nvmWanted =
+    o.manager === 'nvm-windows' && !/^\d+(\.\d+){0,2}$/.test(wanted ?? '') ? null : wanted;
+  const running = /^v?(\d+)\./.exec(o.nodeVersion ?? '')?.[1] ?? null;
+  return {
+    fnmInstall: mismatch && o.fnmAvailable ? wanted : null,
+    nvm:
+      mismatch && nvmWanted !== null && (o.manager === 'nvm' || o.manager === 'nvm-windows')
+        ? `nvm install ${nvmWanted} && nvm use ${nvmWanted}`
+        : null,
+    nvmrc: o.hasVersionFile ? null : (o.engines ?? running),
   };
 }
 

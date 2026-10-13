@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -13,13 +13,24 @@ import { createNodeTool } from './index';
 
 // The tool's own job: which package and root it checks, the fnm switch, logging. The check itself is tested
 // in ecosystems/node/version-check.test.ts.
-async function setup(o: { rootKnown?: boolean; commands?: string[] } = {}) {
+async function setup(
+  o: {
+    rootKnown?: boolean;
+    commands?: string[];
+    platformId?: 'win32' | 'darwin';
+    nvmrc?: string | null;
+    packageJson?: Record<string, unknown>;
+  } = {},
+) {
   const rootPath = await mkdtemp(join(tmpdir(), 'nestbox-node-tool-'));
   const pkgPath = join(rootPath, 'packages', 'api');
   await mkdir(pkgPath, { recursive: true });
-  await writeFile(join(rootPath, '.nvmrc'), '18\n');
+  if (o.nvmrc !== null) await writeFile(join(rootPath, '.nvmrc'), o.nvmrc ?? '18\n');
   await writeFile(join(rootPath, 'package.json'), '{"name":"shop"}');
-  await writeFile(join(pkgPath, 'package.json'), '{"name":"@shop/api"}');
+  await writeFile(
+    join(pkgPath, 'package.json'),
+    JSON.stringify({ name: '@shop/api', ...o.packageJson }),
+  );
   const root = makeDetectedForTest({
     id: 'r1',
     rootId: 'r1',
@@ -40,7 +51,8 @@ async function setup(o: { rootKnown?: boolean; commands?: string[] } = {}) {
   };
   const platform = {
     ...fakePlatform(),
-    id: 'darwin',
+    id: o.platformId ?? 'darwin',
+    openTerminal: vi.fn(async (_cwd: string, _command?: string) => {}),
     execCommand: vi.fn(
       async (command: string, args: readonly string[]) =>
         exec[`${command} ${args.join(' ')}`] ?? { code: 1, stdout: '' },
@@ -50,8 +62,10 @@ async function setup(o: { rootKnown?: boolean; commands?: string[] } = {}) {
   };
   let settings: NodeSettings = { fnm: false };
   const logger = createMemoryLogger();
+  const clipboard = { writeText: vi.fn((_text: string) => {}) };
   const tool = createNodeTool({
     logger,
+    clipboard,
     getDetected: (id) => {
       if (id === 'r1' && o.rootKnown !== false) return root;
       throw new NestboxError('NOT_FOUND', 'Project not found');
@@ -70,7 +84,17 @@ async function setup(o: { rootKnown?: boolean; commands?: string[] } = {}) {
   const call = <T>(method: string, input: unknown = {}) =>
     tool.handlers[method]?.(ctx, input) as Promise<T>;
   const nodeRuns = () => platform.execCommand.mock.calls.filter(([c]) => c === 'node').length;
-  return { call, tool, logger, nodeRuns, settings: () => settings };
+  return {
+    call,
+    tool,
+    logger,
+    nodeRuns,
+    settings: () => settings,
+    platform,
+    clipboard,
+    rootPath,
+    pkgPath,
+  };
 }
 
 describe('node tool', () => {
@@ -117,5 +141,52 @@ describe('node tool', () => {
     tool.forgetProject?.('r1');
     await call('status');
     expect(nodeRuns()).toBe(3);
+  });
+
+  it('installs the required Node with fnm in a terminal when it does not match', async () => {
+    const { call, platform, pkgPath } = await setup({ commands: ['fnm'] });
+    expect((await call<NodeStatus>('status')).fixes).toMatchObject({
+      fnmInstall: '18',
+      nvm: null,
+      nvmrc: null,
+    });
+    await call('fnmInstall');
+    expect(platform.openTerminal).toHaveBeenCalledWith(pkgPath, 'fnm install 18');
+  });
+
+  it('copies the nvm commands (nvm-windows only for plain versions)', async () => {
+    const { call, clipboard } = await setup({ commands: ['nvm'], platformId: 'win32' });
+    expect((await call<NodeStatus>('status')).fixes.nvm).toBe('nvm install 18 && nvm use 18');
+    await call('copyNvmCommand');
+    expect(clipboard.writeText).toHaveBeenCalledWith('nvm install 18 && nvm use 18');
+    const codename = await setup({
+      commands: ['nvm'],
+      platformId: 'win32',
+      nvmrc: 'lts/hydrogen\n',
+    });
+    expect((await codename.call<NodeStatus>('status')).fixes.nvm).toBeNull();
+  });
+
+  it("creates the root's .nvmrc from engines.node, once", async () => {
+    const { call, rootPath } = await setup({
+      nvmrc: null,
+      packageJson: { engines: { node: '>=20.9' } },
+    });
+    expect((await call<NodeStatus>('status')).fixes.nvmrc).toBe('20');
+    const after = await call<NodeStatus>('createNvmrc');
+    expect(await readFile(join(rootPath, '.nvmrc'), 'utf8')).toBe('20\n');
+    expect(after.sources[0]).toMatchObject({ kind: 'nvmrc', value: '20', fromRoot: true });
+    expect(after.fixes.nvmrc).toBeNull();
+    await expect(call('createNvmrc')).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it("offers the running Node's major for .nvmrc without any requirement, and nothing to run", async () => {
+    const { call } = await setup({ nvmrc: null, commands: ['fnm'] });
+    expect((await call<NodeStatus>('status')).fixes).toEqual({
+      fnmInstall: null,
+      nvm: null,
+      nvmrc: '20',
+    });
+    await expect(call('fnmInstall')).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 });

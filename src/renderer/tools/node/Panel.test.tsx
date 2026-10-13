@@ -78,4 +78,29 @@ describe('NodePanel', () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it('offers the fixes main computed, each through main', async () => {
+    const { calls } = setup(
+      nodeStatus({
+        state: 'mismatch',
+        manager: 'fnm',
+        fixes: { fnmInstall: '18', nvm: 'nvm install 18 && nvm use 18', nvmrc: '20' },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Install Node 18 with fnm' }));
+    expect(screen.getByText('nvm install 18 && nvm use 18')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create .nvmrc (20)' }));
+    await waitFor(() =>
+      expect(calls.map((c) => c.method)).toEqual(
+        expect.arrayContaining(['fnmInstall', 'copyNvmCommand', 'createNvmrc']),
+      ),
+    );
+  });
+
+  it('shows no fix buttons when there is nothing to fix', async () => {
+    setup(nodeStatus());
+    await screen.findByRole('list', { name: 'Sources' });
+    expect(screen.queryByRole('button', { name: /with fnm|Copy|Create \.nvmrc/ })).toBeNull();
+  });
 });
