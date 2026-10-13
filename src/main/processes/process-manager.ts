@@ -57,7 +57,7 @@ export interface StartRequest {
 }
 
 /** The env with `dir` first on PATH, under whatever casing the env uses for it (Windows: Path). */
-function withPathFirst(env: NodeJS.ProcessEnv, dir: string): NodeJS.ProcessEnv {
+export function withPathFirst(env: NodeJS.ProcessEnv, dir: string): NodeJS.ProcessEnv {
   const key = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
   const current = env[key];
   return { ...env, [key]: current ? `${dir}${delimiter}${current}` : dir };

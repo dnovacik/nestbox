@@ -52,6 +52,8 @@ export const DotnetInfoSchema = z.object({
   isTest: z.boolean(),
   /** The database providers the project references (Npgsql, SqlClient, …), by provider name. */
   dbProviders: z.array(z.enum(DB_PROVIDERS)).default([]),
+  /** References Microsoft.EntityFrameworkCore.Design, which `dotnet ef` needs. */
+  efDesign: z.boolean().default(false),
   /** The SDK global.json asks for (this folder or above), with its roll-forward policy. */
   sdk: z.object({ version: z.string(), rollForward: z.enum(ROLL_FORWARD) }).nullable(),
   /**
@@ -102,7 +104,7 @@ const TEST_PACKAGES =
 
 export function parseProjectFile(
   xml: string,
-): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest' | 'dbProviders'> {
+): Pick<DotnetInfo, 'targetFrameworks' | 'isWeb' | 'isTest' | 'dbProviders' | 'efDesign'> {
   const text = xml.replace(/<!--[\s\S]*?-->/g, '');
   const sdk = /<Project\b[^>]*\bSdk\s*=\s*"([^"]*)"/i.exec(text)?.[1] ?? '';
   const frameworks =
@@ -123,6 +125,7 @@ export function parseProjectFile(
     dbProviders: DB_PROVIDERS.filter((provider) =>
       packages.some((p) => DB_PACKAGES.some(([pattern, of]) => of === provider && pattern.test(p))),
     ),
+    efDesign: packages.some((p) => /^Microsoft.EntityFrameworkCore.Design$/i.test(p)),
   };
 }
 
@@ -192,7 +195,7 @@ export async function detectDotnet(
   if (solution === null && project === null) return null;
   const facts =
     project === null
-      ? { targetFrameworks: [], isWeb: false, isTest: false, dbProviders: [] }
+      ? { targetFrameworks: [], isWeb: false, isTest: false, dbProviders: [], efDesign: false }
       : parseProjectFile((await readSmall(join(dir, project), PROJECT_MAX)) ?? '');
   const launchProfiles =
     project === null

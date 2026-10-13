@@ -1,0 +1,24 @@
+info:    Build started...
+info:    Build succeeded.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (8ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "MigrationId", "ProductVersion"
+      FROM "__EFMigrationsHistory"
+      ORDER BY "MigrationId";
+data:    [
+data:      {
+data:        "id": "20261012151146_Init",
+data:        "name": "Init",
+data:        "safeName": "Init",
+data:        "applied": true
+data:      },
+data:      {
+data:        "id": "20261012151151_AddOrders",
+data:        "name": "AddOrders",
+data:        "safeName": "AddOrders",
+data:        "applied": false
+data:      }
+data:    ]

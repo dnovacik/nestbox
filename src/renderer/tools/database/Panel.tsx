@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { ToolPanelProps } from '../types';
 import { ConnectionsCard } from './ConnectionsCard';
+import { EfCard } from './EfCard';
 import { REACH_LABELS, TONE_TEXT, targetLabel, urlProblem } from './labels';
 import { databaseLogSource, useDatabaseActions, useDatabaseStatus } from './use-database';
 
@@ -113,11 +114,13 @@ function PrismaActions({ status, projectId }: { status: DbStatus; projectId: str
 
 /**
  * Where DATABASE_URL points, whether it answers and logs in, and the project's Prisma commands; in a .NET
- * package, its ConnectionStrings for the environment picked here (kept while the tab is open, never stored).
+ * package, its ConnectionStrings and EF Core migrations for the environment (and DbContext) picked here,
+ * kept while the tab is open, never stored.
  */
 export default function DatabasePanel({ projectId }: ToolPanelProps) {
   const [environment, setEnvironment] = useState<string | undefined>(undefined);
-  const { data: status, isError, refetch, isFetching } = useDatabaseStatus(projectId, environment);
+  const [context, setContext] = useState<string | undefined>(undefined);
+  const { data: status, isError, refetch, isFetching } = useDatabaseStatus(projectId, environment, context);
   const source = useMemo(() => databaseLogSource(projectId), [projectId]);
   if (isError) return <p className="text-sm text-fg-muted">Couldn't read the database settings.</p>;
   if (!status) return <p className="text-sm text-fg-muted">Loading…</p>;
@@ -133,13 +136,19 @@ export default function DatabasePanel({ projectId }: ToolPanelProps) {
       {status.dotnet && <ConnectionsCard dotnet={status.dotnet} onEnvironment={setEnvironment} />}
       {/* A .NET package shows the DATABASE_URL card only when it has Prisma or the URL. */}
       {(status.dotnet === null || status.prisma !== null || status.url.state === 'set') && <Summary status={status} projectId={projectId} />}
-      {status.prisma ? (
-        <>
-          <PrismaActions status={status} projectId={projectId} />
-          <div className="flex min-h-64 flex-1 flex-col">
-            <LogView source={source} name="Prisma" emptyHint="Run a Prisma command to see its output." />
-          </div>
-        </>
+      {status.prisma && <PrismaActions status={status} projectId={projectId} />}
+      {status.ef && (
+        <EfCard projectId={projectId} ef={status.ef} environment={status.dotnet?.environment ?? 'Production'} running={status.running.command} onContext={setContext} />
+      )}
+      {status.prisma || status.ef ? (
+        // One log for both: a package with Prisma and EF Core shares it.
+        <div className="flex min-h-64 flex-1 flex-col">
+          <LogView
+            source={source}
+            name={status.prisma ? 'Prisma' : 'EF Core'}
+            emptyHint={status.prisma ? 'Run a Prisma command to see its output.' : 'Run an EF Core command to see its output.'}
+          />
+        </div>
       ) : (
         status.dotnet === null && <p className="text-xs text-fg-muted">No Prisma schema in this package: only the connection check is available.</p>
       )}

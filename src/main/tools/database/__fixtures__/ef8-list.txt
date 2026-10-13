@@ -1,0 +1,17 @@
+info:    Build started...
+info:    Build succeeded.
+warn:    The Entity Framework tools version '8.0.27' is older than that of the runtime '10.0.0'. Update the tools for the latest features and bug fixes. See https://aka.ms/AAc1fbw for more information.
+data:    [
+data:      {
+data:        "id": "20261012151146_Init",
+data:        "name": "Init",
+data:        "safeName": "Init",
+data:        "applied": null
+data:      },
+data:      {
+data:        "id": "20261012151249_AddOrders",
+data:        "name": "AddOrders",
+data:        "safeName": "AddOrders",
+data:        "applied": null
+data:      }
+data:    ]

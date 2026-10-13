@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import type { PrismaCommand } from '@shared/tools/database/contract';
+import type { EfInput, PrismaCommand } from '@shared/tools/database/contract';
 import type { LogSource } from '@/components/log/log-source';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -15,9 +15,10 @@ export const databaseStatusKey = (projectId: string) => queryKeys.tool('database
  * Where DATABASE_URL points and whether it answers. Refetched when a command starts or stops, when the
  * env tool changes a .env file of the same package (an edit or a profile switch), and on window focus
  * (a database started outside NestBox). environment: the .NET environment whose ConnectionStrings to read
- * (undefined: the first launch profile's); switching keeps the previous result on screen while it loads.
+ * (undefined: the first launch profile's); context: the EF DbContext (undefined: the first). Switching keeps
+ * the previous result on screen while it loads.
  */
-export function useDatabaseStatus(projectId: string, environment?: string) {
+export function useDatabaseStatus(projectId: string, environment?: string, context?: string) {
   const queryClient = useQueryClient();
   const refetch = () => void queryClient.invalidateQueries({ queryKey: databaseStatusKey(projectId) });
   useToolEvent('database', projectId, 'changed', refetch);
@@ -28,8 +29,12 @@ export function useDatabaseStatus(projectId: string, environment?: string) {
     return () => window.removeEventListener('focus', onFocus);
   }, [queryClient, projectId]);
   return useQuery({
-    queryKey: [...databaseStatusKey(projectId), environment ?? null],
-    queryFn: () => api.tools.invoke('database', projectId, 'status', environment === undefined ? {} : { environment }),
+    queryKey: [...databaseStatusKey(projectId), environment ?? null, context ?? null],
+    queryFn: () =>
+      api.tools.invoke('database', projectId, 'status', {
+        ...(environment === undefined ? {} : { environment }),
+        ...(context === undefined ? {} : { context }),
+      }),
     // The other environment's result, never another project's.
     placeholderData: (previous, query) => (query?.queryKey[2] === projectId ? previous : undefined),
   });
@@ -52,11 +57,17 @@ export function useDatabaseActions(projectId: string) {
       onError,
     }),
     migrateDev: useMutation({ mutationFn: () => api.tools.invoke('database', projectId, 'migrateDev', {}), onError }),
+    ef: useMutation({ mutationFn: (input: EfInput) => api.tools.invoke('database', projectId, 'ef', input), onSettled: refresh, onError }),
+    copyInstallCommand: useMutation({
+      mutationFn: () => api.tools.invoke('database', projectId, 'copyInstallCommand', {}),
+      onSuccess: () => toast.success('Copied'),
+      onError,
+    }),
     startStudio: useMutation({ mutationFn: () => api.tools.invoke('database', projectId, 'startStudio', {}), onSettled: refresh, onError }),
   };
 }
 
-/** Prisma command output: snapshots from getLogs, batches from the 'logs' event. */
+/** Prisma and EF Core command output: snapshots from getLogs, batches from the 'logs' event. */
 export function databaseLogSource(projectId: string): LogSource {
   return {
     key: JSON.stringify(['database', projectId]),

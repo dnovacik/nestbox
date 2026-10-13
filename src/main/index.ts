@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { watch } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, type BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, systemPreferences, Tray } from 'electron';
@@ -10,6 +11,7 @@ import type { EventChannel } from '@shared/ipc-names';
 import { healthDefinition } from '@shared/tools/health/contract';
 import { brandAsset } from './assets';
 import { detectProject } from './detection/detect-project';
+import { dotnetModule } from './ecosystems/dotnet';
 import { isDirectory } from './detection/fs-utils';
 import { createCoreHandlers } from './ipc/core-handlers';
 import { registerIpc } from './ipc/register';
@@ -266,7 +268,7 @@ if (!app.requestSingleInstanceLock()) {
         logger,
       },
       git: { watch: watchDir, logger },
-      database: { envFiles, configFiles, checkReachable, firstFreePort, logger },
+      database: { envFiles, configFiles, checkReachable, firstFreePort, logger, clipboard: { writeText: (text) => clipboard.writeText(text) }, home: homedir(), dotnetRunEnv: (c, i) => dotnetModule.runEnv(c, i) },
       todos: { logger },
       health: {
         // Gated: while Health is off it sees no live scripts, so no checks run.

@@ -108,6 +108,7 @@ describe('checkDotnet', () => {
     isWeb: false,
     isTest: false,
     dbProviders: [],
+    efDesign: false,
     sdk: null,
     launchProfiles: [],
   };

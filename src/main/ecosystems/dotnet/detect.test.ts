@@ -36,12 +36,22 @@ const LAUNCH_SETTINGS = `\uFEFF{
 }`;
 
 describe('parseProjectFile', () => {
+  it('notes the EF Core Design package', () => {
+    const xml =
+      '<Project Sdk="Microsoft.NET.Sdk.Web"><ItemGroup>' +
+      '<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />' +
+      '</ItemGroup></Project>';
+    expect(parseProjectFile(xml).efDesign).toBe(true);
+    expect(parseProjectFile('<Project Sdk="Microsoft.NET.Sdk" />').efDesign).toBe(false);
+  });
+
   it('reads the web SDK and target framework', () => {
     expect(parseProjectFile(WEB_CSPROJ)).toEqual({
       targetFrameworks: ['net10.0'],
       isWeb: true,
       isTest: false,
       dbProviders: [],
+      efDesign: false,
     });
   });
 
@@ -54,6 +64,7 @@ describe('parseProjectFile', () => {
       isWeb: false,
       isTest: false,
       dbProviders: [],
+      efDesign: false,
     });
   });
 
@@ -164,6 +175,7 @@ describe('detectDotnet', () => {
       isWeb: true,
       isTest: false,
       dbProviders: [],
+      efDesign: false,
       sdk: { version: '10.0.100', rollForward: 'latestPatch' },
       launchProfiles: [
         { name: 'http', ports: [5283], environment: 'Development' },

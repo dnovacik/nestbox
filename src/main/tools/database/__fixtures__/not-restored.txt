@@ -1,0 +1,1 @@
+Run "dotnet tool restore" to make the "dotnet-ef" command available.

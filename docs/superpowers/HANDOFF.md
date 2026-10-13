@@ -1,4 +1,4 @@
-# Handoff (2026-10-07, evening)
+# Handoff (2026-10-12)
 
 Where work stands, so the next session (local or cloud) can pick it up. Read `CLAUDE.md` first; this file only adds the current state and how the owner likes to work.
 
@@ -33,15 +33,16 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 | v1.23.0 | **Published.** .NET solutions (#37): solution projects as packages, dotnet tasks and launch profiles, `global.json` SDK warning, NuGet Dependencies, Hide/Restore for detected commands. Design: `docs/superpowers/specs/2026-10-07-nestbox-v2-dotnet-design.md`. |
 | v1.22.0 | Published. Ecosystem framework (#34), .NET module (#35), ecosystem icons and the Node module (#36), system CPU/RAM in the status bar (#38; per-process stats were dropped). |
 | v1.24.0 | **Draft built** (PR #42, closes #39): appsettings.json in the Env tool. The owner publishes the draft. |
-| [#41](https://github.com/dnovacik/nestbox/issues/41) **ConnectionStrings in the Database tool (1.25.0)** | On `v2-connection-strings`: design `docs/superpowers/specs/2026-10-12-nestbox-v2-connection-strings-design.md`, plan `docs/superpowers/plans/2026-10-12-nestbox-v2-connection-strings.md`. |
+| [#41](https://github.com/dnovacik/nestbox/issues/41) ConnectionStrings in the Database tool (1.25.0) | Merged (PR #44). Design `docs/superpowers/specs/2026-10-12-nestbox-v2-connection-strings-design.md`, plan `docs/superpowers/plans/2026-10-12-nestbox-v2-connection-strings.md`. |
+| [#43](https://github.com/dnovacik/nestbox/issues/43) **EF Core commands in the Database tool (1.26.0)** | Built on `v2-ef-core` (all six plan tasks; unit, renderer and e2e tests green): design `docs/superpowers/specs/2026-10-12-nestbox-v2-ef-core-design.md`, plan `docs/superpowers/plans/2026-10-12-nestbox-v2-ef-core.md`. PR open. |
 | Python ([#32](https://github.com/dnovacik/nestbox/pull/32), jubele) | Closed by its author after the split. The language-neutral half shipped in #33 (1.21.0). Python should come back as a new PR: a module under `src/main/ecosystems/python/` per the "Python module" table in `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`. Review it against that table and the .NET module (the reference). |
 | Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: framework and .NET done; Python next (jubele); later Node into a module, any git repo as a project, make/just targets. |
 
 ## Next steps
 
-1. **#41 (1.25.0)** on `v2-connection-strings`: PR, green CI, then "merge and release" when the owner says so. EF Core commands are #43.
+1. **#43 (1.26.0)** on `v2-ef-core`: green CI, then "merge and release" when the owner says so. Input to running commands is #45.
 2. **Review the Python PR** when jubele opens it.
-3. **Follow-ups from the .NET work** (in the .NET design doc): the Inspector's default target could use a launch-profile port like Health; EF Core commands ([#43](https://github.com/dnovacik/nestbox/issues/43)).
+3. **Follow-ups from the .NET work** (in the .NET design doc): the Inspector's default target could use a launch-profile port like Health.
 4. **Owner housekeeping:** delete merged feature branches on `origin` (many old `m*`/`v2-*` branches remain).
 
 ## Notes for a local session
