@@ -33,55 +33,9 @@ function platform(opts: { onPath?: boolean | null; sdks?: string; code?: number 
   };
 }
 
-describe('dotnet tasks', () => {
-  const module = createDotnetModule();
-
-  it('runs, watches, builds, restores and cleans a project, plus one run per launch profile', () => {
-    const tasks = module.tasks(
-      info({
-        launchProfiles: [
-          { name: 'http', ports: [5283], environment: 'Production' },
-          { name: 'IIS Profile 2', ports: [], environment: 'Production' },
-        ],
-      }),
-    );
-    expect(tasks.map((t) => [t.name, t.argv.join(' ')])).toEqual([
-      ['run', 'dotnet run --project Api.csproj'],
-      ['watch', 'dotnet watch --project Api.csproj'],
-      ['run:http', 'dotnet run --project Api.csproj --launch-profile http'],
-      ['run:IIS-Profile-2', 'dotnet run --project Api.csproj --launch-profile IIS Profile 2'],
-      ['build', 'dotnet build Api.csproj'],
-      ['restore', 'dotnet restore Api.csproj'],
-      ['clean', 'dotnet clean Api.csproj'],
-    ]);
-  });
-
-  it('tests a test project instead of running it', () => {
-    const names = module
-      .tasks(info({ project: 'Api.Tests.csproj', isTest: true, isWeb: false }))
-      .map((t) => t.name);
-    expect(names).toEqual(['build', 'test', 'restore', 'clean']);
-  });
-
-  it('builds and tests the solution of a solution-only folder', () => {
-    const tasks = module.tasks(info({ solution: 'Shop.slnx', project: null }));
-    expect(tasks.map((t) => t.argv.join(' '))).toEqual([
-      'dotnet build Shop.slnx',
-      'dotnet test Shop.slnx',
-      'dotnet restore Shop.slnx',
-      'dotnet clean Shop.slnx',
-    ]);
-  });
-
-  it('runs the project but builds the solution when a folder has both', () => {
-    const tasks = module.tasks(info({ solution: 'Shop.sln' }));
-    expect(tasks.find((t) => t.name === 'run')?.argv).toEqual([
-      'dotnet',
-      'run',
-      '--project',
-      'Api.csproj',
-    ]);
-    expect(tasks.find((t) => t.name === 'build')?.argv).toEqual(['dotnet', 'build', 'Shop.sln']);
+describe('dotnet module', () => {
+  it('lists its tasks through tasks.ts', () => {
+    expect(createDotnetModule().tasks(info()).map((t) => t.name)).toEqual(['run', 'watch', 'build', 'restore', 'clean']);
   });
 });
 
