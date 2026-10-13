@@ -15,7 +15,8 @@ const slowExpect = expect.configure({ timeout: 60_000 });
 
 test('the packaged app starts, answers IPC and adds a project', async () => {
   // The macOS x64 build runs under Rosetta, which translates the whole Electron framework on its first
-  // launch: on a fresh runner that alone can take over a minute (arm64 starts in seconds).
+  // launch: on a fresh runner that alone took about 3 min (arm64 starts in seconds). CI loads it once
+  // before the test (ELECTRON_RUN_AS_NODE), so these limits cover a slow app, not the translation.
   test.setTimeout(240_000);
   const project = await copyFixture('npm-app');
   const app = await electron.launch({ executablePath: exe ?? '', timeout: 180_000 });
