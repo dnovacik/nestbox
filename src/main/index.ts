@@ -305,7 +305,12 @@ if (!app.requestSingleInstanceLock()) {
       compose: { logger },
       mock: { logger },
       inspector: { logger, envFiles, clipboard: { writeText: (text) => clipboard.writeText(text) } },
-      node: { logger, getDetected: (id) => projects.getDetected(id), check: nodeVersionCheck },
+      node: {
+        logger,
+        getDetected: (id) => projects.getDetected(id),
+        check: nodeVersionCheck,
+        clipboard: { writeText: (text) => clipboard.writeText(text) },
+      },
       deps: { logger, cache: depsCache, running: depsRunning, clipboard: { writeText: (text) => clipboard.writeText(text) } },
       deploy: { logger, envFiles, tools: { invoke: invokeTool }, runScript: runScriptToEnd },
       ci: { logger },

@@ -13,7 +13,7 @@ const time = (at: number) =>
 /** Which Node a package needs, where that comes from, and what will really run its scripts. */
 export default function NodePanel({ projectId }: ToolPanelProps) {
   const { data: status, isError } = useNodeStatus(projectId);
-  const { refresh, setFnm } = useNodeActions(projectId);
+  const { refresh, setFnm, fnmInstall, copyNvmCommand, createNvmrc } = useNodeActions(projectId);
   if (isError) return <p className="text-sm text-fg-muted">Couldn't check the Node version.</p>;
   if (!status) return <p className="text-sm text-fg-muted">Checking…</p>;
   const pm = status.packageManager;
@@ -73,6 +73,17 @@ export default function NodePanel({ projectId }: ToolPanelProps) {
             ))}
           </ul>
         )}
+        {status.fixes.nvmrc !== null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            disabled={createNvmrc.isPending}
+            onClick={() => createNvmrc.mutate()}
+          >
+            Create .nvmrc ({status.fixes.nvmrc})
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border border-line bg-card p-4 text-xs">
@@ -112,6 +123,32 @@ export default function NodePanel({ projectId }: ToolPanelProps) {
           Version manager
         </h3>
         <p className="text-fg-muted">{managerHint(status.manager)}</p>
+        {status.fixes.fnmInstall !== null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            disabled={fnmInstall.isPending}
+            onClick={() => fnmInstall.mutate()}
+          >
+            Install Node {status.fixes.fnmInstall} with fnm
+          </Button>
+        )}
+        {status.fixes.nvm !== null && (
+          <p className="mt-3 flex items-center gap-3">
+            <code className="rounded bg-app px-1.5 py-0.5 font-mono text-fg select-text">
+              {status.fixes.nvm}
+            </code>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={copyNvmCommand.isPending}
+              onClick={() => copyNvmCommand.mutate()}
+            >
+              Copy
+            </Button>
+          </p>
+        )}
         {status.manager === 'fnm' &&
           (status.fnm.available ? (
             <label className="mt-3 flex items-center gap-3 text-fg">
