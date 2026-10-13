@@ -42,7 +42,6 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 2. **#63, package.json data from the Node module:** design in review (PR #78, `docs/superpowers/specs/2026-10-13-nestbox-v2-node-package-json-design.md`), with three questions for the owner. Not started in code.
 3. **Nx tasks** (#76), split from #60.
 4. **Ideas raised along the way:** checking both npm and NuGet in a folder that is both (the Dependencies tool checks Node first today; one result per package); input to running commands (#45).
-5. **Owner housekeeping:** delete merged feature branches on `origin` (many old `m*`/`v2-*`/`node-*` branches remain).
 
 ## Notes for a local session
 
