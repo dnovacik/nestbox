@@ -389,7 +389,7 @@ Test these scenarios:
 
 See existing modules:
 - [`dotnet/`](../src/main/ecosystems/dotnet/) - The full reference: capped reads, solution projects, launch-profile tasks, an SDK warning in `runEnv`, Health ports and a dependency check
-- [`node/`](../src/main/ecosystems/node/) - Minimal: detection from file names only (`detect.ts`) and the package manager's commands (`tasks.ts`)
+- [`node/`](../src/main/ecosystems/node/) - The second full reference: detection from file names (`detect.ts`, `package-manager.ts`), declared workspaces with the root's context (`workspaces.ts`), install and ci (`tasks.ts`), a dependency check over several package managers (`deps.ts`, `deps-parse.ts`, real-output fixtures), and version advice with settings from the app in `runEnv` (`version-check.ts`, `versions.ts`)
 - [`test-module.ts`](../src/main/ecosystems/test-module.ts) - Test fixture showing all features
 
 ## Common Patterns

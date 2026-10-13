@@ -13,7 +13,11 @@ function insideRoot(root: string, dir: string): boolean {
   return !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-/** Folders never taken as packages when looking for them without a workspaces config. */
+/**
+ * Folders never taken as packages when looking for them without a workspaces config. They go to the glob as
+ * `ignore`, so no ecosystem's search walks into them (node_modules above all: a module's skipDir only filters
+ * what the walk found).
+ */
 const NOT_PACKAGES = [
   'node_modules',
   'dist',
