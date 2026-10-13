@@ -16,6 +16,11 @@ export const NodeInfoSchema = z.object({
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
+/** The manager a lockfile names; null when it came from the packageManager field or npm's default. */
+export function lockfileManager(info: NodeInfo): NodeInfo['packageManager'] | null {
+  return info.packageManagerSource === 'lockfile' ? info.packageManager : null;
+}
+
 /**
  * Detect Node.js projects by looking for package.json, and pick the package manager (choosePackageManager):
  * the lockfile's name, else the packageManager field, else npm. The same rule as the project's packageManager,

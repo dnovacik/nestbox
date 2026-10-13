@@ -60,6 +60,15 @@ describe('nodeModule.runEnv', () => {
     expect(env).toEqual(advice);
   });
 
+  it("passes only a lockfile's manager as the detected one (not the field's, not npm's default)", async () => {
+    const { module, check } = moduleWith({ warning: null, pathPrepend: null, note: null });
+    const settings = { checkVersions: true, fnm: false };
+    await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm', packageManagerSource: 'default' });
+    await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'pnpm', packageManagerSource: 'packageManager' });
+    expect(check.advice).toHaveBeenNthCalledWith(1, expect.objectContaining({ packageManager: null }));
+    expect(check.advice).toHaveBeenNthCalledWith(2, expect.objectContaining({ packageManager: null }));
+  });
+
   it('leaves out what the advice has nothing for', async () => {
     const { module } = moduleWith({ warning: null, pathPrepend: null, note: null });
     const settings = { checkVersions: true, fnm: false };
