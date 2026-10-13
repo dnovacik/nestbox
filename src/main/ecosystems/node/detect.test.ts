@@ -12,6 +12,7 @@ describe('detectNode', () => {
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -21,6 +22,7 @@ describe('detectNode', () => {
       packageManager: 'npm',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -30,6 +32,7 @@ describe('detectNode', () => {
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -39,6 +42,7 @@ describe('detectNode', () => {
       packageManager: 'bun',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -48,6 +52,7 @@ describe('detectNode', () => {
       packageManager: 'npm',
       packageManagerSource: 'default',
       lockfiles: [],
+      framework: null,
     });
   });
 
@@ -62,6 +67,7 @@ describe('detectNode', () => {
       packageManager: 'bun',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -84,6 +90,7 @@ describe('detectNode', () => {
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
     // The root's lockfile wins over the package's own, as in DetectedProject.packageManager.
     const yarn = new Set(['package.json', 'yarn.lock']);
@@ -91,6 +98,7 @@ describe('detectNode', () => {
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
     // A root without a lockfile leaves the package's own.
     const bare = { ...root, files: new Set(['package.json']) };
@@ -98,6 +106,7 @@ describe('detectNode', () => {
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
   });
 
@@ -112,12 +121,14 @@ describe('detectNode', () => {
       packageManager: 'pnpm',
       packageManagerSource: 'packageManager',
       lockfiles: [],
+      framework: null,
     });
     const ctx = { root: { path: root, files, dirs: new Set<string>() } };
     expect(await detectNode(pkg, files, new Set(), ctx)).toEqual({
       packageManager: 'pnpm',
       packageManagerSource: 'packageManager',
       lockfiles: [],
+      framework: null,
     });
     // A lockfile still decides when package.json can't be read; without one that is npm.
     await writeFile(join(root, 'package.json'), '{ not json');
@@ -125,11 +136,13 @@ describe('detectNode', () => {
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
       lockfiles: expect.any(Array),
+      framework: null,
     });
     expect(await detectNode(root, files, new Set())).toEqual({
       packageManager: 'npm',
       packageManagerSource: 'default',
       lockfiles: [],
+      framework: null,
     });
   });
 
@@ -147,6 +160,23 @@ describe('detectNode', () => {
     expect((await detectNode('/mono/a', files, new Set(), { root }))?.lockfiles).toEqual([
       'pnpm-lock.yaml',
     ]);
+  });
+
+  it("names the framework from package.json's dependencies, whatever decided the manager", async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nestbox-node-fw-'));
+    await writeFile(
+      join(dir, 'package.json'),
+      '{"dependencies":{"next":"^15.0.3"},"devDependencies":{"vite":"^6"}}',
+    );
+    const locked = new Set(['package.json', 'pnpm-lock.yaml']);
+    expect((await detectNode(dir, locked, new Set()))?.framework).toEqual({
+      id: 'next',
+      major: 15,
+    });
+    expect((await detectNode(dir, new Set(['package.json']), new Set()))?.framework).toEqual({
+      id: 'next',
+      major: 15,
+    });
   });
 
   it('returns null without package.json', async () => {

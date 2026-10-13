@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { DepsRun as Run } from '../types';
 import type { NodeInfo } from './detect';
+import { nodeInfo } from './fixtures';
 import {
   checkNode,
   checkPackage,
@@ -44,11 +45,7 @@ const DEMO = {
 };
 const INSTALLED = { lodash: '4.17.15', ms: '2.1.3', semver: '6.3.1' };
 
-const lockedBy = (packageManager: NodeInfo['packageManager']): NodeInfo => ({
-  packageManager,
-  packageManagerSource: 'lockfile',
-  lockfiles: [],
-});
+const lockedBy = (packageManager: NodeInfo['packageManager']) => nodeInfo({ packageManager });
 
 describe('readDirect', () => {
   it('lists dependencies by type, first field wins, and drops names unsafe for a command line', async () => {
