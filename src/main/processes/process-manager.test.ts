@@ -467,6 +467,44 @@ describe('ProcessManager stopping', () => {
     expect(pm.get('p1', 'dev')?.state).toBe('stopped');
   });
 
+  it("stops the tree's leftovers when it hasn't exited after 1 s, then exits as usual", async () => {
+    const { pm, platform, logger } = setup();
+    platform.killTree.mockResolvedValue(undefined); // a late child still holds the pipes
+    platform.killLeftovers.mockImplementation(async () => {
+      platform.last().exit(1);
+      return 1;
+    });
+    await pm.start(req());
+    const startedAt = Date.now();
+    const stopping = pm.stop('p1', 'dev');
+    await vi.advanceTimersByTimeAsync(999);
+    expect(platform.killLeftovers).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(platform.killLeftovers).toHaveBeenCalledWith(1000, startedAt);
+    expect((await stopping).state).toBe('stopped');
+    expect(pm.logs('p1', 'dev').lines.at(-1)?.text).not.toBe('■ did not exit within 5 s');
+    expect(logger.entries).toContainEqual({
+      level: 'info',
+      message: 'stopped leftovers',
+      fields: { pid: 1000, count: 1 },
+    });
+  });
+
+  it("doesn't wait on a slow leftover sweep, and doesn't run one when the tree exits at once", async () => {
+    const { pm, platform } = setup();
+    await pm.start(req());
+    await pm.stop('p1', 'dev');
+    expect(platform.killLeftovers).not.toHaveBeenCalled();
+
+    platform.killTree.mockResolvedValue(undefined);
+    platform.killLeftovers.mockImplementation(() => new Promise<number>(() => undefined));
+    await pm.start(req());
+    const stopping = pm.stop('p1', 'dev');
+    await vi.advanceTimersByTimeAsync(5_000); // the sweep is part of the 5 s, not added to it
+    expect((await stopping).state).toBe('stopped');
+    expect(pm.logs('p1', 'dev').lines.at(-1)?.text).toBe('■ did not exit within 5 s');
+  });
+
   it('a failing environment lookup leaves the entry stopped, not starting', async () => {
     const { pm, platform, texts } = setup();
     platform.resolveShellEnv.mockRejectedValueOnce(new NestboxError('NOT_IMPLEMENTED', 'resolveShellEnv is not implemented on this platform yet'));

@@ -23,6 +23,8 @@ export const STARTING_MS = 3_000;
 export const HEALTHY_MS = 60_000;
 /** How long a stop waits for the tree to exit before giving up on it. */
 export const STOP_TIMEOUT_MS = 5_000;
+/** A stopped tree still running after this long gets one sweep for processes the kill missed. */
+export const LEFTOVER_SWEEP_MS = 1_000;
 /** A partial line is emitted after this much silence. */
 export const PARTIAL_FLUSH_MS = 50;
 /** Auto-restart gives up on this many consecutive crashes. */
@@ -69,7 +71,7 @@ export type ProcessEvent =
   | { type: 'crashed'; summary: ProcessSummary; final: boolean };
 
 export interface ProcessManagerDeps {
-  platform: Pick<PlatformAdapter, 'spawnScript' | 'killTree' | 'resolveShellEnv'>;
+  platform: Pick<PlatformAdapter, 'spawnScript' | 'killTree' | 'killLeftovers' | 'resolveShellEnv'>;
   ledger: Pick<PidLedger, 'add' | 'remove'>;
   /** Buffer capacity for a script's log, read when its buffer is created. */
   bufferLines(): number;
@@ -189,22 +191,34 @@ export class ProcessManager {
       return this.summarize(entry);
     }
     const run = entry.run;
+    const { pid, startedAt } = entry;
     entry.stopRequested = true;
     entry.state = 'stopping';
     this.changed();
-    if (entry.pid !== null) {
+    if (pid !== null) {
       try {
-        await this.deps.platform.killTree(entry.pid);
+        await this.deps.platform.killTree(pid);
       } catch (error) {
         this.deps.logger.warn('killTree failed', {
-          pid: entry.pid,
+          pid,
           code: error instanceof NestboxError ? error.code : 'unknown',
         });
       }
     } else {
       entry.child.kill();
     }
-    const exited = await this.waitClosed(entry);
+    let exited = await this.waitClosed(entry, LEFTOVER_SWEEP_MS);
+    if (!exited && pid !== null && startedAt !== null && run === entry.run) {
+      // A stop right after a start can beat the package manager to spawning the real program (Windows'
+      // taskkill lists the tree once), which then holds the pipes open. Sweep once, without waiting on it.
+      void this.deps.platform.killLeftovers(pid, startedAt).then(
+        (count) => {
+          if (count > 0) this.deps.logger.info('stopped leftovers', { pid, count });
+        },
+        () => this.deps.logger.warn('leftover sweep failed', { pid }),
+      );
+      exited = await this.waitClosed(entry, STOP_TIMEOUT_MS - LEFTOVER_SWEEP_MS);
+    }
     if (!exited && run === entry.run && entry.state === 'stopping') {
       // Keep the ledger entry: the next start offers to clean the tree up.
       entry.handledRun = run;
@@ -466,13 +480,13 @@ export class ProcessManager {
     this.changed();
   }
 
-  /** Resolves true if the child closed within STOP_TIMEOUT_MS. */
-  private async waitClosed(entry: Entry): Promise<boolean> {
+  /** Resolves true if the child closed within `ms`. */
+  private async waitClosed(entry: Entry, ms = STOP_TIMEOUT_MS): Promise<boolean> {
     const closed = entry.closed;
     if (!closed) return true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<boolean>((resolve) => {
-      timer = setTimeout(() => resolve(false), STOP_TIMEOUT_MS);
+      timer = setTimeout(() => resolve(false), ms);
     });
     const result = await Promise.race([closed.then(() => true), timeout]);
     clearTimeout(timer);
