@@ -102,6 +102,11 @@ jobs:
             exe=$(find release -path "*/$dir/NestBox.app/Contents/MacOS/NestBox" -type f | head -1)
             if [ -z "$exe" ]; then echo "NestBox.app ($dir) not found under release/"; exit 1; fi
             echo "Smoke testing $dir ($(file -b "$exe"))"
+            # Rosetta translates the x64 Electron framework on its first load (about 3 min on a fresh runner),
+            # which ate most of the test's time. Load it once as plain Node first, so the test times the app.
+            start=$SECONDS
+            ELECTRON_RUN_AS_NODE=1 "$exe" -e 0 || echo "warm-up failed (continuing)"
+            echo "warm-up took $((SECONDS - start)) s"
             NESTBOX_PACKAGED_EXE="$PWD/$exe" pnpm exec playwright test -c e2e/playwright.config.ts packaged.spec.ts
           done
       - if: failure()
