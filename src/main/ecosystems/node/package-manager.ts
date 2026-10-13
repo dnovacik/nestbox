@@ -1,5 +1,8 @@
+// The one lockfile -> package manager table: a project's packageManager (which runs its scripts) and the Node
+// module's info (install, ci, the summary) both come from here, so they never disagree.
 import type { PackageManager } from '@shared/detected';
 
+/** In priority order: with several lockfiles, the first found wins. */
 const LOCKFILES: ReadonlyArray<readonly [string, PackageManager]> = [
   ['pnpm-lock.yaml', 'pnpm'],
   ['yarn.lock', 'yarn'],

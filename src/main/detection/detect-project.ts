@@ -12,7 +12,7 @@ import { isRecord } from '@shared/is-record';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
-import { detectPackageManager } from './package-manager';
+import { detectPackageManager } from '../ecosystems/node/package-manager';
 import { findWorkspaceDirs } from './workspaces';
 
 export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root';
