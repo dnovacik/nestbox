@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { DepRow, PackageResult, StepError } from '@shared/tools/deps/contract';
+import type { DepRow, DepType, PackageResult, StepError } from '@shared/tools/deps/contract';
 import type { PlatformAdapter } from '../platform/adapter';
 
 export type EcosystemId = 'python' | 'dotnet' | 'node';
@@ -94,13 +94,14 @@ export interface EcosystemModule<Info, Settings = unknown> {
   declaredWorkspaces?(root: string, ctx?: WorkspaceContext): Promise<string[] | null>;
 
   /**
-   * Optional: the Dependencies tool's check for a package without a package.json (network: only on Check
-   * or the schedule). null when the folder has nothing of its own to check.
+   * Optional: the Dependencies tool's check of one package folder (network: only on Check or the
+   * schedule). run executes in dir. null when the folder has nothing of its own to check. A folder in
+   * several ecosystems gets one result: the tool tries Node first, then the rest in order.
    */
-  deps?(info: Info, run: DepsRun): Promise<EcosystemDeps | null>;
+  deps?(info: Info, run: DepsRun, dir: string): Promise<EcosystemDeps | null>;
 
-  /** Optional: "Copy update command" for one of the rows deps() returned. */
-  depsUpdateCommand?(name: string): string;
+  /** Optional: "Copy update command" for a row; null when the row's manager isn't this module's. */
+  depsUpdateCommand?(name: string, row: { manager: PackageResult['manager']; type: DepType | null }): string | null;
 
   /** Optional: local http ports the package listens on when it runs (Health suggestions). */
   ports?(info: Info): number[];
@@ -116,7 +117,6 @@ export interface EcosystemModule<Info, Settings = unknown> {
 
   // Optional providers for later phases:
   // version?(ctx: RunEnvContext<Settings>, info: Info): Promise<string | null>;
-  // deps?(ctx: RunEnvContext<Settings>, info: Info): Promise<DepsResult>;
 }
 
 export interface EcosystemEntry {

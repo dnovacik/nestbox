@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { checkDotnet, dotnetRows, dotnetUpdateCommand, parseListPackage } from './deps';
+import { dotnetModule } from './index';
 import type { DotnetInfo } from './detect';
 import { DOTNET_ENV } from './env';
 
@@ -168,5 +169,9 @@ describe('checkDotnet', () => {
 
   it('copies an update command for a NuGet id', () => {
     expect(dotnetUpdateCommand('Newtonsoft.Json')).toBe('dotnet add package Newtonsoft.Json');
+    expect(dotnetModule.depsUpdateCommand?.('Newtonsoft.Json', { manager: 'dotnet', type: 'prod' })).toBe(
+      'dotnet add package Newtonsoft.Json',
+    );
+    expect(dotnetModule.depsUpdateCommand?.('vite', { manager: 'npm', type: 'dev' })).toBeNull();
   });
 });

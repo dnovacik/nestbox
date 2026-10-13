@@ -10,7 +10,7 @@ import {
   parsePnpmOutdated,
   parseYarn1Audit,
   parseYarn1Outdated,
-} from './parse';
+} from './deps-parse';
 
 const fixture = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
 

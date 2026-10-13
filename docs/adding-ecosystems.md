@@ -357,7 +357,7 @@ Your module integrates automatically with:
 3. **Project-info**: `summary()` appears in the project card
 4. **Workspace detection**: optional `declaredWorkspaces(root)` returns the packages the root's own workspace config declares (Node's npm/pnpm/yarn workspaces; a uv workspace would fit), or null; when any module declares some, sub-folder discovery is skipped. Otherwise `packageGlobs` and `skipDir` find sub-folder packages. Optional `workspaceDirs(root)` always adds folders the root lists itself (a .NET solution's projects). Every folder is checked against the root afterwards (symlinks resolved).
 5. **Health** (optional `ports(info)`): the first port is a check suggestion when `.env` has no `PORT`
-6. **Dependencies** (optional `deps(info, run)` and `depsUpdateCommand(name)`): rows for a package without a `package.json`; network only on Check or the schedule
+6. **Dependencies** (optional `deps(info, run, dir)` and `depsUpdateCommand(name, { manager, type })`): the package's rows, through `run` (in `dir`); null when the folder has nothing of its own. A folder in several ecosystems gets one result (Node first, then module order). `depsUpdateCommand` returns null for a row whose manager isn't yours. Network only on Check or the schedule. See `node/deps.ts` and `dotnet/deps.ts`
 
 ## Testing Strategy
 

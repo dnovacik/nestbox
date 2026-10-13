@@ -2,15 +2,17 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import type { DepsRun as Run } from '../types';
 import {
+  checkNode,
   checkPackage,
   fallbackOutdated,
   mergeRows,
+  nodeUpdateCommand,
   readDirect,
-  type Run,
   type RunResult,
   updateCommand,
-} from './check';
+} from './deps';
 
 const fixture = (name: string) => readFile(join(__dirname, '__fixtures__', name), 'utf8');
 const ok = (stdout: string, code = 0): RunResult => ({ code, stdout, timedOut: false });
@@ -195,5 +197,33 @@ describe('updateCommand', () => {
     expect(updateCommand('yarn', 'react', 'prod')).toBe('yarn upgrade react@latest');
     expect(updateCommand('yarn-berry', 'react', 'dev')).toBe('yarn up react@latest');
     expect(updateCommand('bun', 'vitest', 'dev')).toBe('bun add -d vitest@latest');
+  });
+});
+
+describe('checkNode', () => {
+  it('checks through the package manager from the module info, as its flavour', async () => {
+    const dir = await pkg({ dependencies: { lodash: '4.17.15' } }, { lodash: '4.17.15' });
+    const run: Run = vi.fn(async (command: string, args: string[]) =>
+      command === 'yarn' && args[0] === '--version' ? ok('4.5.0\n') : ok('', 1),
+    );
+    const result = await checkNode({ packageManager: 'yarn' }, run, dir);
+    expect(result?.manager).toBe('yarn-berry');
+    expect(result?.rows.map((r) => r.name)).toEqual(['lodash']);
+  });
+
+  it('is null when package.json is missing or not a JSON object', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nestbox-deps-'));
+    const run: Run = vi.fn(async () => ok(''));
+    expect(await checkNode({ packageManager: 'npm' }, run, dir)).toBeNull();
+    await writeFile(join(dir, 'package.json'), '[1, 2]');
+    expect(await checkNode({ packageManager: 'npm' }, run, dir)).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('nodeUpdateCommand', () => {
+  it("answers for a package manager's rows only", () => {
+    expect(nodeUpdateCommand('vite', { manager: 'pnpm', type: 'dev' })).toBe('pnpm add -D vite@latest');
+    expect(nodeUpdateCommand('Newtonsoft.Json', { manager: 'dotnet', type: 'prod' })).toBeNull();
   });
 });

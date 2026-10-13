@@ -13,7 +13,9 @@ import { createDepsCache } from './cache';
 import { createDepsTool } from './index';
 
 type SpawnArgs = { cwd: string; command: string; args: string[]; env?: Record<string, string | undefined> };
-const fixture = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
+const fixture = (name: string) =>
+  readFileSync(join(__dirname, '..', '..', 'ecosystems', 'node', '__fixtures__', name), 'utf8');
+const NODE = [{ id: 'node' as const, info: { packageManager: 'npm' } }];
 
 function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'nestbox-deps-tool-'));
@@ -52,6 +54,7 @@ function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
     name: '@shop/api',
     path: api,
     packageManager: 'npm',
+    ecosystems: NODE,
   });
   const rootProject = makeDetectedForTest({
     id: 'r1',
@@ -59,6 +62,7 @@ function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
     path: root,
     name: 'shop',
     packageManager: 'npm',
+    ecosystems: NODE,
     workspaces: [workspace],
   });
   const logger = createMemoryLogger();
@@ -88,6 +92,8 @@ function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
     rootCtx,
     apiCtx: ctxFor(workspace),
     root,
+    ctxFor,
+    rootProject,
   };
 }
 
@@ -219,6 +225,19 @@ describe('deps tool', () => {
       command: 'dotnet add package Newtonsoft.Json',
     });
     expect(clipboard.writeText).toHaveBeenCalledWith('dotnet add package Newtonsoft.Json');
+  });
+
+  it("checks Node first in a folder that is also a .NET project, and copies npm's command", async () => {
+    const { call, ctxFor, rootProject, spawnCommand, clipboard, tool } = setup();
+    const dotnet = { id: 'dotnet' as const, info: { solution: null, project: 'Web.csproj', targetFrameworks: ['net8.0'], isWeb: true, isTest: false, sdk: null, launchProfiles: [] } };
+    // Detection lists .NET first (ECOSYSTEM_MODULES order).
+    const both = { ...rootProject, workspaces: [], ecosystems: [dotnet, ...NODE] };
+    const ctx = ctxFor(both);
+    const results = (await tool.handlers['check']?.(ctx, {})) as Results;
+    expect(results.packages.map((p) => p.manager)).toEqual(['npm']);
+    expect(spawnCommand.mock.calls.some(([o]) => o.command === 'dotnet')).toBe(false);
+    await call('copyUpdateCommand', { relPath: '', name: 'lodash' }, ctx);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith('npm install lodash@latest');
   });
 
   it('forgets a removed project', async () => {
