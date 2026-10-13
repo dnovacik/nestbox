@@ -192,6 +192,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 | v1.24.0 | appsettings.json in the Env tool |
 | v1.25.0 | ConnectionStrings in the Database tool |
 | v1.26.0 | EF Core migrations in the Database tool |
+| v1.27.0 | Node as an ecosystem module: one package-manager rule for scripts and tasks, the Node version advice for every command |
 
 See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 started.
 
@@ -201,7 +202,7 @@ See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 s
 - **Version and dependency checks for every ecosystem:** the Node and Dependencies tools' checks for .NET's SDK and Python's interpreter and packages.
 - **More from .NET:** the Inspector targeting a launch profile's port.
 - **Input to running commands** ([#45](https://github.com/dnovacik/nestbox/issues/45)): answering a command's prompts inside NestBox (Prisma's `migrate dev`) instead of a terminal.
-- **Beyond package managers:** Node behind the same ecosystem interface, any git repository as a project, and Makefile and justfile targets as detected commands.
+- **Beyond package managers:** any git repository as a project, and Makefile and justfile targets as detected commands.
 
 ## License
 
