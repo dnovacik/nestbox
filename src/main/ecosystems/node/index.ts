@@ -5,7 +5,7 @@
 // advice: a warning when the versions don't match, fnm's Node first on PATH (version-check.ts).
 import type { EcosystemModule, RunEnv } from '../types';
 import { checkNode, nodeUpdateCommand } from './deps';
-import { detectNode, type NodeInfo, NodeInfoSchema } from './detect';
+import { detectNode, lockfileManager, type NodeInfo, NodeInfoSchema } from './detect';
 import { nodeTasks } from './tasks';
 import { nodeVersionCheck, type NodeVersionCheck } from './version-check';
 import { nodeWorkspaces } from './workspaces';
@@ -57,7 +57,7 @@ export function createNodeModule(
       const advice = await deps.check.advice({
         dir: ctx.dir,
         rootDir: ctx.rootDir ?? null,
-        packageManager: info.packageManager,
+        packageManager: lockfileManager(info),
         fnm: ctx.settings.fnm === true,
         platform: ctx.platform,
       });

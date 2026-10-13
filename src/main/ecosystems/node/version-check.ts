@@ -2,7 +2,6 @@
 // the Node and package manager that will run its commands match. Read-only, no network: Corepack runs
 // offline. With fnm on, commands run on the required version. Shared by the Node tool (its status) and the
 // Node module's runEnv (the start advice), through one 30 s cache.
-import { open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { PackageManager } from '@shared/detected';
 import {
@@ -16,6 +15,7 @@ import {
   type VersionManager,
 } from '@shared/tools/node/contract';
 import type { PlatformAdapter } from '../../platform/adapter';
+import { readPackageJson, readSmall } from './package-json';
 import {
   conflictingSources,
   parsePackageManager,
@@ -40,7 +40,6 @@ export interface NodeCheckInput {
 
 const CACHE_MS = 30_000;
 const FILE_MAX_BYTES = 1024;
-const PACKAGE_JSON_MAX_BYTES = 1024 * 1024;
 const VALUE_MAX = 100;
 const NODE_TIMEOUT_MS = 10_000;
 const PM_TIMEOUT_MS = 15_000;
@@ -52,44 +51,10 @@ interface Source extends SourceView {
   requirement: Requirement | null;
 }
 
-/** A small text file's contents; null when it is too big or unreadable; undefined when it isn't there. */
-async function readSmall(path: string, max = FILE_MAX_BYTES): Promise<string | null | undefined> {
-  let handle;
-  try {
-    handle = await open(path, 'r');
-  } catch {
-    return undefined;
-  }
-  try {
-    const stats = await handle.stat();
-    if (!stats.isFile()) return undefined;
-    if (stats.size > max) return null;
-    return await handle.readFile('utf8');
-  } catch {
-    return null;
-  } finally {
-    await handle.close();
-  }
-}
-
 const FILES: Partial<Record<SourceKind, string>> = {
   nvmrc: '.nvmrc',
   'node-version': '.node-version',
 };
-
-/** package.json as an object (detection keeps only name and scripts); null when missing or unreadable. */
-async function readPackageJson(dir: string): Promise<Record<string, unknown> | null> {
-  const text = await readSmall(join(dir, 'package.json'), PACKAGE_JSON_MAX_BYTES);
-  if (!text) return null;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 function fieldOf(json: Record<string, unknown> | null, kind: 'engines' | 'volta'): unknown {
   const holder = json?.[kind];
@@ -110,9 +75,9 @@ async function readSources(
     let fromRoot = false;
     const file = FILES[kind];
     if (file) {
-      text = await readSmall(join(dir, file));
+      text = await readSmall(join(dir, file), FILE_MAX_BYTES);
       if (text === undefined && rootDir) {
-        text = await readSmall(join(rootDir, file));
+        text = await readSmall(join(rootDir, file), FILE_MAX_BYTES);
         fromRoot = text !== undefined;
       }
     } else {

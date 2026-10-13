@@ -28,7 +28,7 @@ describe('nodeModule.runEnv', () => {
   it('gives nothing while the Node tool is off (no settings)', async () => {
     const { module, check } = moduleWith({ warning: 'x', pathPrepend: null, note: null });
     expect(
-      await module.runEnv({ dir: '/x', platform, settings: {} }, { packageManager: 'npm' }),
+      await module.runEnv({ dir: '/x', platform, settings: {} }, { packageManager: 'npm', packageManagerSource: 'lockfile' }),
     ).toEqual({});
     expect(check.advice).not.toHaveBeenCalled();
   });
@@ -47,7 +47,7 @@ describe('nodeModule.runEnv', () => {
         platform,
         settings: { checkVersions: true, fnm: true },
       },
-      { packageManager: 'pnpm' },
+      { packageManager: 'pnpm', packageManagerSource: 'lockfile' },
     );
     expect(check.advice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -60,17 +60,26 @@ describe('nodeModule.runEnv', () => {
     expect(env).toEqual(advice);
   });
 
+  it("passes only a lockfile's manager as the detected one (not the field's, not npm's default)", async () => {
+    const { module, check } = moduleWith({ warning: null, pathPrepend: null, note: null });
+    const settings = { checkVersions: true, fnm: false };
+    await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm', packageManagerSource: 'default' });
+    await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'pnpm', packageManagerSource: 'packageManager' });
+    expect(check.advice).toHaveBeenNthCalledWith(1, expect.objectContaining({ packageManager: null }));
+    expect(check.advice).toHaveBeenNthCalledWith(2, expect.objectContaining({ packageManager: null }));
+  });
+
   it('leaves out what the advice has nothing for', async () => {
     const { module } = moduleWith({ warning: null, pathPrepend: null, note: null });
     const settings = { checkVersions: true, fnm: false };
     expect(
-      await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm' }),
+      await module.runEnv({ dir: '/x', platform, settings }, { packageManager: 'npm', packageManagerSource: 'lockfile' }),
     ).toEqual({});
   });
 });
 
 describe('nodeModule.summary', () => {
   it('names the package manager', () => {
-    expect(nodeModule.summary?.({ packageManager: 'yarn' })).toBe('Node.js · yarn');
+    expect(nodeModule.summary?.({ packageManager: 'yarn', packageManagerSource: 'lockfile' })).toBe('Node.js · yarn');
   });
 });

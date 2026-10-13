@@ -18,7 +18,7 @@ import { createScriptsTool, PROCESSES_FACT } from './index';
 
 const ROOT = resolve('/dev/shop');
 /** What detection gives a folder with a package.json. */
-const NODE = [{ id: 'node' as const, info: { packageManager: 'npm' } }];
+const NODE = [{ id: 'node' as const, info: { packageManager: 'npm', packageManagerSource: 'lockfile' } }];
 
 /** The Node module's version advice, faked at the shared check (the real one would run node --version). */
 let advice: MockInstance<typeof nodeVersionCheck.advice>;
