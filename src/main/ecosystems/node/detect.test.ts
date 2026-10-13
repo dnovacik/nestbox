@@ -15,6 +15,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -27,6 +28,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -39,6 +41,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -51,6 +54,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -63,6 +67,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -80,6 +85,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -105,6 +111,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
     // The root's lockfile wins over the package's own, as in DetectedProject.packageManager.
     const yarn = new Set(['package.json', 'yarn.lock']);
@@ -115,6 +122,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
     // A root without a lockfile leaves the package's own.
     const bare = { ...root, files: new Set(['package.json']) };
@@ -125,6 +133,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 
@@ -142,6 +151,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
     const ctx = { root: { path: root, files, dirs: new Set<string>() } };
     expect(await detectNode(pkg, files, new Set(), ctx)).toEqual({
@@ -151,6 +161,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
     // A lockfile still decides when package.json can't be read; without one that is npm.
     await writeFile(join(root, 'package.json'), '{ not json');
@@ -161,6 +172,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
     expect(await detectNode(root, files, new Set())).toEqual({
       packageManager: 'npm',
@@ -169,6 +181,7 @@ describe('detectNode', () => {
       framework: null,
       ports: [],
       hasDependencies: false,
+      monorepo: null,
     });
   });
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { PACKAGE_MANAGERS } from '@shared/detected';
 import type { DetectContext } from '../types';
 import { detectFramework, FrameworkSchema } from './framework';
+import { detectMonorepo, MonorepoSchema } from './monorepo';
 import { readPackageJson } from './package-json';
 import { nodePorts } from './ports';
 import { choosePackageManager, lockfilesIn, PACKAGE_MANAGER_SOURCES } from './package-manager';
@@ -23,6 +24,8 @@ export const NodeInfoSchema = z.object({
   ports: z.array(z.number().int().min(1).max(65_535)),
   /** package.json lists dependencies or devDependencies (so there is something to install). */
   hasDependencies: z.boolean(),
+  /** A root that declares workspaces: scripts its packages share, turbo.json's tasks. Null elsewhere. */
+  monorepo: MonorepoSchema.nullable(),
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
@@ -85,5 +88,6 @@ export async function detectNode(
     framework,
     ports: nodePorts(scriptsOf(json), framework),
     hasDependencies: hasDependencies(json),
+    monorepo: root ? null : await detectMonorepo(dir, files, json),
   };
 }
