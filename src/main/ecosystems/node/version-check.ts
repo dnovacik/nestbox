@@ -16,6 +16,7 @@ import {
 } from '@shared/tools/node/contract';
 import type { PlatformAdapter } from '../../platform/adapter';
 import { readPackageJson, readSmall } from './package-json';
+import { detectPackageManager, lockfileWarning } from './package-manager';
 import {
   conflictingSources,
   parsePackageManager,
@@ -31,6 +32,8 @@ export interface NodeCheckInput {
   rootDir: string | null;
   /** The package manager its lockfile names (null without one). */
   packageManager: PackageManager | null;
+  /** The lockfiles detection found (NodeInfo.lockfiles); more than one manager's gets a warning. */
+  lockfiles: readonly string[];
   /** The root project's fnm switch. */
   fnm: boolean;
   platform: PlatformAdapter;
@@ -208,6 +211,10 @@ async function check(input: NodeCheckInput): Promise<NodeStatus> {
     requirement: winner?.kind ?? null,
     node: { version: nodeVersion, ok: nodeOk },
     packageManager,
+    lockfileWarning: lockfileWarning(
+      input.lockfiles,
+      input.packageManager ?? detectPackageManager(new Set(input.lockfiles)) ?? 'npm',
+    ),
     manager,
     fnm: { available: fnmFound && fnmVersion !== null, on: fnmOn, version: fnmVersion },
     checkedAt: Date.now(),
@@ -229,6 +236,7 @@ function describe(status: NodeStatus, source: SourceView | undefined): string | 
         : `${pm.name} ${pm.installed ?? '?'} doesn't match packageManager ${pm.name}@${pm.version}`,
     );
   }
+  if (status.lockfileWarning) parts.push(status.lockfileWarning);
   return parts.length > 0 ? parts.join('; ') : null;
 }
 

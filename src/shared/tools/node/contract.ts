@@ -68,6 +68,8 @@ export const NodeStatusSchema = z.object({
       ok: z.boolean().nullable(),
     })
     .nullable(),
+  /** Lockfiles of more than one manager ("Two lockfiles: …; NestBox uses yarn"); null otherwise. */
+  lockfileWarning: z.string().nullable().default(null),
   manager: z.enum(VERSION_MANAGERS).nullable(),
   fnm: z.object({
     /** fnm was found and the requirement gives it a version. */

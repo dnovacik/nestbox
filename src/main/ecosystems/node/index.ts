@@ -6,6 +6,7 @@
 import type { EcosystemModule, RunEnv } from '../types';
 import { checkNode, nodeUpdateCommand } from './deps';
 import { detectNode, lockfileManager, type NodeInfo, NodeInfoSchema } from './detect';
+import { lockfileWarning } from './package-manager';
 import { nodeTasks } from './tasks';
 import { nodeVersionCheck, type NodeVersionCheck } from './version-check';
 import { nodeWorkspaces } from './workspaces';
@@ -58,6 +59,7 @@ export function createNodeModule(
         dir: ctx.dir,
         rootDir: ctx.rootDir ?? null,
         packageManager: lockfileManager(info),
+        lockfiles: info.lockfiles,
         fnm: ctx.settings.fnm === true,
         platform: ctx.platform,
       });
@@ -69,7 +71,8 @@ export function createNodeModule(
     },
 
     summary(info: NodeInfo): string | null {
-      return `Node.js · ${info.packageManager}`;
+      const several = lockfileWarning(info.lockfiles, info.packageManager) !== null;
+      return `Node.js · ${info.packageManager}${several ? ` · ${info.lockfiles.length} lockfiles` : ''}`;
     },
   };
 }

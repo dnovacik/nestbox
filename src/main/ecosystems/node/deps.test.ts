@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { DepsRun as Run } from '../types';
+import type { NodeInfo } from './detect';
 import {
   checkNode,
   checkPackage,
@@ -42,6 +43,12 @@ const DEMO = {
   devDependencies: { semver: '~6.3.0' },
 };
 const INSTALLED = { lodash: '4.17.15', ms: '2.1.3', semver: '6.3.1' };
+
+const lockedBy = (packageManager: NodeInfo['packageManager']): NodeInfo => ({
+  packageManager,
+  packageManagerSource: 'lockfile',
+  lockfiles: [],
+});
 
 describe('readDirect', () => {
   it('lists dependencies by type, first field wins, and drops names unsafe for a command line', async () => {
@@ -206,7 +213,7 @@ describe('checkNode', () => {
     const run: Run = vi.fn(async (command: string, args: string[]) =>
       command === 'yarn' && args[0] === '--version' ? ok('4.5.0\n') : ok('', 1),
     );
-    const result = await checkNode({ packageManager: 'yarn', packageManagerSource: 'lockfile' }, run, dir);
+    const result = await checkNode(lockedBy('yarn'), run, dir);
     expect(result?.manager).toBe('yarn-berry');
     expect(result?.rows.map((r) => r.name)).toEqual(['lodash']);
   });
@@ -214,9 +221,9 @@ describe('checkNode', () => {
   it('is null when package.json is missing or not a JSON object', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nestbox-deps-'));
     const run: Run = vi.fn(async () => ok(''));
-    expect(await checkNode({ packageManager: 'npm', packageManagerSource: 'lockfile' }, run, dir)).toBeNull();
+    expect(await checkNode(lockedBy('npm'), run, dir)).toBeNull();
     await writeFile(join(dir, 'package.json'), '[1, 2]');
-    expect(await checkNode({ packageManager: 'npm', packageManagerSource: 'lockfile' }, run, dir)).toBeNull();
+    expect(await checkNode(lockedBy('npm'), run, dir)).toBeNull();
     expect(run).not.toHaveBeenCalled();
   });
 });

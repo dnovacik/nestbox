@@ -7,6 +7,7 @@ export function nodeStatus(over: Partial<NodeStatus> = {}): NodeStatus {
     requirement: 'nvmrc',
     node: { version: 'v20.11.1', ok: true },
     packageManager: null,
+    lockfileWarning: null,
     manager: null,
     fnm: { available: false, on: false, version: '20' },
     checkedAt: Date.now(),

@@ -22,6 +22,7 @@ interface Setup {
   shellEnv?: NodeJS.ProcessEnv;
   settings?: Partial<NodeSettings>;
   packageManager?: DetectedProject['packageManager'];
+  lockfiles?: string[];
 }
 
 async function setup(o: Setup = {}) {
@@ -61,6 +62,7 @@ async function setup(o: Setup = {}) {
     dir: pkgPath,
     rootDir: o.workspace ? rootPath : null,
     packageManager: o.packageManager ?? 'pnpm',
+    lockfiles: o.lockfiles ?? ['pnpm-lock.yaml'],
     fnm: settings.fnm,
     platform: platform as unknown as PlatformAdapter,
   });
@@ -316,5 +318,36 @@ describe('node version check: advice and cache', () => {
     expect(execs().filter((e) => e === 'node --version')).toHaveLength(1);
     await call('refresh');
     expect(execs().filter((e) => e === 'node --version')).toHaveLength(2);
+  });
+});
+
+describe('node version check: lockfiles', () => {
+  it('warns about lockfiles of more than one manager in the status and before every start', async () => {
+    const { call } = await setup({
+      files: { '.nvmrc': '20\n' },
+      packageManager: 'yarn',
+      lockfiles: ['yarn.lock', 'package-lock.json'],
+    });
+    const status = await call<NodeStatus>('status');
+    expect(status.lockfileWarning).toBe(
+      'Two lockfiles: yarn.lock and package-lock.json; NestBox uses yarn',
+    );
+    expect(status.state).toBe('ok'); // the versions are fine: the lockfiles get their own line
+    expect((await call<StartAdvice>('startAdvice')).warning).toBe(
+      'Two lockfiles: yarn.lock and package-lock.json; NestBox uses yarn',
+    );
+  });
+
+  it('joins it to a version warning, and has none for one lockfile', async () => {
+    const mismatch = await setup({
+      files: { '.nvmrc': '18\n' },
+      packageManager: 'yarn',
+      lockfiles: ['yarn.lock', 'bun.lock'],
+    });
+    expect((await mismatch.call<StartAdvice>('startAdvice')).warning).toBe(
+      "Node v20.11.1 doesn't match 18 (.nvmrc); Two lockfiles: yarn.lock and bun.lock; NestBox uses yarn",
+    );
+    const single = await setup({ files: { '.nvmrc': '20\n' } });
+    expect((await single.call<NodeStatus>('status')).lockfileWarning).toBeNull();
   });
 });

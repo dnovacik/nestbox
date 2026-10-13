@@ -3,7 +3,7 @@ import type { NodeInfo } from './detect';
 import { nodeTasks } from './tasks';
 
 function info(packageManager: NodeInfo['packageManager'] = 'npm'): NodeInfo {
-  return { packageManager, packageManagerSource: 'lockfile' };
+  return { packageManager, packageManagerSource: 'lockfile', lockfiles: [] };
 }
 
 describe('nodeTasks', () => {

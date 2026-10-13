@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { PACKAGE_MANAGERS } from '@shared/detected';
 import type { DetectContext } from '../types';
 import { readPackageJson } from './package-json';
-import { choosePackageManager, PACKAGE_MANAGER_SOURCES } from './package-manager';
+import { choosePackageManager, lockfilesIn, PACKAGE_MANAGER_SOURCES } from './package-manager';
 
 /**
  * Node.js project info: which package manager runs this package.
@@ -13,6 +13,8 @@ export const NodeInfoSchema = z.object({
   /** From the lockfile, else package.json's packageManager field, else npm. */
   packageManager: z.enum(PACKAGE_MANAGERS),
   packageManagerSource: z.enum(PACKAGE_MANAGER_SOURCES),
+  /** The lockfile names in the folder that decided (the root's for a workspace package when it has any). */
+  lockfiles: z.array(z.string()),
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
@@ -47,5 +49,10 @@ export async function detectNode(
             field: root.files.has('package.json') ? await fieldOf(root.path) : undefined,
           },
         });
-  return { packageManager: manager, packageManagerSource: source };
+  const rootLockfiles = root ? lockfilesIn(root.files) : [];
+  return {
+    packageManager: manager,
+    packageManagerSource: source,
+    lockfiles: rootLockfiles.length > 0 ? rootLockfiles : lockfilesIn(files),
+  };
 }
