@@ -39,7 +39,13 @@ test('the packaged app starts, answers IPC and adds a project', async () => {
     await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Add project' }).click();
     await slowExpect(page.getByRole('heading', { name: 'nestbox-e2e-app' })).toBeVisible();
     // A tool that depends on packaged node_modules (sirv) loads and answers.
-    await page.getByRole('tab', { name: 'Static' }).click();
+    // The tab list renders again as the project's tools load; under a slow Rosetta a click can land on the
+    // tab it replaced (Overview stayed selected in one CI run), so click until the tab is selected.
+    const staticTab = page.getByRole('tab', { name: 'Static' });
+    await expect(async () => {
+      await staticTab.click();
+      await expect(staticTab).toHaveAttribute('aria-selected', 'true', { timeout: 5_000 });
+    }).toPass({ timeout: 60_000 });
     // Scoped: until the lazy panel replaces the overview, its Mock API and Inspector cards have a Start too.
     await slowExpect(page.getByRole('region', { name: 'Static server' }).getByRole('button', { name: 'Start' })).toBeVisible();
   } finally {
