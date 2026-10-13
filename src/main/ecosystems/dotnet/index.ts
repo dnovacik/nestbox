@@ -101,7 +101,7 @@ export function createDotnetModule(deps: DotnetModuleDeps = { now: Date.now, hom
 
     deps: checkDotnet,
 
-    depsUpdateCommand: dotnetUpdateCommand,
+    depsUpdateCommand: (name, row) => (row.manager === 'dotnet' ? dotnetUpdateCommand(name) : null),
 
     async runEnv(ctx, info): Promise<RunEnv> {
       const found = await locate(ctx.platform);

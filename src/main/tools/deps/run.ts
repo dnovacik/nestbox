@@ -1,7 +1,7 @@
-// Runs a package manager command to completion for the dependency check: the login-shell env (so the
+// Runs an ecosystem's command (a package manager, dotnet) to completion for the dependency check: the login-shell env (so the
 // user's registry config and PATH apply), no colours, a 2-minute timeout and capped output.
 import type { PlatformAdapter } from '../../platform/adapter';
-import type { Run } from './check';
+import type { DepsRun } from '../../ecosystems/types';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 const MAX_STDOUT = 8 * 1024 * 1024;
@@ -10,7 +10,7 @@ export function createRun(
   platform: Pick<PlatformAdapter, 'spawnCommand' | 'resolveShellEnv' | 'killTree'>,
   cwd: string,
   timeoutMs = COMMAND_TIMEOUT_MS,
-): Run {
+): DepsRun {
   return async (command, args, extraEnv = {}) => {
     const env = { ...(await platform.resolveShellEnv()), NO_COLOR: '1', FORCE_COLOR: '0', ...extraEnv };
     let child;

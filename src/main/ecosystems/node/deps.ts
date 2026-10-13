@@ -1,11 +1,13 @@
-// One package's dependency check: its direct dependencies (package.json), what is installed (node_modules),
-// the package manager's outdated and audit results, merged into rows. Commands go through `run`, so tests
-// fake them and the tool runs them through the platform adapter.
+// Node's dependency check of one package: its direct dependencies (package.json), what is installed
+// (node_modules), the package manager's outdated and audit results, merged into rows. Commands go through
+// `run` (the Dependencies tool's runner, in the package folder), so tests fake them.
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import semver from 'semver';
 import type { PackageManager } from '@shared/detected';
-import type { Advisory, DepRow, DepType, StepError } from '@shared/tools/deps/contract';
+import type { Advisory, DepRow, DepType, PackageResult, StepError } from '@shared/tools/deps/contract';
+import type { DepsRun, EcosystemDeps } from '../types';
+import type { NodeInfo } from './detect';
 import {
   type Outdated,
   parseBerryAudit,
@@ -17,15 +19,10 @@ import {
   parseYarn1Audit,
   parseYarn1Outdated,
   type Vulns,
-} from './parse';
+} from './deps-parse';
 
-export interface RunResult {
-  /** null when the command timed out or couldn't start. */
-  code: number | null;
-  stdout: string;
-  timedOut: boolean;
-}
-export type Run = (command: string, args: string[], env?: Record<string, string>) => Promise<RunResult>;
+type Run = DepsRun;
+export type RunResult = Awaited<ReturnType<DepsRun>>;
 
 export const MAX_ROWS = 1_000;
 export const MAX_FALLBACK_DEPS = 200;
@@ -309,4 +306,22 @@ export function updateCommand(flavour: Flavour, name: string, type: DepType | nu
     case 'bun':
       return `bun add ${dev ? '-d ' : ''}${name}@latest`;
   }
+}
+
+const FLAVOURS: readonly string[] = ['npm', 'pnpm', 'yarn', 'yarn-berry', 'bun'] satisfies Flavour[];
+const isFlavour = (manager: string): manager is Flavour => FLAVOURS.includes(manager);
+
+/** The module's deps(): null when package.json is missing or isn't a JSON object (detection warned). */
+export async function checkNode(info: NodeInfo, run: DepsRun, dir: string): Promise<EcosystemDeps | null> {
+  if ((await readJson(join(dir, 'package.json'), PACKAGE_JSON_MAX)) === null) return null;
+  const { flavour, rows, errors } = await checkPackage(dir, info.packageManager, run);
+  return { manager: flavour, rows, errors };
+}
+
+/** The module's depsUpdateCommand(): a package manager's rows only. */
+export function nodeUpdateCommand(
+  name: string,
+  row: { manager: PackageResult['manager']; type: DepType | null },
+): string | null {
+  return isFlavour(row.manager) ? updateCommand(row.manager, name, row.type) : null;
 }

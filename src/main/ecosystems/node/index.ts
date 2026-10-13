@@ -1,7 +1,9 @@
 // The Node.js ecosystem: folders with a package.json. Detection looks at file names only (detect.ts), the
 // package manager comes from the lockfile (package-manager.ts), the root's npm/pnpm/yarn workspaces are its
-// packages (workspaces.ts), and the module adds the package manager's own commands (tasks.ts).
+// packages (workspaces.ts), the module adds the package manager's own commands (tasks.ts), and checks
+// dependencies through the package manager (deps.ts, deps-parse.ts).
 import type { EcosystemModule } from '../types';
+import { checkNode, nodeUpdateCommand } from './deps';
 import { detectNode, type NodeInfo, NodeInfoSchema } from './detect';
 import { nodeTasks } from './tasks';
 import { nodeWorkspaces } from './workspaces';
@@ -30,6 +32,10 @@ export const nodeModule: EcosystemModule<NodeInfo> = {
   declaredWorkspaces: nodeWorkspaces,
 
   tasks: nodeTasks,
+
+  deps: checkNode,
+
+  depsUpdateCommand: nodeUpdateCommand,
 
   /**
    * No special environment: the package manager is expected on PATH.

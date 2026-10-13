@@ -1,4 +1,4 @@
-// The Dependencies tool: outdated and vulnerable dependencies through each package manager's own commands.
+// The Dependencies tool: outdated and vulnerable dependencies through each ecosystem's own commands.
 // The one tool that reaches the network (through the package manager), and only on Check or the user's
 // schedule. Results are kept per package in the deps cache file; nothing here runs on its own.
 import { type DetectedProject, workspaceId } from '@shared/detected';
@@ -10,11 +10,10 @@ import {
   type PackageResult,
   type Results,
 } from '@shared/tools/deps/contract';
-import { ECOSYSTEM_MODULES, type EcosystemDeps } from '../../ecosystems';
+import { type DepsRun, ECOSYSTEM_MODULES, type EcosystemDeps } from '../../ecosystems';
 import type { Logger } from '../../logger';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import type { DepsCache } from './cache';
-import { checkPackage, type Run, updateCommand } from './check';
 import { createRun } from './run';
 
 export interface DepsToolDeps {
@@ -33,19 +32,20 @@ const targetsOf = (project: DetectedProject): DetectedProject[] =>
   project.relPath === '' ? [project, ...project.workspaces] : [project];
 
 /**
- * One package's check: package.json through its package manager, else the first ecosystem that checks
- * dependencies (.NET). null when the folder has nothing of its own (a solution-only root).
+ * A folder in several ecosystems gets one result. Node goes first, as before ecosystems had checks of their
+ * own: an ASP.NET app with a front-end build has its npm dependencies checked, not its NuGet ones.
  */
-async function checkTarget(target: DetectedProject, run: Run): Promise<EcosystemDeps | null> {
-  if (target.packageJson !== null) {
-    const { flavour, rows, errors } = await checkPackage(target.path, target.packageManager ?? 'npm', run);
-    return { manager: flavour, rows, errors };
-  }
-  for (const entry of target.ecosystems) {
+const byPreference = (entries: DetectedProject['ecosystems']) =>
+  [...entries].sort((a, b) => Number(b.id === 'node') - Number(a.id === 'node'));
+
+/** One package's check: its first ecosystem with a check that has something to say; null otherwise. */
+async function checkTarget(target: DetectedProject, run: DepsRun): Promise<EcosystemDeps | null> {
+  for (const entry of byPreference(target.ecosystems)) {
     const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
     const parsed = module?.infoSchema.safeParse(entry.info);
     if (!module?.deps || !parsed?.success) continue;
-    return module.deps(parsed.data, run);
+    const result = await module.deps(parsed.data, run, target.path);
+    if (result !== null) return result;
   }
   return null;
 }
@@ -112,12 +112,12 @@ export function createDepsTool(deps: DepsToolDeps): AnyMainTool {
           : undefined;
         const row = result?.rows.find((r) => r.name === name && r.type !== null);
         if (!result || !row) throw new NestboxError('NOT_FOUND', 'Unknown dependency');
-        const module = ECOSYSTEM_MODULES.find((m) => m.id === result.manager);
-        // A package manager's own command, or the ecosystem's (manager 'dotnet').
+        // The ecosystem whose manager produced the row spells the command.
+        const spelled = { manager: result.manager, type: row.type };
         const command =
-          result.manager === 'dotnet'
-            ? (module?.depsUpdateCommand?.(row.name) ?? null)
-            : updateCommand(result.manager, row.name, row.type);
+          ECOSYSTEM_MODULES.map((m) => m.depsUpdateCommand?.(row.name, spelled) ?? null).find(
+            (c) => c !== null,
+          ) ?? null;
         if (command === null) throw new NestboxError('NOT_FOUND', 'Unknown dependency');
         deps.clipboard.writeText(command);
         return { command };
