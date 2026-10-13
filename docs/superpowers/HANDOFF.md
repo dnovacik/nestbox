@@ -31,16 +31,17 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 | What | State |
 | --- | --- |
 | v1.22.0 to v1.26.0 | **Published.** Ecosystem framework and .NET (1.22, 1.23), appsettings.json in the Env tool (1.24, #42), ConnectionStrings in the Database tool (1.25, #44), EF Core commands in the Database tool (1.26, #46). |
-| v1.27.0 | **Draft built** from `main`: Node as an ecosystem module ([#47](https://github.com/dnovacik/nestbox/issues/47), PRs #48 to #52). `ecosystems/node/` is laid out like `dotnet/` (detect, tasks, package manager, workspaces, deps, version check); one lockfile table; workspace packages take the root's package manager; `EcosystemModule` gained `declaredWorkspaces`, a `detect()` root context, `deps(info, run, dir)`, `depsUpdateCommand(name, row)` and `RunEnvContext.rootDir`; the Dependencies and Scripts tools have no Node special case; every command of a Node package gets the version advice and fnm. The owner publishes the draft. |
+| v1.28.0 | **Draft built** from `main` (supersedes the unpublished 1.27.0 draft, which the owner can delete). More from Node: #56 `packageManager` field (PR #69), #59 lockfiles of two managers (#70), #61 framework in the summary (#71), #57 dev-server ports for Health and the Inspector (#72), #58 missing or stale dependencies with Install on the Scripts tab (#74), #62 fixes for a version mismatch (#75), #60 workspace-wide and Turborepo tasks (#77); Windows stop race #65 (#67); test timeouts #64 (#66, #68, #73). The owner publishes the draft. |
+| v1.27.0 | **Draft, superseded by 1.28.0:** Node as an ecosystem module ([#47](https://github.com/dnovacik/nestbox/issues/47), PRs #48 to #52). `ecosystems/node/` is laid out like `dotnet/` (detect, tasks, package manager, workspaces, deps, version check); one lockfile table; workspace packages take the root's package manager; `EcosystemModule` gained `declaredWorkspaces`, a `detect()` root context, `deps(info, run, dir)`, `depsUpdateCommand(name, row)` and `RunEnvContext.rootDir`; the Dependencies and Scripts tools have no Node special case; every command of a Node package gets the version advice and fnm. The owner publishes the draft. |
 | Python ([#32](https://github.com/dnovacik/nestbox/pull/32), jubele) | Closed by its author after the split. Python should come back as a new PR: a module under `src/main/ecosystems/python/` laid out like `node/` and `dotnet/` (see `docs/adding-ecosystems.md`), per the "Python module" table in `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`. |
 | Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: framework, .NET and Node into a module done; Python next (jubele); later any git repo as a project, make/just targets. |
 
 ## Next steps
 
 1. **Review the Python PR** when jubele opens it. The guide and both modules are the reference.
-2. **Left Node-shaped on purpose** (#47 step 5): `DetectedProject.packageJson`/`packageManager` are still fields tools read, and some tools' `appliesTo` checks `packageJson`. Moving them is a wider change, not started.
-3. **Ideas raised along the way:** checking both npm and NuGet in a folder that is both (the Dependencies tool checks Node first today; one result per package); input to running commands (#45).
-4. **Follow-ups from the .NET work** (in the .NET design doc): the Inspector's default target could use a launch-profile port like Health.
+2. **#63, package.json data from the Node module:** design in review (PR #78, `docs/superpowers/specs/2026-10-13-nestbox-v2-node-package-json-design.md`), with three questions for the owner. Not started in code.
+3. **Nx tasks** (#76), split from #60.
+4. **Ideas raised along the way:** checking both npm and NuGet in a folder that is both (the Dependencies tool checks Node first today; one result per package); input to running commands (#45).
 5. **Owner housekeeping:** delete merged feature branches on `origin` (many old `m*`/`v2-*`/`node-*` branches remain).
 
 ## Notes for a local session
