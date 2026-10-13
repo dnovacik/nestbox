@@ -15,7 +15,17 @@ The ecosystem framework allows NestBox to detect and provide commands for projec
 
 ### 1. Create Your Module File
 
-Create `src/main/ecosystems/<language>.ts` (e.g., `python.ts`, `go.ts`, `rust.ts`).
+Create a folder `src/main/ecosystems/<language>/` (e.g. `python/`, `go/`, `rust/`), laid out like `dotnet/` and `node/`:
+
+| File | Holds |
+| --- | --- |
+| `index.ts` | The module (`<language>Module`): wires the files below into `EcosystemModule` |
+| `detect.ts` | The info schema and `detect()` (file names and small capped reads only) |
+| `tasks.ts` | `tasks()`: the commands the ecosystem offers |
+| `deps.ts`, `sdk.ts`, `env.ts`, … | Optional: dependency checks, toolchain version checks, shared env |
+| `__fixtures__/` | Real tool output the tests parse |
+
+Each file has its test next to it (`detect.ts` → `detect.test.ts`). The snippets below show the pieces in one place; split them across the files.
 
 ### 2. Define Your Info Schema
 
@@ -23,7 +33,7 @@ Use Zod to define what information your detector captures:
 
 ```typescript
 import { z } from 'zod';
-import type { EcosystemModule } from './types';
+import type { EcosystemModule } from '../types';
 
 const PythonInfoSchema = z.object({
   // What your detector finds
@@ -207,12 +217,12 @@ export const ECOSYSTEM_MODULES: ReadonlyArray<EcosystemModule<unknown, unknown>>
 
 ### 7. Write Tests
 
-Create `src/main/ecosystems/<language>.test.ts`:
+Create `src/main/ecosystems/<language>/index.test.ts` (and a test next to each other file):
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import type { PlatformAdapter } from '../platform/adapter';
-import { pythonModule } from './python';
+import type { PlatformAdapter } from '../../platform/adapter';
+import { pythonModule } from './index';
 
 describe('pythonModule', () => {
   describe('detect', () => {
@@ -287,7 +297,7 @@ describe('pythonModule', () => {
 ### 8. Run Tests and Checks
 
 ```bash
-pnpm test src/main/ecosystems/<language>.test.ts
+pnpm test src/main/ecosystems/<language>
 pnpm typecheck
 pnpm lint
 pnpm test  # Full suite
@@ -372,7 +382,7 @@ Test these scenarios:
 
 See existing modules:
 - [`dotnet/`](../src/main/ecosystems/dotnet/) - The full reference: capped reads, solution projects, launch-profile tasks, an SDK warning in `runEnv`, Health ports and a dependency check
-- [`node.ts`](../src/main/ecosystems/node.ts) - Minimal: detection from file names only
+- [`node/`](../src/main/ecosystems/node/) - Minimal: detection from file names only (`detect.ts`) and the package manager's commands (`tasks.ts`)
 - [`test-module.ts`](../src/main/ecosystems/test-module.ts) - Test fixture showing all features
 
 ## Common Patterns

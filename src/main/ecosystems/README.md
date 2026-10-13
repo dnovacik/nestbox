@@ -5,7 +5,7 @@ This directory contains ecosystem modules that detect and provide commands for d
 ## Current Modules
 
 - **dotnet/** - .NET solutions (.sln, .slnx) and projects (.csproj, .fsproj, .vbproj): launch profiles, SDK check, NuGet dependencies
-- **node** - Node.js projects (package.json)
+- **node/** - Node.js projects (package.json): package manager from the lockfile, install and ci
 
 ## Adding a New Module
 
@@ -13,18 +13,18 @@ See [docs/adding-ecosystems.md](../../docs/adding-ecosystems.md) for a complete 
 
 **Quick start:**
 
-1. Create `<language>.ts` (or a `<language>/` folder) with detection logic and task list
+1. Create a `<language>/` folder like `dotnet/` and `node/`: `index.ts` (the module), `detect.ts`, `tasks.ts`
 2. Add your ecosystem ID to `EcosystemId` in `types.ts`
 3. **Add your icon** - Update `src/renderer/components/EcosystemIcons.tsx` (required)
 4. Register in `index.ts` → `ECOSYSTEM_MODULES` array
-5. Add tests in `<language>.test.ts`
+5. Add a test next to each file (`detect.test.ts`, `tasks.test.ts`, `index.test.ts`)
 6. Run `pnpm test` and `pnpm lint`
 
 **Template:**
 
 ```typescript
 import { z } from 'zod';
-import type { EcosystemModule } from './types';
+import type { EcosystemModule } from '../types';
 
 const MyInfoSchema = z.object({
   // What you detect
