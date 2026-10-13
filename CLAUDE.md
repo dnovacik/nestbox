@@ -24,7 +24,7 @@ Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/supe
 src/main/        Electron main. index.ts is the only file wiring real Electron objects (app-menu.ts is the pure macOS menu template).
   platform/      PlatformAdapter (win32, darwin; Linux gets darwin for development). The ONLY place allowed to read process.platform.
   detection/     detectProject(): pure filesystem detection, no Electron imports
-  ecosystems/    One module per ecosystem (node.ts, dotnet/): detection, package globs, tasks, run env
+  ecosystems/    One folder per ecosystem (node/, dotnet/: index.ts, detect.ts, tasks.ts, …): detection, package globs, tasks, run env
   store/         StoreService over electron-store (Zod + schemaVersion + migrations)
   projects/      ProjectService (add/remove/rename/pin/refresh, workspace lookup, run groups, tool settings)
   processes/     ProcessManager (spawn, states, crash/auto-restart, per-script log ring buffers), PID ledger
