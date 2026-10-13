@@ -10,6 +10,7 @@ export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
     framework: null,
     ports: [],
     hasDependencies: false,
+    monorepo: null,
     ...over,
   };
 }

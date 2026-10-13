@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detectProject } from './detect-project';
 import { makeTree, removeTree } from './test-fixtures';
 import { nodeInfo } from '../ecosystems/node/fixtures';
+import { nodeModule } from '../ecosystems/node';
 
 let dir = '';
 afterEach(async () => removeTree(dir));
@@ -157,6 +158,21 @@ describe('detectProject workspaces', () => {
       nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
       nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
     ]);
+  });
+
+  it("gives a monorepo root workspace-wide tasks for the scripts its packages share", async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }),
+      'pnpm-lock.yaml': '',
+      'packages/api/package.json': JSON.stringify({ name: '@mono/api', scripts: { build: 'tsc' } }),
+      'packages/web/package.json': JSON.stringify({ name: '@mono/web', scripts: { build: 'vite build' } }),
+    });
+    const d = await detectProject({ id: 'root', path: dir });
+    const node = d.ecosystems.find((e) => e.id === 'node');
+    const tasks = nodeModule.tasks(nodeModule.infoSchema.parse(node?.info));
+    expect(tasks.find((t) => t.name === 'all:build')?.argv).toEqual(['pnpm', '-r', 'run', 'build']);
+    // The packages themselves get none.
+    expect(d.workspaces.map((w) => (w.ecosystems[0]?.info as { monorepo: unknown }).monorepo)).toEqual([null, null]);
   });
 
   // For scripts and the Node module alike.
