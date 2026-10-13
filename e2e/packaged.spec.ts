@@ -39,7 +39,8 @@ test('the packaged app starts, answers IPC and adds a project', async () => {
     await slowExpect(page.getByRole('heading', { name: 'nestbox-e2e-app' })).toBeVisible();
     // A tool that depends on packaged node_modules (sirv) loads and answers.
     await page.getByRole('tab', { name: 'Static' }).click();
-    await slowExpect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+    // Scoped: until the lazy panel replaces the overview, its Mock API and Inspector cards have a Start too.
+    await slowExpect(page.getByRole('region', { name: 'Static server' }).getByRole('button', { name: 'Start' })).toBeVisible();
   } finally {
     // Quit without the close-to-tray prompt: the main process exits directly.
     await app.evaluate(({ app: electronApp }) => electronApp.exit(0)).catch(() => undefined);

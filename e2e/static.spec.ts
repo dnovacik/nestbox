@@ -23,7 +23,9 @@ test.afterEach(async () => {
 test('serves the build output with SPA fallback, logs requests and stops', async () => {
   await page.getByRole('complementary', { name: 'Projects' }).getByRole('button', { name: 'Add project' }).click();
   await page.getByRole('tab', { name: 'Static' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  // Scoped: until the lazy panel replaces the overview, its Mock API and Inspector cards have a Start too.
+  const panel = page.getByRole('region', { name: 'Static server' });
+  await panel.getByRole('button', { name: 'Start' }).click();
 
   const link = page.getByRole('link', { name: /^http:\/\/localhost:\d+\/$/ });
   const url = (await link.textContent())?.replace('localhost', '127.0.0.1') ?? '';
@@ -38,7 +40,7 @@ test('serves the build output with SPA fallback, logs requests and stops', async
   await expect(log).toContainText('404 GET /.secret');
   await expect(log).not.toContainText('token');
 
-  await page.getByRole('button', { name: 'Stop', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Start' })).toBeVisible();
   await expect(fetch(url)).rejects.toThrow();
 });
