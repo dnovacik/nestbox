@@ -175,12 +175,9 @@ describe('detectProject workspaces', () => {
     dir = await makeTree({ 'package.json': '{}' });
     const plain = await detectProject({ id: 'p', path: dir });
     expect(plain.packageManager).toBeNull();
-    expect(plain.ecosystems.find((e) => e.id === 'node')?.info).toEqual({
-      packageManager: 'npm',
-      packageManagerSource: 'default',
-      lockfiles: [],
-      framework: null,
-    });
+    expect(plain.ecosystems.find((e) => e.id === 'node')?.info).toEqual(
+      nodeInfo({ packageManagerSource: 'default' }),
+    );
   });
 
   it('labels warnings from workspace packages with their relative path', async () => {

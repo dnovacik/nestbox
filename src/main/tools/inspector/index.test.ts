@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DetectedProject } from '@shared/detected';
 import { makeDetectedForTest } from '@shared/test-fixtures';
 import type {
   EntryDetail,
@@ -17,6 +18,7 @@ import { createEnvFileAccess } from '../env/env-files';
 import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
 import { createInspectorTool } from './index';
+import { nodeInfo } from '../../ecosystems/node/fixtures';
 
 let root = '';
 let tool: AnyMainTool | null = null;
@@ -57,7 +59,7 @@ async function freePort(): Promise<number> {
 
 function setup(
   initial: InspectorSettings = { packages: {} },
-  opts: { cloudflared?: boolean } = {},
+  opts: { cloudflared?: boolean; ecosystems?: DetectedProject['ecosystems'] } = {},
 ) {
   let settings = initial;
   const logger = createMemoryLogger();
@@ -66,7 +68,7 @@ function setup(
   tool = createInspectorTool({ logger, envFiles: createEnvFileAccess(), clipboard });
   const emit = vi.fn();
   const ctx = {
-    project: makeDetectedForTest({ path: root }),
+    project: makeDetectedForTest({ path: root, ecosystems: opts.ecosystems ?? [] }),
     shared: createSharedContext().forProject('p1'),
     emit,
     platform: { ...platform, commandExists: vi.fn(async () => opts.cloudflared ?? true) },
@@ -94,6 +96,18 @@ describe('inspector tool: target and lifecycle', () => {
       target: 'http://127.0.0.1:9999/api',
       targetSource: 'setting',
     });
+  });
+
+  it("falls back to the port the project's ecosystems detected (a dev script, a framework)", async () => {
+    const node = { id: 'node' as const, info: nodeInfo({ ports: [5173] }) };
+    const { call } = setup({ packages: {} }, { ecosystems: [node] });
+    expect(await call<InspectorStatus>('status')).toMatchObject({
+      target: 'http://localhost:5173',
+      targetSource: 'detected',
+    });
+    // PORT in .env still wins.
+    await writeFile(join(root, '.env'), 'PORT=3456\n');
+    expect(await call<InspectorStatus>('status')).toMatchObject({ targetSource: 'env' });
   });
 
   it('refuses to start without an API address', async () => {

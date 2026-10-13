@@ -135,6 +135,16 @@ describe('InspectorPanel', () => {
     );
   });
 
+  it('names a detected fallback address as detected', async () => {
+    setup({
+      status: inspectorStatus({ target: 'http://localhost:5173', targetSource: 'detected' }),
+    });
+    expect(await screen.findByRole('textbox', { name: 'API address' })).toHaveAttribute(
+      'placeholder',
+      'http://localhost:5173 (detected)',
+    );
+  });
+
   it('saves a local API address and refuses a remote one', async () => {
     const { of } = setup({ status: inspectorStatus() });
     const field = await screen.findByRole('textbox', { name: 'API address' });

@@ -53,6 +53,9 @@ export function createNodeModule(
 
     depsUpdateCommand: nodeUpdateCommand,
 
+    /** Health suggestions and the Inspector's default target, after PORT in .env. */
+    ports: (info: NodeInfo) => info.ports,
+
     /** The Node version advice for any command of the package (npm scripts, install/ci, custom commands). */
     async runEnv(ctx, info: NodeInfo): Promise<RunEnv> {
       if (ctx.settings.checkVersions !== true) return {};
