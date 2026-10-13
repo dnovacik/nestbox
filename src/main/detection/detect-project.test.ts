@@ -151,6 +151,11 @@ describe('detectProject workspaces', () => {
     expect(d.workspaces[0]?.envFiles).toEqual(['.env.example']);
     expect(d.workspaces[0]?.workspaces).toEqual([]);
     expect(d.workspaces[0]?.rootId).toBe('root');
+    // The Node module's tasks and summary use the same manager as the scripts.
+    expect(d.workspaces.map((w) => w.ecosystems.find((e) => e.id === 'node')?.info)).toEqual([
+      { packageManager: 'pnpm' },
+      { packageManager: 'pnpm' },
+    ]);
   });
 
   it('labels warnings from workspace packages with their relative path', async () => {

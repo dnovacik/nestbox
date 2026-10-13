@@ -5,11 +5,11 @@ import {
   type DeployPlatform,
   type DetectedProject,
   type EcosystemEntry,
-  type PackageManager,
   workspaceId,
 } from '@shared/detected';
 import { isRecord } from '@shared/is-record';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
+import type { DetectContext } from '../ecosystems/types';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
 import { detectPackageManager } from '../ecosystems/node/package-manager';
@@ -38,11 +38,11 @@ interface DirTarget {
   path: string;
   relPath: string;
   name?: string;
-  inheritedPackageManager?: PackageManager;
+  /** The root's names, for a workspace package: its package manager comes from the root's lockfile. */
+  root?: NonNullable<DetectContext['root']>;
 }
 
 interface PackageJsonRead {
-  raw: Record<string, unknown>;
   info: { name?: string; scripts: Record<string, string> };
 }
 
@@ -96,7 +96,7 @@ async function readPackageJson(
     }
   }
   const name = typeof raw['name'] === 'string' && raw['name'].trim() ? raw['name'] : undefined;
-  return { raw, info: name === undefined ? { scripts } : { name, scripts } };
+  return { info: name === undefined ? { scripts } : { name, scripts } };
 }
 
 async function detectPrisma(dir: string): Promise<string | null> {
@@ -131,9 +131,9 @@ function missingProject(target: DirTarget): DetectedProject {
 async function detectDir(
   target: DirTarget,
   options: DetectOptions,
-): Promise<{ detected: DetectedProject; rawPackageJson: Record<string, unknown> | null }> {
+): Promise<{ detected: DetectedProject; names: NonNullable<DetectContext['root']> | null }> {
   if (!(await isDirectory(target.path))) {
-    return { detected: missingProject(target), rawPackageJson: null };
+    return { detected: missingProject(target), names: null };
   }
   const entries: Dirent[] = await readdir(target.path, { withFileTypes: true }).catch(() => {
     options.onWarning?.(target.relPath || '.', 'unreadable');
@@ -160,7 +160,7 @@ async function detectDir(
   // Detect ecosystem modules
   const ecosystems: EcosystemEntry[] = [];
   for (const module of ECOSYSTEM_MODULES) {
-    const info = await module.detect(target.path, files, dirs);
+    const info = await module.detect(target.path, files, dirs, { root: target.root ?? null });
     if (info !== null) {
       try {
         const validated = module.infoSchema.parse(info);
@@ -180,7 +180,7 @@ async function detectDir(
     name: target.name ?? pkg?.info.name ?? basename(target.path),
     missing: false,
     packageJson: pkg?.info ?? null,
-    packageManager: target.inheritedPackageManager ?? detectPackageManager(files),
+    packageManager: (target.root ? detectPackageManager(target.root.files) : null) ?? detectPackageManager(files),
     envFiles: envFiles.sort(),
     envSymlinks: envSymlinks.sort(),
     workspaces: [],
@@ -197,20 +197,20 @@ async function detectDir(
     },
     ecosystems,
   };
-  return { detected, rawPackageJson: pkg?.raw ?? null };
+  return { detected, names: { path: target.path, files, dirs } };
 }
 
 export async function detectProject(
   input: DetectInput,
   options: DetectOptions = {},
 ): Promise<DetectedProject> {
-  const { detected: root, rawPackageJson } = await detectDir(
+  const { detected: root, names } = await detectDir(
     { id: input.id, rootId: input.id, path: input.path, relPath: '', ...(input.name ? { name: input.name } : {}) },
     options,
   );
   if (root.missing) return root;
 
-  const relDirs = await findWorkspaceDirs(input.path, rawPackageJson, options);
+  const relDirs = await findWorkspaceDirs(input.path, options);
   const workspaces = await Promise.all(
     relDirs.map(async (rel) => {
       const { detected } = await detectDir(
@@ -219,7 +219,7 @@ export async function detectProject(
           rootId: input.id,
           path: join(input.path, ...rel.split('/')),
           relPath: rel,
-          ...(root.packageManager ? { inheritedPackageManager: root.packageManager } : {}),
+          ...(names ? { root: names } : {}),
         },
         options,
       );

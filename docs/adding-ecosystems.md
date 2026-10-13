@@ -33,7 +33,7 @@ Use Zod to define what information your detector captures:
 
 ```typescript
 import { z } from 'zod';
-import type { EcosystemModule } from '../types';
+import type { DetectContext, EcosystemModule } from '../types';
 
 const PythonInfoSchema = z.object({
   // What your detector finds
@@ -60,11 +60,15 @@ export const pythonModule: EcosystemModule<PythonInfo> = {
    * Detect if this directory contains a project of your type.
    * No subprocess and no Electron APIs. Prefer the provided files and dirs sets;
    * read a file only when you must, small and capped (see Cheap Detection).
+   * ctx.root holds the project root's file and folder names when dir is a workspace
+   * package (null for the root): use it for what a package inherits, like Node's
+   * package manager from the root's lockfile.
    */
   async detect(
     dir: string,
     files: ReadonlySet<string>,
-    dirs: ReadonlySet<string>
+    dirs: ReadonlySet<string>,
+    ctx?: DetectContext
   ): Promise<PythonInfo | null> {
     // Check for marker files
     if (!files.has('requirements.txt') && !files.has('pyproject.toml')) {
@@ -351,7 +355,7 @@ Your module integrates automatically with:
 1. **Project detection** (`detectProject()`): Runs during initial scan and rescan
 2. **Scripts tool**: Tasks appear as `'detected'` kind commands (Hide on the row, Restore below the list). `runEnv()` applies to them and to custom commands of the package; its `warning` becomes the row's badge.
 3. **Project-info**: `summary()` appears in the project card
-4. **Workspace detection**: `packageGlobs` and `skipDir` find sub-folder packages; optional `workspaceDirs(root)` adds folders the root lists itself (a .NET solution's projects)
+4. **Workspace detection**: optional `declaredWorkspaces(root)` returns the packages the root's own workspace config declares (Node's npm/pnpm/yarn workspaces; a uv workspace would fit), or null; when any module declares some, sub-folder discovery is skipped. Otherwise `packageGlobs` and `skipDir` find sub-folder packages. Optional `workspaceDirs(root)` always adds folders the root lists itself (a .NET solution's projects). Every folder is checked against the root afterwards (symlinks resolved).
 5. **Health** (optional `ports(info)`): the first port is a check suggestion when `.env` has no `PORT`
 6. **Dependencies** (optional `deps(info, run)` and `depsUpdateCommand(name)`): rows for a package without a `package.json`; network only on Check or the schedule
 

@@ -38,6 +38,17 @@ export interface EcosystemDeps {
   errors: StepError[];
 }
 
+/** What detect() knows beyond the folder itself. */
+export interface DetectContext {
+  /** The project root's file and folder names when the folder is a workspace package; null for the root. */
+  root: { path: string; files: ReadonlySet<string>; dirs: ReadonlySet<string> } | null;
+}
+
+/** Warnings a module may raise while reading the root's workspace config: file names and a reason only. */
+export interface WorkspaceContext {
+  onWarning?(file: string, reason: 'invalid-yaml'): void;
+}
+
 export interface RunEnvContext<Settings = unknown> {
   dir: string;
   platform: PlatformAdapter;
@@ -51,7 +62,12 @@ export interface EcosystemModule<Info, Settings = unknown> {
   infoSchema: z.ZodSchema<Info>;
 
   /** Pure filesystem detection of one folder. No Electron, no subprocess. */
-  detect(dir: string, files: ReadonlySet<string>, dirs: ReadonlySet<string>): Promise<Info | null>;
+  detect(
+    dir: string,
+    files: ReadonlySet<string>,
+    dirs: ReadonlySet<string>,
+    ctx?: DetectContext,
+  ): Promise<Info | null>;
 
   /**
    * Files that make a sub-folder a package when the root declares no workspaces (multi-folder projects):
@@ -68,6 +84,14 @@ export interface EcosystemModule<Info, Settings = unknown> {
    * (both are dropped). Small capped reads only.
    */
   workspaceDirs?(root: string): Promise<string[]>;
+
+  /**
+   * Optional: the package folders the root's own workspace config declares (npm/pnpm/yarn workspaces),
+   * relative with `/`; null when it declares none. When any module returns a list, sub-folder discovery
+   * (packageGlobs) is skipped. The module reads its own files (small reads); folders outside the root are
+   * dropped afterwards.
+   */
+  declaredWorkspaces?(root: string, ctx?: WorkspaceContext): Promise<string[] | null>;
 
   /**
    * Optional: the Dependencies tool's check for a package without a package.json (network: only on Check

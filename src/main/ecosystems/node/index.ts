@@ -1,8 +1,10 @@
-// The Node.js ecosystem: folders with a package.json. Detection looks at file names only (detect.ts); the
-// module adds the package manager's own commands (tasks.ts).
+// The Node.js ecosystem: folders with a package.json. Detection looks at file names only (detect.ts), the
+// package manager comes from the lockfile (package-manager.ts), the root's npm/pnpm/yarn workspaces are its
+// packages (workspaces.ts), and the module adds the package manager's own commands (tasks.ts).
 import type { EcosystemModule } from '../types';
 import { detectNode, type NodeInfo, NodeInfoSchema } from './detect';
 import { nodeTasks } from './tasks';
+import { nodeWorkspaces } from './workspaces';
 
 export type { NodeInfo } from './detect';
 
@@ -24,6 +26,8 @@ export const nodeModule: EcosystemModule<NodeInfo> = {
    * A sub-folder with a package.json, one or two levels down (multi-folder projects).
    */
   packageGlobs: ['*/package.json', '*/*/package.json'],
+
+  declaredWorkspaces: nodeWorkspaces,
 
   tasks: nodeTasks,
 

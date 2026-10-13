@@ -1,53 +1,12 @@
-import { readFile, realpath } from 'node:fs/promises';
+// A project's package folders: those the ecosystems declare (npm/pnpm/yarn workspaces) or, without a
+// declaration, the sub-folders holding an ecosystem's package file; plus the folders an ecosystem lists
+// itself (a .NET solution's projects). Every folder is checked against the root, symlinks resolved.
+import { realpath } from 'node:fs/promises';
 import { isAbsolute, join, posix, relative, resolve } from 'node:path';
 import { glob } from 'tinyglobby';
-import { parse as parseYaml } from 'yaml';
-import { isRecord } from '@shared/is-record';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
+import { escapesRoot } from '../fs/inside';
 import type { DetectOptions } from './detect-project';
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-async function pnpmPatterns(root: string, options: DetectOptions): Promise<string[]> {
-  let text: string;
-  try {
-    text = await readFile(join(root, 'pnpm-workspace.yaml'), 'utf8');
-  } catch {
-    return [];
-  }
-  try {
-    const doc: unknown = parseYaml(text);
-    return isRecord(doc) ? strings(doc['packages']) : [];
-  } catch {
-    options.onWarning?.('pnpm-workspace.yaml', 'invalid-yaml');
-    return [];
-  }
-}
-
-function packageJsonPatterns(pkg: Record<string, unknown> | null): string[] {
-  if (!pkg) return [];
-  const ws = pkg['workspaces'];
-  if (Array.isArray(ws)) return strings(ws);
-  if (isRecord(ws)) return strings(ws['packages']);
-  return [];
-}
-
-function clean(pattern: string): string {
-  return pattern.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-}
-
-/** tinyglobby accepts `../*` and absolute patterns; neither may leave the project root. */
-function escapesRoot(pattern: string): boolean {
-  return (
-    isAbsolute(pattern) ||
-    pattern.startsWith('/') ||
-    pattern.startsWith('\\') ||
-    /^[a-zA-Z]:/.test(pattern) ||
-    pattern.split(/[\\/]/).includes('..')
-  );
-}
 
 function insideRoot(root: string, dir: string): boolean {
   const rel = relative(resolve(root), resolve(root, dir));
@@ -98,35 +57,22 @@ async function listedPackages(root: string): Promise<string[]> {
   return listed.flat().filter((dir) => !escapesRoot(dir));
 }
 
+/** The declared workspaces of every ecosystem that has some; null when none declares any. */
+async function declaredPackages(root: string, options: DetectOptions): Promise<string[] | null> {
+  const declared = await Promise.all(
+    ECOSYSTEM_MODULES.map((m) => m.declaredWorkspaces?.(root, options) ?? null),
+  );
+  const lists = declared.filter((d): d is string[] => d !== null);
+  return lists.length === 0 ? null : lists.flat();
+}
+
 export async function findWorkspaceDirs(
   root: string,
-  packageJson: Record<string, unknown> | null,
   options: DetectOptions = {},
 ): Promise<string[]> {
   const listed = await listedPackages(root);
-  const patterns = [...(await pnpmPatterns(root, options)), ...packageJsonPatterns(packageJson)];
-  if (patterns.length === 0) return keepInside(root, [...(await subFolderPackages(root)), ...listed], options);
-
-  const include = patterns
-    .filter((p) => !p.startsWith('!'))
-    .map(clean)
-    .filter((p) => p && p !== '.' && !escapesRoot(p));
-  const exclude = patterns
-    .filter((p) => p.startsWith('!'))
-    .map((p) => clean(p.slice(1)))
-    .filter((p) => !escapesRoot(p));
-  const manifests =
-    include.length === 0
-      ? []
-      : await glob(
-          include.map((p) => `${p}/package.json`),
-          {
-            cwd: root,
-            ignore: ['**/node_modules/**', ...exclude.map((p) => `${p}/package.json`)],
-            onlyFiles: true,
-          },
-        );
-  return keepInside(root, [...manifests.map(folderOf), ...listed], options);
+  const declared = await declaredPackages(root, options);
+  return keepInside(root, [...(declared ?? (await subFolderPackages(root))), ...listed], options);
 }
 
 /** Package folders: sorted, unique, never the root, and only existing ones really inside it. */
