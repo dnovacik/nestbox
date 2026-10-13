@@ -175,7 +175,10 @@ describe('env tool', () => {
     expect(JSON.stringify(logger.entries)).not.toContain('NEW_KEY');
   });
 
-  it('lists the env keys the code reads, by name only', async () => {
+  // 20 s, not 5: on Windows CI runners this test twice took over 5 s (5.8 s on PR #55) while it takes 20-50 ms
+  // locally, even in a loaded full run. It is the only test here that writes a script file and reads it back at
+  // once; an antivirus scan of the new file is the likely stall, not yet confirmed (#64).
+  it('lists the env keys the code reads, by name only', { timeout: 20_000 }, async () => {
     const { call, logger } = setup();
     await writeFile(join(dir, 'main.py'), `import os\nDSN = os.getenv("SENTRY_DSN", "${SECRET}")\nPORT = os.environ["PORT"]\n`);
     const found = await call<{ keys: unknown[]; files: number; truncated: boolean }>('codeKeys');
