@@ -13,6 +13,8 @@ export interface ScriptsFixture {
   envFiles?: string[];
   /** Hidden detected commands of the package. */
   hidden?: string[];
+  /** Dependencies to install first. */
+  install?: { state: 'missing' | 'stale'; task: string } | null;
   /** Per-method overrides; return a value or throw. */
   methods?: Record<string, (input: never) => unknown>;
 }
@@ -37,6 +39,7 @@ export function installScriptsBridge(fx: ScriptsFixture = {}) {
               fx.packages === undefined ? [{ relPath: '', name: 'shop', scripts: ['dev'], compose: false, main: null }] : fx.packages,
             envFiles: fx.envFiles ?? ['.env'],
             hidden: fx.hidden ?? [],
+            install: fx.install ?? null,
           };
         case 'getLogs':
           return { lines: [], firstSeq: 1, lastSeq: 0 };

@@ -1,5 +1,5 @@
 import { EyeOff, Pencil, Play, Plus, RotateCw, Square, Star, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isLive, type ProcessSummary } from '@shared/processes';
 import type { EcosystemId } from '@shared/detected';
 import {
@@ -24,6 +24,7 @@ import {
   useCommandActions,
   useHiddenActions,
   useScriptAction,
+  useRefetchScriptList,
   useScriptList,
   useSetAutoRestart,
   useSetEnvFile,
@@ -232,6 +233,47 @@ function ScriptRow({
   );
 }
 
+/** Dependencies to install first, with the task that installs them; the list refetches when it stops. */
+function InstallHint({
+  projectId,
+  hint,
+  process,
+}: {
+  projectId: string;
+  hint: { state: 'missing' | 'stale'; task: string };
+  process: ProcessSummary | undefined;
+}) {
+  const action = useScriptAction(projectId);
+  const showScript = useUiStore((s) => s.showScript);
+  const refetch = useRefetchScriptList(projectId);
+  const live = process !== undefined && isLive(process.state);
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) void refetch();
+    wasLive.current = live;
+  }, [live, refetch]);
+  return (
+    <p className="mb-2 flex items-center gap-2 rounded border border-warn/30 bg-warn/10 px-2 py-1 text-xs text-warn">
+      <span>
+        {hint.state === 'missing' ? "Dependencies aren't installed." : 'Dependencies are older than the lockfile.'}
+      </span>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="ml-auto h-6"
+        aria-label="Install dependencies"
+        disabled={live || action.isPending}
+        onClick={() => {
+          showScript(projectId, hint.task);
+          action.mutate({ action: 'start', script: hint.task });
+        }}
+      >
+        {live ? 'Installing…' : 'Install'}
+      </Button>
+    </p>
+  );
+}
+
 export function ScriptList({ projectId }: { projectId: string }) {
   const { data, isPending, isError } = useScriptList(projectId);
   const { data: processes = [] } = useProcesses();
@@ -250,6 +292,13 @@ export function ScriptList({ projectId }: { projectId: string }) {
           Add command
         </Button>
       </div>
+      {data.install && (
+        <InstallHint
+          projectId={projectId}
+          hint={data.install}
+          process={processes.find((p) => p.projectId === projectId && p.script === data.install?.task)}
+        />
+      )}
       {data.scripts.length === 0 && <p className="text-xs text-fg-faint">No scripts or commands yet.</p>}
       <ul className="space-y-1.5">
         {data.scripts.map((info) => (

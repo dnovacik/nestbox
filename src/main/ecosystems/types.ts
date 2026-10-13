@@ -55,6 +55,14 @@ export interface RunEnvContext<Settings = unknown> {
   rootDir?: string | null;
   platform: PlatformAdapter;
   settings: Settings;
+  /** The detected task being started (absent for npm scripts and custom commands). */
+  task?: string;
+}
+
+/** Dependencies a package needs installed first: none yet, or older than the lockfile; and the task that installs. */
+export interface InstallHint {
+  state: 'missing' | 'stale';
+  task: string;
 }
 
 export interface EcosystemModule<Info, Settings = unknown> {
@@ -104,6 +112,12 @@ export interface EcosystemModule<Info, Settings = unknown> {
 
   /** Optional: "Copy update command" for a row; null when the row's manager isn't this module's. */
   depsUpdateCommand?(name: string, row: { manager: PackageResult['manager']; type: DepType | null }): string | null;
+
+  /**
+   * Optional: whether the package's dependencies need installing (stat calls only); null when they're fine or
+   * there is nothing to install. The Scripts tab offers the task.
+   */
+  installHint?(ctx: { dir: string; rootDir: string | null }, info: Info): Promise<InstallHint | null>;
 
   /** Optional: local http ports the package listens on when it runs (Health suggestions). */
   ports?(info: Info): number[];

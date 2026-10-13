@@ -98,6 +98,8 @@ export const scriptsContract = defineContract({
       scripts: z.array(ScriptInfoSchema),
       /** Root projects only; null for workspace packages. */
       runGroups: z.array(RunGroupSchema).nullable(),
+      /** Dependencies to install first (none yet, or older than the lockfile), with the task that does it. */
+      install: z.object({ state: z.enum(['missing', 'stale']), task: z.string() }).nullable().default(null),
       /** Root projects only: every package's scripts, for the run group editor. */
       packages: z.array(PackageScriptsSchema).nullable(),
       /** The package's env files right now, for the Env choice of each row. */

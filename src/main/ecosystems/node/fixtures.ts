@@ -9,6 +9,7 @@ export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
     lockfiles: [],
     framework: null,
     ports: [],
+    hasDependencies: false,
     ...over,
   };
 }

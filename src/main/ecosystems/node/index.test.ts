@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { StartAdvice } from '@shared/tools/node/contract';
 import { detectNode } from './detect';
@@ -85,6 +88,33 @@ describe('nodeModule.runEnv', () => {
     const { module } = moduleWith({ warning: null, pathPrepend: null, note: null });
     const settings = { checkVersions: true, fnm: false };
     expect(await module.runEnv({ dir: '/x', platform, settings }, nodeInfo())).toEqual({});
+  });
+});
+
+describe('nodeModule install hints', () => {
+  it('offers install and warns other starts while node_modules is missing, not install/ci themselves', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nestbox-node-install-'));
+    const info = nodeInfo({ lockfiles: [], hasDependencies: true });
+    expect(await nodeModule.installHint?.({ dir, rootDir: null }, info)).toEqual({
+      state: 'missing',
+      task: 'install',
+    });
+    const check = {
+      status: vi.fn(),
+      refresh: vi.fn(),
+      forget: vi.fn(),
+      advice: vi.fn(async () => ({ warning: 'Node is old', pathPrepend: null, note: null })),
+    };
+    const module = createNodeModule({ check });
+    const settings = { checkVersions: true, fnm: false };
+    expect(await module.runEnv({ dir, platform: {} as never, settings }, info)).toEqual({
+      warning: "Node is old; Dependencies aren't installed (run install)",
+    });
+    expect(
+      await module.runEnv({ dir, platform: {} as never, settings, task: 'install' }, info),
+    ).toEqual({ warning: 'Node is old' });
+    await mkdir(join(dir, 'node_modules'));
+    expect(await nodeModule.installHint?.({ dir, rootDir: null }, info)).toBeNull();
   });
 });
 
