@@ -8,6 +8,7 @@ import { createMemoryBackend } from '../store/backend';
 import { StoreService } from '../store/store-service';
 import { DETECTION_WAIT_MS, ProjectService } from './project-service';
 import { noopRunner } from '../platform/testing';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 const win32 = createWin32Adapter({ runner: noopRunner, getEditorCommand: () => 'code' });
 
@@ -20,8 +21,6 @@ function fakeDetect(input: DetectInput): DetectedProject {
     relPath: '',
     name: input.name ?? folder.toLowerCase(),
     missing: false,
-    packageJson: null,
-    packageManager: 'pnpm',
     envFiles: [], envSymlinks: [],
     workspaces: [
       { ...emptyDetected(), id: `${input.id}::packages/api`, rootId: input.id, relPath: 'packages/api', name: 'api', path: `${input.path}\\packages\\api` },
@@ -37,8 +36,8 @@ function fakeDetect(input: DetectInput): DetectedProject {
 
 function emptyDetected(): DetectedProject {
   return {
-    id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false, packageJson: null,
-    packageManager: null, envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],
+    id: 'x', rootId: 'x', path: 'x', relPath: '', name: 'x', missing: false,
+    envFiles: [], envSymlinks: [], workspaces: [], prismaSchema: null, dockerCompose: null, deploy: [],
     git: null, buildOutput: null,
     claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
     ecosystems: [],
@@ -459,7 +458,7 @@ describe('ProjectService.scan and addFolders', () => {
     const { service, detect } = setup();
     detect.mockImplementation(async (input: DetectInput) => ({
       ...fakeDetect(input),
-      packageJson: { name: 'mono', scripts: {} },
+      ecosystems: [nodeEntry({ name: 'mono' })],
     }));
     expect(await service.scan('C:\\Dev\\Mono')).toEqual({ name: 'mono', folders: [] });
   });

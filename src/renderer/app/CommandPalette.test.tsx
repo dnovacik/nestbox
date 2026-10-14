@@ -6,12 +6,13 @@ import { makeDetected, makeSummary } from '@/test/fixtures';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { CommandPalette } from './CommandPalette';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 type Invoke = { toolId: string; projectId: string; method: string; input: unknown };
 
 function setup() {
   // A hex id, like real ones: its letters must not match searches.
-  const shop = makeSummary({ detected: makeDetected({ id: 'dec0ded', rootId: 'dec0ded', packageJson: { scripts: { serve: 'node server.js', build: 'tsc' } } }) });
+  const shop = makeSummary({ detected: makeDetected({ id: 'dec0ded', rootId: 'dec0ded', ecosystems: [nodeEntry({ scripts: { serve: 'node server.js', build: 'tsc' } })] }) });
   const blog = makeSummary({ id: 'p2', name: 'blog' });
   const bridge = installMockBridge({
     'projects:list': () => [shop, blog],

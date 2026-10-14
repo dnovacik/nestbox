@@ -6,6 +6,7 @@ import { makeDetected } from '@/test/fixtures';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { ProjectInfoCard } from './OverviewCard';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 describe('ProjectInfoCard', () => {
   it('shows a skeleton while loading', () => {
@@ -31,12 +32,12 @@ describe('ProjectInfoCard', () => {
   });
 
   it('says npm is the default when no lockfile or packageManager field names a manager, and none outside Node', async () => {
-    let detected = makeDetected({ packageManager: null });
+    let detected = makeDetected({ ecosystems: [nodeEntry({ packageManagerSource: 'default' })] });
     installMockBridge({ 'tools:invoke': () => detected });
     const { unmount } = renderWithProviders(<ProjectInfoCard projectId="p1" />);
     expect(await screen.findByText('npm (default)')).toBeInTheDocument();
     unmount();
-    detected = makeDetected({ packageJson: null, packageManager: null });
+    detected = makeDetected({ ecosystems: [] });
     renderWithProviders(<ProjectInfoCard projectId="p1" />);
     expect(await screen.findByText('none')).toBeInTheDocument();
   });
@@ -45,8 +46,6 @@ describe('ProjectInfoCard', () => {
     installMockBridge({
       'tools:invoke': () =>
         makeDetected({
-          packageJson: null,
-          packageManager: null,
           ecosystems: [{ id: 'dotnet', info: {}, summary: '.NET · net8.0 · web · SDK 8.0.100' }],
         }),
     });

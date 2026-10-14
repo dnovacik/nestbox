@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { makeDetectedForTest } from '../../test-fixtures';
 import { MAX_EXPORT_SEQS, scriptsContract, scriptsDefinition } from './contract';
+import { nodeEntry } from '../../ecosystems/node-fixtures';
 
 describe('scripts contract', () => {
   it('applies to every package and to workspace roots', () => {
-    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: { scripts: { dev: 'vite' } } }))).toBe(true);
+    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ ecosystems: [nodeEntry({ scripts: { dev: 'vite' } })] }))).toBe(true);
     // No scripts: custom commands still run there.
-    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: { scripts: {} } }))).toBe(true);
-    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: null, workspaces: [makeDetectedForTest()] }))).toBe(true);
-    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ packageJson: null }))).toBe(false);
+    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ ecosystems: [nodeEntry()] }))).toBe(true);
+    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ ecosystems: [], workspaces: [makeDetectedForTest()] }))).toBe(true);
+    expect(scriptsDefinition.appliesTo(makeDetectedForTest({ ecosystems: [] }))).toBe(false);
   });
 
   it('defaults its settings', () => {

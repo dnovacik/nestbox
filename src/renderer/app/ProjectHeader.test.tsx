@@ -5,6 +5,7 @@ import { makeDetectedForTest } from '@shared/test-fixtures';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { ProjectHeader } from './ProjectHeader';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 function node(git: DetectedProject['git'], over: Partial<DetectedProject> = {}) {
   const detected = makeDetectedForTest({
@@ -80,12 +81,12 @@ describe('ProjectHeader package manager', () => {
   });
 
   it('says npm (default) without a lockfile or packageManager field', () => {
-    setup(null, null, { packageManager: null });
+    setup(null, null, { ecosystems: [nodeEntry({ packageManagerSource: 'default' })] });
     expect(screen.getByText('npm (default)')).toBeInTheDocument();
   });
 
   it('shows no manager for a folder without package.json', () => {
-    setup(null, null, { packageJson: null, packageManager: null });
+    setup(null, null, { ecosystems: [] });
     expect(screen.queryByText(/npm|pnpm/)).toBeNull();
   });
 });

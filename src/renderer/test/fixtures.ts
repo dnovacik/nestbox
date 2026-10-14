@@ -1,17 +1,15 @@
 import type { DetectedProject, ProjectSummary } from '@shared/detected';
-import type { NodeInfo } from '@shared/ecosystems/node';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 import type { ProcessSummary } from '@shared/processes';
 
 export function makeDetected(over: Partial<DetectedProject> = {}): DetectedProject {
-  const project: DetectedProject = {
+  return {
     id: 'p1',
     rootId: 'p1',
     path: 'C:\\Dev\\Shop',
     relPath: '',
     name: 'shop',
     missing: false,
-    packageJson: { name: 'shop', scripts: { dev: 'vite', build: 'vite build' } },
-    packageManager: 'pnpm',
     envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
@@ -19,31 +17,10 @@ export function makeDetected(over: Partial<DetectedProject> = {}): DetectedProje
     git: { branch: 'main', head: null },
     buildOutput: null,
     claude: { claudeMd: true, claudeLocalMd: false, claudeDir: true, mcpJson: false },
-    ecosystems: [],
+    // A package.json named shop, with pnpm's lockfile.
+    ecosystems: [nodeEntry({ name: 'shop', scripts: { dev: 'vite', build: 'vite build' }, packageManager: 'pnpm' })],
     ...over,
   };
-  return withNodeEntry(project);
-}
-
-/**
- * Until the deprecated fields go (#63), a fixture's packageJson and packageManager also make its Node entry,
- * as detection does, unless the test gives one.
- */
-function withNodeEntry(project: DetectedProject): DetectedProject {
-  if (project.packageJson === null || project.ecosystems.some((e) => e.id === 'node'))
-    return project;
-  const node: NodeInfo = {
-    name: project.packageJson.name ?? null,
-    scripts: project.packageJson.scripts,
-    packageManager: project.packageManager ?? 'npm',
-    packageManagerSource: project.packageManager === null ? 'default' : 'lockfile',
-    lockfiles: [],
-    framework: null,
-    ports: [],
-    hasDependencies: false,
-    monorepo: null,
-  };
-  return { ...project, ecosystems: [...project.ecosystems, { id: 'node', info: node }] };
 }
 
 export function makeSummary(over: Partial<ProjectSummary> = {}): ProjectSummary {

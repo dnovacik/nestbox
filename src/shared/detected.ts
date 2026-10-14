@@ -41,10 +41,6 @@ export interface DetectedProject {
   relPath: string;
   name: string;
   missing: boolean;
-  /** @deprecated A copy of the Node entry's name and scripts (#63): read them with nodeOf(). */
-  packageJson: { name?: string; scripts: Record<string, string> } | null;
-  /** @deprecated A copy of the Node entry's manager, null for npm's default (#63): read it with nodeOf(). */
-  packageManager: PackageManager | null;
   /** File names only — env files are never opened. */
   envFiles: string[];
   /** The env files that are symlinks; the env tool treats them as read-only. */
@@ -70,10 +66,6 @@ export const DetectedProjectSchema: z.ZodType<DetectedProject> = z.lazy(() =>
     relPath: z.string(),
     name: z.string().min(1),
     missing: z.boolean(),
-    packageJson: z
-      .object({ name: z.string().optional(), scripts: z.record(z.string(), z.string()) })
-      .nullable(),
-    packageManager: z.enum(PACKAGE_MANAGERS).nullable(),
     envFiles: z.array(z.string()),
     envSymlinks: z.array(z.string()),
     workspaces: z.array(DetectedProjectSchema),

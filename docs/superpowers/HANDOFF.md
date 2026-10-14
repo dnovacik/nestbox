@@ -39,7 +39,7 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 ## Next steps
 
 1. **Review the Python PR** when jubele opens it. The guide and both modules are the reference.
-2. **#63, package.json data from the Node module:** design approved 2026-10-14 (`docs/superpowers/specs/2026-10-13-nestbox-v2-node-package-json-design.md`: two PRs, `npm (default)` in the header). PR 1 (v1.29.0, branch `node-package-json`, which also carries the design and supersedes PR #78) moves every reader to `nodeOf`. PR 2 removes `DetectedProject.packageJson`/`.packageManager` and makes the fixtures take `ecosystems`.
+2. **#63, package.json data from the Node module:** done (PR #80 and its follow-up; unreleased). The owner wants no release until the remaining Node work (#76 Nx and the rest) is in: everything ships together as 1.29.0, so later PRs keep that version and extend its README row.
 3. **Nx tasks** (#76), split from #60.
 4. **Ideas raised along the way:** checking both npm and NuGet in a folder that is both (the Dependencies tool checks Node first today; one result per package); input to running commands (#45).
 

@@ -22,7 +22,7 @@ describe('detectProject', () => {
     });
     const d = await detectProject({ id: 'p1', path: dir });
     expect(d.name).toBe('shop');
-    expect(d.packageJson).toEqual({ name: 'shop', scripts: { dev: 'vite', build: 'vite build' } });
+    expect(nodeOf(d)).toMatchObject({ name: 'shop', scripts: { dev: 'vite', build: 'vite build' } });
     expect(d.path).toBe(dir);
     expect(d.relPath).toBe('');
   });
@@ -40,7 +40,7 @@ describe('detectProject', () => {
 
   it('parses package.json with a UTF-8 BOM', async () => {
     dir = await makeTree({ 'package.json': '﻿{"name":"bom"}' });
-    expect((await detectProject({ id: 'p', path: dir })).packageJson?.name).toBe('bom');
+    expect(nodeOf(await detectProject({ id: 'p', path: dir }))?.name).toBe('bom');
   });
 
   it('survives invalid package.json and warns with the file name only', async () => {
@@ -68,28 +68,6 @@ describe('detectProject', () => {
     const onWarning = vi.fn();
     await detectProject({ id: 'p', path: dir }, { onWarning });
     expect(onWarning).toHaveBeenCalledWith('packages/web/package.json', 'invalid-json');
-  });
-
-  it('copies the Node entry into the deprecated packageJson and packageManager fields', async () => {
-    dir = await makeTree({
-      'package.json': JSON.stringify({
-        name: 'shop',
-        scripts: { dev: 'vite' },
-        workspaces: ['packages/*'],
-      }),
-      'yarn.lock': '',
-      'packages/a/package.json': JSON.stringify({ scripts: { test: 'vitest' } }),
-      'packages/b/README.md': 'not a package',
-    });
-    const d = await detectProject({ id: 'p', path: dir });
-    for (const p of [d, ...d.workspaces]) {
-      const node = nodeOf(p);
-      expect(p.packageJson).toEqual(
-        node && { ...(node.name ? { name: node.name } : {}), scripts: node.scripts },
-      );
-      expect(p.packageManager).toBe(node?.packageManager ?? null);
-    }
-    expect(d.packageJson).toEqual({ name: 'shop', scripts: { dev: 'vite' } });
   });
 
   it('lists .env* file names only, sorted, ignoring directories', async () => {
@@ -133,7 +111,7 @@ describe('detectProject', () => {
       '.mcp.json': '{}',
     });
     const d = await detectProject({ id: 'p', path: dir });
-    expect(d.packageManager).toBe('pnpm');
+    expect(nodeOf(d)?.packageManager).toBe('pnpm');
     expect(d.prismaSchema).toBe('prisma/schema.prisma');
     expect(d.dockerCompose).toBe('compose.yaml');
     expect(d.buildOutput).toBe('dist');
@@ -180,7 +158,7 @@ describe('detectProject workspaces', () => {
       'packages/web/package.json': JSON.stringify({ name: '@mono/web' }),
     });
     const d = await detectProject({ id: 'root', path: dir });
-    expect(d.workspaces.map((w) => [w.id, w.relPath, w.name, w.packageManager])).toEqual([
+    expect(d.workspaces.map((w) => [w.id, w.relPath, w.name, nodeOf(w)?.packageManager])).toEqual([
       ['root::packages/api', 'packages/api', '@mono/api', 'pnpm'],
       ['root::packages/web', 'packages/web', '@mono/web', 'pnpm'],
     ]);
@@ -221,8 +199,8 @@ describe('detectProject workspaces', () => {
       'packages/api/package.json': JSON.stringify({ name: '@mono/api' }),
     });
     const d = await detectProject({ id: 'root', path: dir });
-    expect(d.packageManager).toBe('yarn');
-    expect(d.workspaces.map((w) => [w.packageManager, w.ecosystems.find((e) => e.id === 'node')?.info])).toEqual([
+    expect(nodeOf(d)?.packageManager).toBe('yarn');
+    expect(d.workspaces.map((w) => [nodeOf(w)?.packageManager, w.ecosystems.find((e) => e.id === 'node')?.info])).toEqual([
       [
         'yarn',
         nodeInfo({
@@ -232,11 +210,10 @@ describe('detectProject workspaces', () => {
         }),
       ],
     ]);
-    // Without lockfile or field, scripts keep their npm default (null) and the module says npm.
+    // Without lockfile or field, the module says npm, by default.
     await removeTree(dir);
     dir = await makeTree({ 'package.json': '{}' });
     const plain = await detectProject({ id: 'p', path: dir });
-    expect(plain.packageManager).toBeNull();
     expect(plain.ecosystems.find((e) => e.id === 'node')?.info).toEqual(
       nodeInfo({ packageManagerSource: 'default' }),
     );

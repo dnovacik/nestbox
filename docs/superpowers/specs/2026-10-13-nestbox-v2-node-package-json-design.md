@@ -2,7 +2,7 @@
 
 Issue #63, left over from #47. Since 1.28's Node work, the Node module already reads `package.json` once per folder (`ecosystems/node/package-json.ts`) for the `packageManager` field, dependency names (framework, `hasDependencies`), the dev and start scripts (ports) and, on a monorepo root, its packages' script names. Generic detection still reads the same file for `DetectedProject.packageJson` (name and scripts), and `DetectedProject.packageManager` is still computed outside the module. Tools read those two fields directly. This is the last Node-only path outside `ecosystems/node/`, so a Python or Go package can't take part in it the same way.
 
-**Status: approved (2026-10-14).** See the decisions at the end.
+**Status: done (2026-10-14).** PR 1 (#80) moved every reader to `nodeOf`; PR 2 removed the deprecated fields. See the decisions at the end.
 
 ## Where the fields are read today
 
