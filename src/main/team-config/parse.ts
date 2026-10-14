@@ -94,6 +94,35 @@ export function canonicalJson(value: unknown): string {
 export const contentHash = (content: TeamContent) =>
   createHash('sha256').update(canonicalJson(content)).digest('hex');
 
+const MAX_DEPTH = 64;
+const MAX_UNKNOWN_WARNINGS = 10;
+
+/** True when brackets nest deeper than MAX_DEPTH (strings and comments skipped); jsonc-parser recurses unguarded. */
+function nestedTooDeep(text: string): boolean {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === '\\') i++;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      if (end === -1) break;
+      i = end + 1;
+    } else if (c === '[' || c === '{') {
+      if (++depth > MAX_DEPTH) return true;
+    } else if (c === ']' || c === '}') {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return false;
+}
+
+/** Own properties only: jsonc-parser assigns "__proto__" as a prototype, not a key. */
+const own = (obj: Record<string, unknown>, key: string): unknown =>
+  Object.hasOwn(obj, key) ? obj[key] : undefined;
+
 function lineColumn(text: string, offset: number): string {
   const before = text.slice(0, offset).split(/\r\n|\r|\n/);
   return `Line ${before.length}, column ${(before.at(-1)?.length ?? 0) + 1}`;
@@ -144,10 +173,16 @@ function recordSection<T>(
 export function parseTeamFile(text: string): ParseResult {
   if (Buffer.byteLength(text, 'utf8') > TEAM_FILE_MAX_BYTES)
     return { ok: false, error: 'The file is larger than 256 KiB' };
+  if (nestedTooDeep(text)) return { ok: false, error: 'The file is nested too deeply' };
   const errors: ParseError[] = [];
-  const root: unknown = parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text, errors, {
-    allowTrailingComma: true,
-  });
+  let root: unknown;
+  try {
+    root = parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text, errors, {
+      allowTrailingComma: true,
+    });
+  } catch {
+    return { ok: false, error: "The file can't be read" };
+  }
   const first = errors[0];
   if (first)
     return {
@@ -157,13 +192,27 @@ export function parseTeamFile(text: string): ParseResult {
   if (!root || typeof root !== 'object' || Array.isArray(root))
     return { ok: false, error: 'The file is not a JSON object' };
   const file = root as Record<string, unknown>;
-  if (file['version'] !== 1)
-    return { ok: false, error: `Made by a newer NestBox (version ${String(file['version'])})` };
+  if (own(file, 'version') !== 1)
+    return {
+      ok: false,
+      error: `Made by a newer NestBox (version ${String(own(file, 'version'))})`,
+    };
 
   const warnings: TeamWarning[] = [];
-  for (const key of Object.keys(file))
-    if (!KNOWN.has(key)) warnings.push({ section: key, index: null, reason: 'unknown section' });
-  const rawDomains = file['domains'];
+  const unknownKeys = Object.keys(file).filter((k) => !KNOWN.has(k));
+  for (const key of unknownKeys.slice(0, MAX_UNKNOWN_WARNINGS))
+    warnings.push({
+      section: key.length > 40 ? `${key.slice(0, 40)}…` : key,
+      index: null,
+      reason: 'unknown section',
+    });
+  if (unknownKeys.length > MAX_UNKNOWN_WARNINGS)
+    warnings.push({
+      section: 'unknown',
+      index: null,
+      reason: `${unknownKeys.length - MAX_UNKNOWN_WARNINGS} more unknown sections`,
+    });
+  const rawDomains = own(file, 'domains');
   const domains: Record<string, unknown> =
     rawDomains && typeof rawDomains === 'object' && !Array.isArray(rawDomains)
       ? (rawDomains as Record<string, unknown>)
@@ -171,7 +220,7 @@ export function parseTeamFile(text: string): ParseResult {
   if (rawDomains !== undefined && domains !== rawDomains)
     warnings.push({ section: 'domains', index: null, reason: 'not an object' });
   const health = recordSection(
-    file['health'],
+    own(file, 'health'),
     z.object({
       intervalSec: z.number().int().min(5).max(600).nullable().default(null),
       checks: z.array(StoredCheckSchema).max(20).default([]),
@@ -181,37 +230,37 @@ export function parseTeamFile(text: string): ParseResult {
   );
   const content: TeamContent = {
     ...EMPTY_CONTENT,
-    commands: arraySection(file['commands'], parseCommand, 100, 'commands', warnings),
-    envFiles: arraySection(file['envFiles'], parseEnvFile, 500, 'envFiles', warnings),
+    commands: arraySection(own(file, 'commands'), parseCommand, 100, 'commands', warnings),
+    envFiles: arraySection(own(file, 'envFiles'), parseEnvFile, 500, 'envFiles', warnings),
     runGroups: arraySection(
-      file['runGroups'],
+      own(file, 'runGroups'),
       parseRunGroup,
       MAX_TEAM_RUN_GROUPS,
       'runGroups',
       warnings,
     ),
-    main: recordSection(file['main'], z.string().min(1).max(60), 'main', warnings),
+    main: recordSection(own(file, 'main'), z.string().min(1).max(60), 'main', warnings),
     hidden: recordSection(
-      file['hidden'],
+      own(file, 'hidden'),
       z.array(z.string().min(1).max(200)).max(100),
       'hidden',
       warnings,
     ),
     health,
     mock: recordSection(
-      file['mock'],
+      own(file, 'mock'),
       z.object({ routes: z.array(RouteSchema).max(100).default([]) }),
       'mock',
       warnings,
     ),
     domainNames: recordSection(
-      domains['names'],
+      own(domains, 'names'),
       z.string().regex(LABEL),
       'domains.names',
       warnings,
     ),
     rewriteHost: recordSection(
-      domains['rewriteHost'],
+      own(domains, 'rewriteHost'),
       z.literal(true),
       'domains.rewriteHost',
       warnings,

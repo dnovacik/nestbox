@@ -156,3 +156,41 @@ describe('parseTeamFile', () => {
     expect(contentHash(r1.content)).toBe(contentHash(r2.content));
   });
 });
+
+describe('parseTeamFile on hostile input', () => {
+  it('never throws on deeply nested input', () => {
+    const msg = { ok: false, error: 'The file is nested too deeply' };
+    expect(parseTeamFile('['.repeat(100000))).toEqual(msg);
+    expect(parseTeamFile('['.repeat(10000) + ']'.repeat(10000))).toEqual(msg);
+    expect(parseTeamFile('{"a":"[[[[' + '[ '.repeat(10) + '", // [[[[\n "version": 1 }').ok).toBe(
+      true,
+    );
+    expect(parseTeamFile(FILE).ok).toBe(true);
+  });
+
+  it('truncates unknown keys and caps their warnings', () => {
+    const obj: Record<string, number> = { version: 1 };
+    for (let i = 0; i < 15; i++) obj[`k${i}`] = 1;
+    const r = parseTeamFile(JSON.stringify(obj));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.warnings).toHaveLength(11);
+    expect(r.warnings.at(-1)).toEqual({
+      section: 'unknown',
+      index: null,
+      reason: '5 more unknown sections',
+    });
+    const long = parseTeamFile(JSON.stringify({ version: 1, ['x'.repeat(100)]: 1 }));
+    if (!long.ok) throw new Error(long.error);
+    expect(long.warnings[0]?.section).toBe(`${'x'.repeat(40)}…`);
+  });
+
+  it('does not take version or sections from __proto__', () => {
+    expect(parseTeamFile('{"__proto__":{"version":1}}')).toEqual({
+      ok: false,
+      error: 'Made by a newer NestBox (version undefined)',
+    });
+    const r = parseTeamFile('{"version":1,"__proto__":{"main":{"":"dev"}}}');
+    if (!r.ok) throw new Error(r.error);
+    expect(r.content.main).toEqual({});
+  });
+});
