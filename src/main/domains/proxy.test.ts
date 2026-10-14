@@ -1,0 +1,158 @@
+import { createServer, request, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createMemoryLogger } from '../logger';
+import { createDomainsProxy, type DomainsProxy } from './proxy';
+import { buildRoutes, type RouteTable } from './router';
+
+const servers: Server[] = [];
+let proxy: DomainsProxy | null = null;
+afterEach(async () => {
+  await proxy?.stop();
+  proxy = null;
+  await Promise.all(servers.splice(0).map((s) => new Promise((r) => s.close(r))));
+});
+
+async function freePort(): Promise<number> {
+  const s = createServer();
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+  const { port } = s.address() as AddressInfo;
+  await new Promise((r) => s.close(r));
+  return port;
+}
+
+async function echoTarget(): Promise<number> {
+  const s = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ url: req.url, headers: req.headers }));
+  });
+  servers.push(s);
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+  return (s.address() as AddressInfo).port;
+}
+
+function tableFor(port: number | null): RouteTable {
+  return buildRoutes({
+    projects: [{ id: 'r1', name: 'shop', workspaces: [] }],
+    overrides: {},
+    rewriteHost: {},
+    mainScripts: new Map(),
+    processes:
+      port === null
+        ? []
+        : [{ projectId: 'r1', script: 'dev', state: 'running', startedAt: 1 } as never],
+    ports:
+      port === null
+        ? []
+        : [
+            {
+              port,
+              pid: 1,
+              addresses: ['127.0.0.1'],
+              processName: 'node',
+              command: null,
+              owner: { projectId: 'r1', script: 'dev' },
+            },
+          ],
+    detectedPorts: new Map(),
+    ownPorts: [],
+  });
+}
+
+function get(
+  port: number,
+  host: string,
+  path = '/x?y=1',
+): Promise<{ status: number; body: string; headers: Record<string, unknown> }> {
+  return new Promise((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path, headers: { host } }, (res) => {
+      let body = '';
+      res.on('data', (c) => (body += c));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body, headers: res.headers }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+describe('domains proxy over HTTP', () => {
+  it('forwards to the route with X-Forwarded-* and the Host kept', async () => {
+    const target = await echoTarget();
+    let table = tableFor(target);
+    proxy = createDomainsProxy({
+      table: () => table,
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    const state = await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+    expect(state.http).toMatchObject({ state: 'running', port: httpPort });
+    const res = await get(httpPort, 'shop.localhost');
+    expect(res.status).toBe(200);
+    const seen = JSON.parse(res.body) as { url: string; headers: Record<string, string> };
+    expect(seen.url).toBe('/x?y=1');
+    expect(seen.headers).toMatchObject({
+      host: 'shop.localhost',
+      'x-forwarded-host': 'shop.localhost',
+      'x-forwarded-proto': 'http',
+    });
+    // The table is read per request: a stopped script answers the not-running page at once.
+    table = tableFor(null);
+    expect((await get(httpPort, 'shop.localhost')).status).toBe(503);
+  });
+
+  it('answers 403, 404 and 502 pages without echoing the request', async () => {
+    const dead = await freePort();
+    proxy = createDomainsProxy({
+      table: () => tableFor(dead),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+    expect((await get(httpPort, 'example.com')).status).toBe(403);
+    const unknown = await get(httpPort, 'nope.localhost', '/secret-path');
+    expect(unknown.status).toBe(404);
+    expect(unknown.body).toContain('shop.localhost');
+    expect(unknown.body).not.toContain('secret-path');
+    expect((await get(httpPort, 'shop.localhost')).status).toBe(502);
+  });
+
+  it('reports a taken port as failed and keeps the other server', async () => {
+    const taken = createServer();
+    servers.push(taken);
+    await new Promise<void>((r) => taken.listen(0, '127.0.0.1', r));
+    const takenPort = (taken.address() as AddressInfo).port;
+    proxy = createDomainsProxy({
+      table: () => tableFor(null),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const state = await proxy.start({
+      httpPort: takenPort,
+      httpsPort: await freePort(),
+      sni: null,
+    });
+    expect(state.http).toEqual({
+      state: 'failed',
+      port: takenPort,
+      code: 'EADDRINUSE',
+      owner: null,
+    });
+  });
+
+  it('stops, and starts again on new ports (Review Focus 3)', async () => {
+    proxy = createDomainsProxy({
+      table: () => tableFor(null),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const first = await freePort();
+    await proxy.start({ httpPort: first, httpsPort: await freePort(), sni: null });
+    const second = await freePort();
+    await proxy.stop();
+    const state = await proxy.start({ httpPort: second, httpsPort: await freePort(), sni: null });
+    expect(state.http).toMatchObject({ state: 'running', port: second });
+    await expect(get(first, 'shop.localhost')).rejects.toMatchObject({ code: 'ECONNREFUSED' });
+  });
+});
