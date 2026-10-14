@@ -20,8 +20,8 @@ import { createScriptsTool, PROCESSES_FACT } from './index';
 import { nodeInfo } from '../../ecosystems/node/fixtures';
 
 const ROOT = resolve('/dev/shop');
-/** What detection gives a folder with a package.json. */
-const NODE = [{ id: 'node' as const, info: nodeInfo() }];
+/** What detection gives a folder with a package.json: npm from a package-lock.json, and its scripts. */
+const NODE = (scripts: Record<string, string>) => [{ id: 'node' as const, info: nodeInfo({ scripts }) }];
 
 /** The Node module's version advice, faked at the shared check (the real one would run node --version). */
 let advice: MockInstance<typeof nodeVersionCheck.advice>;
@@ -30,6 +30,12 @@ beforeEach(() => {
 });
 afterEach(() => advice.mockRestore());
 const API = resolve(ROOT, 'packages/api');
+
+/** The Node module's own rows, which every package with a package.json gets (after its scripts). */
+const nodeTaskRows = (pm: string) => [
+  { name: 'install', command: `${pm} install`, autoRestart: false, kind: 'detected', envFile: '.env', main: false, ecosystemId: 'node' },
+  { name: 'ci', command: pm === 'npm' ? 'npm ci' : `${pm} install --frozen-lockfile`, autoRestart: false, kind: 'detected', envFile: '.env', main: false, ecosystemId: 'node' },
+];
 
 const api = makeDetectedForTest({
   id: 'r1::packages/api',
@@ -119,13 +125,14 @@ describe('scripts tool: list and lifecycle', () => {
     setGroups([{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }]);
     expect(await call('r1', 'list')).toEqual({
       scripts: [
-        { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm', envFile: null, main: false },
-        { name: 'build', command: 'vite build', autoRestart: false, kind: 'npm', envFile: null, main: false },
+        { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm', envFile: null, main: false, ecosystemId: 'node' },
+        { name: 'build', command: 'vite build', autoRestart: false, kind: 'npm', envFile: null, main: false, ecosystemId: 'node' },
+        ...nodeTaskRows('pnpm'),
       ],
       runGroups: [{ name: 'dev', entries: [{ relPath: '', script: 'dev' }], compose: [] }],
       packages: [
-        { relPath: '', name: 'shop', scripts: ['dev', 'build'], compose: false, main: null },
-        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev'], compose: false, main: null },
+        { relPath: '', name: 'shop', scripts: ['dev', 'build', 'install', 'ci'], compose: false, main: null },
+        { relPath: 'packages/api', name: '@shop/api', scripts: ['dev', 'install', 'ci'], compose: false, main: null },
       ],
       envFiles: ['.env', '.env.local'],
       hidden: [],
@@ -166,7 +173,7 @@ describe('scripts tool: list and lifecycle', () => {
     expect(await call(api.id, 'setAutoRestart', { script: 'dev', enabled: true })).toEqual({ enabled: true });
     expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [{ relPath: 'packages/api', script: 'dev' }], commands: [], envFiles: [], main: [], hidden: {} });
     expect(processes.get(api.id, 'dev')?.autoRestart).toBe(true);
-    expect(await call(api.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', autoRestart: true }] });
+    expect(await call(api.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', autoRestart: true }, { name: 'install' }, { name: 'ci' }] });
     await call(api.id, 'setAutoRestart', { script: 'dev', enabled: false });
     expect(toolSettings.get('r1/scripts')).toEqual({ autoRestart: [], commands: [], envFiles: [], main: [], hidden: {} });
   });
@@ -279,8 +286,8 @@ describe('scripts tool: openFileAt', () => {
 
 describe('scripts tool: Node advice', () => {
   // As detection gives them: a package.json makes a folder a Node package.
-  const nodeApi = { ...api, ecosystems: NODE };
-  const nodeRoot = { ...root, ecosystems: NODE, workspaces: [nodeApi] };
+  const nodeApi = { ...api, ecosystems: NODE({ dev: 'nest start --watch' }) };
+  const nodeRoot = { ...root, ecosystems: NODE({ dev: 'vite', build: 'vite build' }), workspaces: [nodeApi] };
   const nodeSetup = () => setup([nodeRoot, nodeApi]);
 
   it("starts an npm script with the Node module's warning, note and PATH", async () => {
@@ -508,6 +515,9 @@ const app = makeDetectedForTest({
   workspaces: [backend, frontend],
 });
 
+/** A list's rows without the Node module's install/ci, for tests about the user's own commands. */
+const ownRows = (list: unknown) => (list as { scripts: { kind: string }[] }).scripts.filter((r) => r.kind !== 'detected');
+
 /** What each spawn got (the fake's mock is typed without parameters). */
 const spawnCalls = (platform: ReturnType<typeof fakePlatform>): SpawnOpts[] =>
   (platform.spawnScript.mock.calls as unknown as [SpawnOpts][]).map(([opts]) => opts);
@@ -610,8 +620,9 @@ describe('scripts tool: custom commands', () => {
     await call(frontend.id, 'saveCommand', { name: 'storybook', argv: ['npx', 'storybook', 'dev'] });
     expect(await call(frontend.id, 'list')).toEqual({
       scripts: [
-        { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm', envFile: null, main: false },
-        { name: 'storybook', command: 'npx storybook dev', autoRestart: false, kind: 'custom', envFile: '.env', main: false },
+        { name: 'dev', command: 'vite', autoRestart: false, kind: 'npm', envFile: null, main: false, ecosystemId: 'node' },
+        ...nodeTaskRows('pnpm'),
+        { name: 'storybook', command: 'npx storybook dev', autoRestart: false, kind: 'custom', envFile: '.env', main: false, ecosystemId: 'node' },
       ],
       runGroups: null,
       packages: null,
@@ -623,17 +634,17 @@ describe('scripts tool: custom commands', () => {
       scripts: [],
       packages: [
         { relPath: '', name: 'app', scripts: [] },
-        { relPath: 'backend', name: 'backend', scripts: ['dev'] },
-        { relPath: 'frontend', name: 'web', scripts: ['dev', 'storybook'] },
+        { relPath: 'backend', name: 'backend', scripts: ['install', 'ci', 'dev'] },
+        { relPath: 'frontend', name: 'web', scripts: ['dev', 'install', 'ci', 'storybook'] },
       ],
     });
   });
 
-  it('runs a custom command as typed, without a shell or the Node tool', async () => {
+  it("runs a custom command as typed, without a shell, in the package's Node environment", async () => {
     const { call, platform } = await appSetup();
     await call(backend.id, 'start', { script: 'dev' });
     expect(spawnCalls(platform)[0]).toMatchObject({ cwd: BACKEND, command: 'node', args: ['server.js', '--port', '8000'] });
-    expect(advice).not.toHaveBeenCalled();
+    expect(advice).toHaveBeenCalledTimes(1);
   });
 
   it('keeps names unique within a package', async () => {
@@ -728,13 +739,13 @@ describe('scripts tool: env files for commands', () => {
     const { call, platform, deps, toolSettings } = await appSetup();
     await call(backend.id, 'setEnvFile', { script: 'dev', file: '.env.local' });
     await call(frontend.id, 'setEnvFile', { script: 'dev', file: '.env' });
-    expect(await call(backend.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', envFile: '.env.local' }] });
+    expect(ownRows(await call(backend.id, 'list'))).toMatchObject([{ name: 'dev', envFile: '.env.local' }]);
     await call(backend.id, 'start', { script: 'dev' });
     await call(frontend.id, 'start', { script: 'dev' });
     expect(deps.envFiles.read).toHaveBeenCalledWith(BACKEND, '.env.local');
     expect(spawnCalls(platform)[1]?.env['API_KEY']).toBe('from-dotenv');
     await call(backend.id, 'setEnvFile', { script: 'dev', file: null });
-    expect(await call(backend.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', envFile: null }] });
+    expect(ownRows(await call(backend.id, 'list'))).toMatchObject([{ name: 'dev', envFile: null }]);
     // Back to the default: no override is kept.
     await call(backend.id, 'setEnvFile', { script: 'dev', file: '.env' });
     expect(toolSettings.get('r2/scripts')).toMatchObject({ envFiles: [{ relPath: 'frontend', script: 'dev', file: '.env' }] });
@@ -757,12 +768,10 @@ describe('scripts tool: main command', () => {
   it('marks one main per package, listed first and named in packages', async () => {
     const { call } = await appSetup();
     await call(backend.id, 'saveCommand', { name: 'api', argv: ['node', 'api.js'], main: true });
-    expect(await call(backend.id, 'list')).toMatchObject({
-      scripts: [
-        { name: 'api', main: true },
-        { name: 'dev', main: false },
-      ],
-    });
+    expect(ownRows(await call(backend.id, 'list'))).toMatchObject([
+      { name: 'api', main: true },
+      { name: 'dev', main: false },
+    ]);
     await call(backend.id, 'setMain', { script: 'dev', main: true });
     expect(await call('r2', 'list')).toMatchObject({
       packages: [
@@ -772,7 +781,7 @@ describe('scripts tool: main command', () => {
       ],
     });
     await call(backend.id, 'setMain', { script: 'dev', main: false });
-    expect(await call(backend.id, 'list')).toMatchObject({ scripts: [{ name: 'dev', main: false }, { name: 'api', main: false }] });
+    expect(ownRows(await call(backend.id, 'list'))).toMatchObject([{ name: 'dev', main: false }, { name: 'api', main: false }]);
     await expect(call(backend.id, 'setMain', { script: 'nope', main: true })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
@@ -801,7 +810,7 @@ describe('scripts tool: dependencies to install', () => {
       ecosystems: [
         {
           id: 'node',
-          info: nodeInfo({ lockfiles: ['package-lock.json'], hasDependencies: true }),
+          info: nodeInfo({ scripts: { dev: 'vite' }, lockfiles: ['package-lock.json'], hasDependencies: true }),
         },
       ],
     });

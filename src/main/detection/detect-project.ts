@@ -1,20 +1,17 @@
 import type { Dirent } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
   type DeployPlatform,
   type DetectedProject,
   type EcosystemEntry,
-  type PackageManager,
   workspaceId,
 } from '@shared/detected';
-import { isRecord } from '@shared/is-record';
+import { nodeOf } from '@shared/ecosystems/node';
 import { ECOSYSTEM_MODULES } from '../ecosystems';
 import type { DetectContext } from '../ecosystems/types';
 import { isDirectory, isFile } from './fs-utils';
 import { readGitInfo } from './git-head';
-import type { NodeInfo } from '../ecosystems/node/detect';
-import { detectPackageManager } from '../ecosystems/node/package-manager';
 import { findWorkspaceDirs } from './workspaces';
 
 export type DetectWarning = 'unreadable' | 'invalid-json' | 'not-an-object' | 'invalid-yaml' | 'outside-root';
@@ -25,7 +22,7 @@ export const ENV_FILE_PATTERN = /^\.env(\..+)?$/;
 export interface DetectInput {
   id: string;
   path: string;
-  /** Stored display name; wins over package.json name. */
+  /** Stored display name; wins over the package's own name (package.json's). */
   name?: string;
 }
 
@@ -42,10 +39,6 @@ interface DirTarget {
   name?: string;
   /** The root's names, for a workspace package: its package manager comes from the root's lockfile. */
   root?: NonNullable<DetectContext['root']>;
-}
-
-interface PackageJsonRead {
-  info: { name?: string; scripts: Record<string, string> };
 }
 
 const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
@@ -66,44 +59,6 @@ function detectDeploy(files: ReadonlySet<string>, dirs: ReadonlySet<string>): De
 
 function label(target: DirTarget, file: string): string {
   return target.relPath ? `${target.relPath}/${file}` : file;
-}
-
-async function readPackageJson(
-  file: string,
-  fileLabel: string,
-  options: DetectOptions,
-): Promise<PackageJsonRead | null> {
-  let text: string;
-  try {
-    text = await readFile(file, 'utf8');
-  } catch {
-    options.onWarning?.(fileLabel, 'unreadable');
-    return null;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-  } catch {
-    options.onWarning?.(fileLabel, 'invalid-json');
-    return null;
-  }
-  if (!isRecord(raw)) {
-    options.onWarning?.(fileLabel, 'not-an-object');
-    return null;
-  }
-  const scripts: Record<string, string> = {};
-  if (isRecord(raw['scripts'])) {
-    for (const [key, value] of Object.entries(raw['scripts'])) {
-      if (typeof value === 'string') scripts[key] = value;
-    }
-  }
-  const name = typeof raw['name'] === 'string' && raw['name'].trim() ? raw['name'] : undefined;
-  return { info: name === undefined ? { scripts } : { name, scripts } };
-}
-
-function nodeFieldManager(ecosystems: readonly EcosystemEntry[]): PackageManager | null {
-  const info = ecosystems.find((e) => e.id === 'node')?.info as NodeInfo | undefined;
-  return info?.packageManagerSource === 'packageManager' ? info.packageManager : null;
 }
 
 async function detectPrisma(dir: string): Promise<string | null> {
@@ -160,14 +115,14 @@ async function detectDir(
     }
   }
 
-  const pkg = files.has('package.json')
-    ? await readPackageJson(join(target.path, 'package.json'), label(target, 'package.json'), options)
-    : null;
-
-  // Detect ecosystem modules
+  // Detect ecosystem modules (Node's reads package.json: the name and scripts come from it)
   const ecosystems: EcosystemEntry[] = [];
+  const ctx: DetectContext = {
+    root: target.root ?? null,
+    onWarning: (file, reason) => options.onWarning?.(label(target, file), reason),
+  };
   for (const module of ECOSYSTEM_MODULES) {
-    const info = await module.detect(target.path, files, dirs, { root: target.root ?? null });
+    const info = await module.detect(target.path, files, dirs, ctx);
     if (info !== null) {
       try {
         const validated = module.infoSchema.parse(info);
@@ -179,19 +134,17 @@ async function detectDir(
     }
   }
 
+  const node = nodeOf({ ecosystems });
   const detected: DetectedProject = {
     id: target.id,
     rootId: target.rootId,
     path: target.path,
     relPath: target.relPath,
-    name: target.name ?? pkg?.info.name ?? basename(target.path),
+    name: target.name ?? node?.name ?? basename(target.path),
     missing: false,
-    packageJson: pkg?.info ?? null,
-    // A lockfile, else the Node module's packageManager field; null (npm) for the default.
-    packageManager:
-      (target.root ? detectPackageManager(target.root.files) : null) ??
-      detectPackageManager(files) ??
-      nodeFieldManager(ecosystems),
+    // Deprecated copies of the Node entry (#63), until every reader uses nodeOf().
+    packageJson: node && (node.name === null ? { scripts: node.scripts } : { name: node.name, scripts: node.scripts }),
+    packageManager: node && node.packageManagerSource !== 'default' ? node.packageManager : null,
     envFiles: envFiles.sort(),
     envSymlinks: envSymlinks.sort(),
     workspaces: [],

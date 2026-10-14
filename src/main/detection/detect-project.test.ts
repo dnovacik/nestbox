@@ -1,10 +1,11 @@
 import { symlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detectProject } from './detect-project';
 import { makeTree, removeTree } from './test-fixtures';
 import { nodeInfo } from '../ecosystems/node/fixtures';
 import { nodeModule } from '../ecosystems/node';
+import { nodeOf } from '@shared/ecosystems/node';
 
 let dir = '';
 afterEach(async () => removeTree(dir));
@@ -46,7 +47,8 @@ describe('detectProject', () => {
     dir = await makeTree({ 'package.json': '{"name": "SECRET_TOKEN_123", oops' });
     const onWarning = vi.fn();
     const d = await detectProject({ id: 'p', path: dir }, { onWarning });
-    expect(d.packageJson).toBeNull();
+    expect(nodeOf(d)).toMatchObject({ name: null, scripts: {} });
+    expect(d.name).toBe(basename(dir));
     expect(onWarning).toHaveBeenCalledWith('package.json', 'invalid-json');
     expect(JSON.stringify(onWarning.mock.calls)).not.toContain('SECRET_TOKEN_123');
   });
@@ -54,8 +56,40 @@ describe('detectProject', () => {
   it('warns when package.json is not an object', async () => {
     dir = await makeTree({ 'package.json': '[1,2]' });
     const onWarning = vi.fn();
-    expect((await detectProject({ id: 'p', path: dir }, { onWarning })).packageJson).toBeNull();
+    expect(nodeOf(await detectProject({ id: 'p', path: dir }, { onWarning }))?.scripts).toEqual({});
     expect(onWarning).toHaveBeenCalledWith('package.json', 'not-an-object');
+  });
+
+  it("names a workspace package's unreadable package.json by its path", async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
+      'packages/web/package.json': '{ oops',
+    });
+    const onWarning = vi.fn();
+    await detectProject({ id: 'p', path: dir }, { onWarning });
+    expect(onWarning).toHaveBeenCalledWith('packages/web/package.json', 'invalid-json');
+  });
+
+  it('copies the Node entry into the deprecated packageJson and packageManager fields', async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({
+        name: 'shop',
+        scripts: { dev: 'vite' },
+        workspaces: ['packages/*'],
+      }),
+      'yarn.lock': '',
+      'packages/a/package.json': JSON.stringify({ scripts: { test: 'vitest' } }),
+      'packages/b/README.md': 'not a package',
+    });
+    const d = await detectProject({ id: 'p', path: dir });
+    for (const p of [d, ...d.workspaces]) {
+      const node = nodeOf(p);
+      expect(p.packageJson).toEqual(
+        node && { ...(node.name ? { name: node.name } : {}), scripts: node.scripts },
+      );
+      expect(p.packageManager).toBe(node?.packageManager ?? null);
+    }
+    expect(d.packageJson).toEqual({ name: 'shop', scripts: { dev: 'vite' } });
   });
 
   it('lists .env* file names only, sorted, ignoring directories', async () => {
@@ -155,8 +189,13 @@ describe('detectProject workspaces', () => {
     expect(d.workspaces[0]?.rootId).toBe('root');
     // The Node module's tasks and summary use the same manager as the scripts.
     expect(d.workspaces.map((w) => w.ecosystems.find((e) => e.id === 'node')?.info)).toEqual([
-      nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
-      nodeInfo({ packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
+      nodeInfo({
+        name: '@mono/api',
+        scripts: { dev: 'tsx watch' },
+        packageManager: 'pnpm',
+        lockfiles: ['pnpm-lock.yaml'],
+      }),
+      nodeInfo({ name: '@mono/web', packageManager: 'pnpm', lockfiles: ['pnpm-lock.yaml'] }),
     ]);
   });
 
@@ -184,7 +223,14 @@ describe('detectProject workspaces', () => {
     const d = await detectProject({ id: 'root', path: dir });
     expect(d.packageManager).toBe('yarn');
     expect(d.workspaces.map((w) => [w.packageManager, w.ecosystems.find((e) => e.id === 'node')?.info])).toEqual([
-      ['yarn', nodeInfo({ packageManager: 'yarn', packageManagerSource: 'packageManager' })],
+      [
+        'yarn',
+        nodeInfo({
+          name: '@mono/api',
+          packageManager: 'yarn',
+          packageManagerSource: 'packageManager',
+        }),
+      ],
     ]);
     // Without lockfile or field, scripts keep their npm default (null) and the module says npm.
     await removeTree(dir);
