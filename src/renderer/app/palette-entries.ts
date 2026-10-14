@@ -16,6 +16,7 @@ export type PaletteAction =
   | { kind: 'script'; projectId: string; script: string; op: 'start' | 'stop' }
   | { kind: 'group'; rootId: string; name: string; op: 'start' | 'stop' }
   | { kind: 'claude'; projectId: string; op: 'open' | 'continue' }
+  | { kind: 'url'; url: string }
   | { kind: 'ports' }
   | { kind: 'settings' };
 
@@ -46,6 +47,8 @@ export interface PaletteInput {
   tools: readonly ToolSummary[];
   /** Whether the Claude Code tool is on (its entries need it). */
   claudeOn?: boolean;
+  /** Local domains that currently route to a port. */
+  domains?: readonly { projectId: string; name: string; url: string }[];
 }
 
 const LIVE = new Set<ProcessSummary['state']>(['starting', 'running']);
@@ -66,6 +69,7 @@ export function paletteEntries({
   runnables = [],
   tools,
   claudeOn = true,
+  domains = [],
 }: PaletteInput): PaletteEntry[] {
   const out: PaletteEntry[] = [];
   const all = packages(projects);
@@ -152,6 +156,17 @@ export function paletteEntries({
         action: { kind: 'claude', projectId: detected.id, op: 'continue' },
       },
     );
+  }
+
+  for (const d of domains) {
+    out.push({
+      id: `url:${d.name}`,
+      group: 'Go to',
+      label: `Open ${d.name}`,
+      detail: d.url,
+      keywords: ['domain', 'localhost'],
+      action: { kind: 'url', url: d.url },
+    });
   }
 
   out.push(

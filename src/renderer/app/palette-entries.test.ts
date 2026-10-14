@@ -90,4 +90,18 @@ describe('paletteEntries', () => {
     const ids = paletteEntries(input()).map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it('offers to open each local domain with a port', () => {
+    const entries = paletteEntries({
+      projects: [],
+      selected: null,
+      processes: [],
+      runGroups: [],
+      tools: [],
+      domains: [{ projectId: 'p1', name: 'shop.localhost', url: 'https://shop.localhost' }],
+    });
+    expect(entries).toContainEqual(
+      expect.objectContaining({ label: 'Open shop.localhost', action: { kind: 'url', url: 'https://shop.localhost' } }),
+    );
+  });
 });

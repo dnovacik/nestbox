@@ -35,7 +35,15 @@ function setup(
   const bridge = installMockBridge({
     'processes:list': () => [],
     'tools:invoke': (() => gitStatus) as never,
-  });
+    'domains:status': () => ({
+      enabled: false,
+      http: { state: 'stopped', port: 80, code: null, owner: null },
+      https: { state: 'stopped', port: 443, code: null, owner: null },
+      trust: 'untrusted',
+      routes: [],
+      clashes: [],
+    }),
+  } as never);
   renderWithProviders(<ProjectHeader node={node(git, over)} />);
   return bridge;
 }

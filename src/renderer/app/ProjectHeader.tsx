@@ -20,6 +20,9 @@ import {
   useRenameProject,
   useSetPinned,
 } from '@/lib/queries';
+import { DomainLink } from '@/domains/DomainLink';
+import { LocalDomainDialog } from '@/domains/LocalDomainDialog';
+import { useDomainsStatus } from '@/domains/use-domains';
 import { useGitStatus } from '@/tools/git/use-git';
 import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import type { ProjectNode } from './find-project';
@@ -31,6 +34,8 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
   const nodeInfo = nodeOf(detected);
   const [renaming, setRenaming] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [domainOpen, setDomainOpen] = useState(false);
+  const domainsOn = useDomainsStatus().data?.enabled === true;
   const keepFocus = useRef(false);
   const openInEditor = useOpenInEditor();
   const openTerminal = useOpenTerminal();
@@ -99,6 +104,7 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
                 <EcosystemIconBadge id={ecosystem.id} className="size-6 shrink-0" />
               </span>
             ))}
+            <DomainLink projectId={detected.id} />
             {ref && (
               <span className="flex items-center gap-1 text-brand">
                 <GitBranch aria-hidden className="size-3.5" />
@@ -167,6 +173,16 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
                   >
                     Rename
                   </DropdownMenuItem>
+                  {domainsOn && (
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        keepFocus.current = true;
+                        setDomainOpen(true);
+                      }}
+                    >
+                      Local domain…
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"
@@ -183,6 +199,7 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
           </DropdownMenu>
         </div>
       </div>
+      <LocalDomainDialog projectId={detected.id} open={domainOpen} onOpenChange={setDomainOpen} />
       <RemoveProjectDialog project={summary} open={confirmRemove} onOpenChange={setConfirmRemove} />
     </div>
   );
