@@ -41,7 +41,10 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 ## Next steps
 
 0. **Team config (#87), start here next session.**
-   - **State:** the spec (approved) and the plan (11 tasks) are on branch `team-config`. No code yet.
+   - **State:** implementation started, subagent-driven, on branch `team-config`. **Tasks 1–2 are done and reviewed** (`9f6c1ab` shared schemas; `3981c1d` + `3308057` the parser, hardened against deep nesting, uncapped unknown keys and `__proto__`). **Resume at Task 3** (merge/split). The local ledger is `.superpowers/sdd/2026-10-14-nestbox-v2-team-config/progress.md` (git-ignored): it lists the rulings and the deferred minors.
+   - **Notes for later tasks:**
+     - `Project.teamConfig.hidden` is a partial record: read it with `?? []`.
+     - Merge and lookup code must use `Object.hasOwn` or a `Map` for package-keyed records, because keys like `constructor` pass `PackagePathSchema`.
      - Spec: `docs/superpowers/specs/2026-10-14-nestbox-v2-team-config-design.md`
      - Plan: `docs/superpowers/plans/2026-10-14-nestbox-v2-team-config.md`
    - **Execution:** subagent-driven (recommended; the owner will confirm). Start from Task 1 with `superpowers:subagent-driven-development`, which writes its ledger in `.superpowers/sdd/2026-10-14-nestbox-v2-team-config/`.
