@@ -52,6 +52,15 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       kill: (input: PortKillInput) => call('ports:kill', input),
       waitFree: (port: number, timeoutMs: number) => call('ports:waitFree', { port, timeoutMs }),
     },
+    domains: {
+      status: () => call('domains:status'),
+      setEnabled: (enabled: boolean) => call('domains:setEnabled', { enabled }),
+      setPorts: (httpPort: number, httpsPort: number) => call('domains:setPorts', { httpPort, httpsPort }),
+      setName: (projectId: string, label: string | null) => call('domains:setName', { projectId, label }),
+      setRewriteHost: (projectId: string, rewrite: boolean) => call('domains:setRewriteHost', { projectId, rewrite }),
+      trustCa: () => call('domains:trustCa'),
+      removeCa: () => call('domains:removeCa'),
+    },
     deps: {
       overview: () => call('deps:overview'),
       checkAll: () => call('deps:checkAll'),

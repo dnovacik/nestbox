@@ -10,8 +10,12 @@ import { NestboxError } from '@shared/errors';
 import type { EventChannel } from '@shared/ipc-names';
 import { healthDefinition } from '@shared/tools/health/contract';
 import { nodeDefinition } from '@shared/tools/node/contract';
+import { scriptsDefinition } from '@shared/tools/scripts/contract';
 import { brandAsset } from './assets';
 import { detectProject } from './detection/detect-project';
+import { createLocalCa } from './domains/ca';
+import { createDomainsService } from './domains/service';
+import { ecosystemPorts } from './ecosystems';
 import { dotnetModule } from './ecosystems/dotnet';
 import { nodeVersionCheck } from './ecosystems/node/version-check';
 import { isDirectory } from './detection/fs-utils';
@@ -109,6 +113,8 @@ if (!app.requestSingleInstanceLock()) {
       mainWindow.webContents.send(channel, payload);
     };
     let tray: TrayController | null = null;
+    // Set once the domains service exists (below): project changes rebuild its route table.
+    let refreshDomains = (): void => undefined;
     const refreshTray = throttle(() => tray?.refresh(), 250);
 
     const projects = new ProjectService({
@@ -124,6 +130,7 @@ if (!app.requestSingleInstanceLock()) {
       onChanged: () => {
         emit('projects:changed');
         refreshTray();
+        refreshDomains();
       },
       logger,
     });
@@ -148,6 +155,78 @@ if (!app.requestSingleInstanceLock()) {
     const shared = createSharedContext();
     const envFiles = createEnvFileAccess();
     const configFiles = createConfigFileAccess();
+
+    // Development only, like NESTBOX_USER_DATA_DIR: the end-to-end tests never touch a real trust store.
+    const fakeTrust = !app.isPackaged && process.env['NESTBOX_FAKE_TRUST'] === '1';
+    const domains = createDomainsService({
+      settings: {
+        get: () => store.getSettings().domains,
+        update: (fn) => store.updateSettings((s) => ({ ...s, domains: fn(s.domains) })),
+      },
+      // Sidebar order: clashing names are numbered in it.
+      projects: async () =>
+        (await projects.list()).map((p) => ({
+          id: p.id,
+          name: p.name,
+          path: p.path,
+          workspaces: p.detected.workspaces.map((w) => ({ id: w.id, name: w.name, relPath: w.relPath, path: w.path })),
+        })),
+      mainScript: (projectId) => {
+        const { rootId, relPath } = splitProjectId(projectId);
+        const parsed = scriptsDefinition.settingsSchema.safeParse(projects.getToolSettings(rootId, 'scripts') ?? {});
+        return parsed.success ? (parsed.data.main.find((m) => m.relPath === relPath)?.script ?? null) : null;
+      },
+      processes: () => processes.list(),
+      ports: () => ports.list(),
+      // Like the Inspector's target: .env's PORT, else the first port the package's ecosystems detected.
+      detectedPort: async (projectId, dir) => {
+        const text = await envFiles
+          .read(dir, '.env')
+          .then((r) => r.text)
+          .catch(() => null);
+        const port = text === null ? '' : (entries(parseEnv(text)).get('PORT')?.trim() ?? '');
+        if (/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65_535) return Number(port);
+        try {
+          return ecosystemPorts(projects.getDetected(projectId))[0] ?? null;
+        } catch {
+          return null;
+        }
+      },
+      ca: createLocalCa({ file: join(app.getPath('userData'), 'domains-ca.json'), now: Date.now, logger }),
+      trust: fakeTrust
+        ? { trust: async () => 'trusted', untrust: async () => 'removed' }
+        : { trust: (file) => platform.trustRootCa(file), untrust: (ids) => platform.untrustRootCa(ids) },
+      confirm: async (kind) => {
+        const options =
+          kind === 'trust'
+            ? {
+                type: 'question' as const,
+                buttons: ['Trust', 'Not now'],
+                defaultId: 0,
+                cancelId: 1,
+                message: 'Trust NestBox’s local certificate authority?',
+                detail:
+                  'NestBox made a certificate authority on this computer so https://<project>.localhost works without a browser warning. It can only vouch for names ending in .localhost, never for real websites. Your operating system will ask you to confirm next.',
+              }
+            : {
+                type: 'warning' as const,
+                buttons: ['Remove', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+                message: 'Remove NestBox’s certificate authority?',
+                detail: 'Local domains go back to untrusted HTTPS until you trust a new one.',
+              };
+        const result = mainWindow ? await dialog.showMessageBox(mainWindow, options) : await dialog.showMessageBox(options);
+        return result.response === 0;
+      },
+      emit: throttle(() => emit('domains:changed'), 250),
+      logger,
+    });
+    refreshDomains = () => domains.refresh();
+    processes.on((event) => {
+      if (event.type === 'changed') domains.refresh();
+    });
+    void domains.start().catch(() => logger.warn('domains start failed'));
     // Scripts ask the Node tool and drive the Compose tool through the host (created below), so validation applies.
     let toolHostRef: ToolHost | null = null;
     const invokeCompose = async (projectId: string, method: 'up' | 'stop', input: object) => {
@@ -377,7 +456,11 @@ if (!app.requestSingleInstanceLock()) {
       },
       shutdown: async () => {
         depsScheduler.stop();
-        const [, disposed] = await Promise.allSettled([processes.stopAll(), toolHost.disposeAll(SHUTDOWN_TIMEOUT_MS - 500)]);
+        const [, disposed] = await Promise.allSettled([
+          processes.stopAll(),
+          toolHost.disposeAll(SHUTDOWN_TIMEOUT_MS - 500),
+          domains.stop(),
+        ]);
         if (disposed.status === 'fulfilled' && disposed.value.failed.length + disposed.value.timedOut.length > 0) {
           logger.warn('tools did not dispose cleanly', {
             failed: disposed.value.failed.join(','),
@@ -448,6 +531,7 @@ if (!app.requestSingleInstanceLock()) {
         settings: store,
         processes,
         ports,
+        domains,
         deps: {
           overview: async () => ({
             projects: (await projects.list()).map((p) => ({
