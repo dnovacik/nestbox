@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { TOGGLEABLE_TOOLS } from '@shared/tools';
 import { api } from '@/lib/api';
+import { DomainsSettings } from '@/domains/DomainsSettings';
 import { ToolPicker } from './ToolPicker';
 import { useAppInfo, useSettings, useUpdateSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
@@ -238,6 +239,7 @@ function SettingsForm({ initial, platform, onDone }: { initial: SettingsView; pl
           </p>
           <ToolPicker disabled={disabledTools} onChange={setDisabledTools} readOnly={readOnly} />
         </div>
+        <DomainsSettings />
       </fieldset>
       <AlertDialog open={stopping !== null} onOpenChange={(o) => !o && setStopping(null)}>
         <AlertDialogContent>

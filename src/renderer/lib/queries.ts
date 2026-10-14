@@ -15,6 +15,7 @@ export const queryKeys = {
   processes: ['processes'] as const,
   ports: ['ports'] as const,
   systemStats: ['system-stats'] as const,
+  domains: ['domains'] as const,
   tools: (projectId: string) => ['tools', projectId] as const,
   toolCalls: ['tool'] as const,
   tool: (toolId: string, projectId: string, method: string) => ['tool', toolId, projectId, method] as const,

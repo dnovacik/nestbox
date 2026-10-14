@@ -15,6 +15,14 @@ function setup(readOnly = false, update?: (patch: SettingsPatch) => unknown, pla
   let view = { ...AppSettingsSchema.parse({}), readOnly };
   const bridge = installMockBridge({
     'app:getInfo': () => ({ version: '1.0.0', platform }),
+    'domains:status': () => ({
+      enabled: false,
+      http: { state: 'off', port: 80, code: null, owner: null },
+      https: { state: 'off', port: 443, code: null, owner: null },
+      trust: 'none',
+      routes: [],
+      clashes: [],
+    }),
     'settings:get': () => view,
     'settings:update': (patch) => {
       if (update) update(patch);
