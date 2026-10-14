@@ -45,6 +45,7 @@ export const result = (over: Partial<PackageResult> = {}): PackageResult => ({
   projectId: 'p1',
   relPath: '',
   name: 'shop',
+  ecosystem: 'node',
   manager: 'npm',
   checkedAt: Date.now() - 2 * 3_600_000,
   rows: [row(), SEMVER, LODASH],

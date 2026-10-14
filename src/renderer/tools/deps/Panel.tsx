@@ -23,7 +23,22 @@ const FILTER_LABEL: Record<Filter, string> = {
   vulnerable: 'Vulnerable',
 };
 
-const packageLabel = (p: PackageResult) => (p.relPath === '' ? `${p.name} (root)` : p.relPath);
+/** A result's key: a folder that is both Node and .NET has one result each. */
+const keyOf = (p: PackageResult) => `${p.projectId}#${p.ecosystem}`;
+
+const MANAGER_LABEL: Partial<Record<PackageResult['manager'], string>> = {
+  'yarn-berry': 'yarn',
+  dotnet: 'NuGet',
+};
+const managerLabel = (p: PackageResult) => MANAGER_LABEL[p.manager] ?? p.manager;
+
+/** The package's name, plus the manager when the same folder has another ecosystem's result. */
+function packageLabel(p: PackageResult, all: readonly PackageResult[]): string {
+  const name = p.relPath === '' ? `${p.name} (root)` : p.relPath;
+  return all.some((o) => o.projectId === p.projectId && o.ecosystem !== p.ecosystem)
+    ? `${name} · ${managerLabel(p)}`
+    : name;
+}
 
 function Row({ row, pkg, projectId }: { row: DepRow; pkg: PackageResult; projectId: string }) {
   const [open, setOpen] = useState(false);
@@ -77,7 +92,9 @@ function Row({ row, pkg, projectId }: { row: DepRow; pkg: PackageResult; project
               size="icon"
               className="size-7"
               aria-label={`Copy update command for ${row.name}`}
-              onClick={() => copy.mutate({ relPath: pkg.relPath, name: row.name })}
+              onClick={() =>
+                copy.mutate({ relPath: pkg.relPath, name: row.name, ecosystem: pkg.ecosystem })
+              }
             >
               <Copy className="size-3.5" aria-hidden />
             </Button>
@@ -128,7 +145,7 @@ export default function DepsPanel({ projectId }: ToolPanelProps) {
   if (!data) return <p className="text-sm text-fg-muted">Loading…</p>;
 
   const checking = data.checking || check.isPending;
-  const pkg = data.packages.find((p) => p.projectId === selected) ?? data.packages[0] ?? null;
+  const pkg = data.packages.find((p) => keyOf(p) === selected) ?? data.packages[0] ?? null;
   const totals = summarize(data.packages);
   const needle = search.trim().toLowerCase();
   const rows = pkg
@@ -180,14 +197,14 @@ export default function DepsPanel({ projectId }: ToolPanelProps) {
             <div role="group" aria-label="Package" className="flex flex-wrap gap-1.5">
               {data.packages.map((p) => (
                 <Button
-                  key={p.projectId}
+                  key={keyOf(p)}
                   variant="secondary"
                   size="sm"
-                  aria-pressed={p.projectId === pkg?.projectId}
-                  className={cn(p.projectId === pkg?.projectId && 'border border-brand/50')}
-                  onClick={() => setSelected(p.projectId)}
+                  aria-pressed={p === pkg}
+                  className={cn(p === pkg && 'border border-brand/50')}
+                  onClick={() => setSelected(keyOf(p))}
                 >
-                  {packageLabel(p)}
+                  {packageLabel(p, data.packages)}
                 </Button>
               ))}
             </div>
@@ -225,11 +242,7 @@ export default function DepsPanel({ projectId }: ToolPanelProps) {
               onChange={(e) => setSearch(e.target.value)}
               className="h-7 w-56 text-xs"
             />
-            {pkg && (
-              <span className="ml-auto text-[11px] text-fg-faint">
-                {pkg.manager === 'yarn-berry' ? 'yarn' : pkg.manager}
-              </span>
-            )}
+            {pkg && <span className="ml-auto text-[11px] text-fg-faint">{managerLabel(pkg)}</span>}
           </div>
           {rows.length === 0 ? (
             <p className="text-xs text-fg-muted">Nothing to show.</p>

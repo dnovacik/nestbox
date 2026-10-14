@@ -1,3 +1,4 @@
+import type { EcosystemId } from '@shared/detected';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -36,7 +37,7 @@ export function useDepsActions(projectId: string) {
       onError: (error) => toast.error(errorMessage(error)),
     }),
     copy: useMutation({
-      mutationFn: (input: { relPath: string; name: string }) =>
+      mutationFn: (input: { relPath: string; name: string; ecosystem?: EcosystemId }) =>
         api.tools.invoke('deps', projectId, 'copyUpdateCommand', input),
       onSuccess: ({ command }) => toast.success(`Copied: ${command}`),
       onError: (error) => toast.error(errorMessage(error)),

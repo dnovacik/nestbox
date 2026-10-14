@@ -453,9 +453,9 @@ if (!app.requestSingleInstanceLock()) {
             projects: (await projects.list()).map((p) => ({
               id: p.id,
               name: p.name,
-              packages: [p.id, ...p.detected.workspaces.map((w) => w.id)]
-                .map((id) => depsCache.get(id))
-                .filter((r) => r !== undefined),
+              packages: [p.id, ...p.detected.workspaces.map((w) => w.id)].flatMap((id) =>
+                depsCache.forPackage(id),
+              ),
               checking: depsRunning.has(p.id),
             })),
             runningAll: depsScheduler.running(),

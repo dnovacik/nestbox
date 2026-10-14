@@ -123,7 +123,7 @@ describe('deps tool', () => {
       ['api', 'outdated'],
       ['api', 'audit'],
     ]);
-    expect(cache.get('r1::packages/api')?.relPath).toBe('packages/api');
+    expect(cache.forPackage('r1::packages/api')[0]?.relPath).toBe('packages/api');
     expect(rootCtx.emit).toHaveBeenCalledTimes(2);
   });
 
@@ -222,17 +222,37 @@ describe('deps tool', () => {
     expect(clipboard.writeText).toHaveBeenCalledWith('dotnet add package Newtonsoft.Json');
   });
 
-  it("checks Node first in a folder that is also a .NET project, and copies npm's command", async () => {
-    const { call, ctxFor, rootProject, spawnCommand, clipboard, tool } = setup();
+  it('checks both npm and NuGet in a folder that is also a .NET project, Node first', async () => {
+    const dotnetFixture = (name: string) =>
+      readFileSync(join(__dirname, '..', '..', 'ecosystems', 'dotnet', '__fixtures__', name), 'utf8');
+    const { call, ctxFor, rootProject, spawnCommand, clipboard, tool, cache } = setup({
+      'dotnet list Web.csproj package --outdated --format json': { code: 0, stdout: dotnetFixture('list-outdated.json') },
+      'dotnet list Web.csproj package --vulnerable --include-transitive --format json': {
+        code: 0,
+        stdout: dotnetFixture('list-vulnerable.json'),
+      },
+    });
     const dotnet = { id: 'dotnet' as const, info: { solution: null, project: 'Web.csproj', targetFrameworks: ['net8.0'], isWeb: true, isTest: false, sdk: null, launchProfiles: [] } };
-    // Detection lists .NET first (ECOSYSTEM_MODULES order).
+    // Detection lists .NET first (ECOSYSTEM_MODULES order); the check still goes Node first.
     const both = { ...rootProject, workspaces: [], ecosystems: [dotnet, ...NODE] };
     const ctx = ctxFor(both);
     const results = (await tool.handlers['check']?.(ctx, {})) as Results;
-    expect(results.packages.map((p) => p.manager)).toEqual(['npm']);
-    expect(spawnCommand.mock.calls.some(([o]) => o.command === 'dotnet')).toBe(false);
+    expect(results.packages.map((p) => [p.projectId, p.ecosystem, p.manager])).toEqual([
+      ['r1', 'node', 'npm'],
+      ['r1', 'dotnet', 'dotnet'],
+    ]);
+    expect(spawnCommand.mock.calls.map(([o]) => o.command)).toEqual(['npm', 'npm', 'dotnet', 'dotnet']);
+    expect(cache.forPackage('r1')).toHaveLength(2);
+    // Each row copies its own manager's command; without an ecosystem, the first result with the row.
     await call('copyUpdateCommand', { relPath: '', name: 'lodash' }, ctx);
     expect(clipboard.writeText).toHaveBeenLastCalledWith('npm install lodash@latest');
+    await call('copyUpdateCommand', { relPath: '', name: 'Newtonsoft.Json', ecosystem: 'dotnet' }, ctx);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith('dotnet add package Newtonsoft.Json');
+    await call('copyUpdateCommand', { relPath: '', name: 'Newtonsoft.Json' }, ctx);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith('dotnet add package Newtonsoft.Json');
+    await expect(call('copyUpdateCommand', { relPath: '', name: 'lodash', ecosystem: 'dotnet' }, ctx)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 
   it('forgets a removed project', async () => {
