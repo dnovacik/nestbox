@@ -7,7 +7,8 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { pipeline } from 'node:stream';
+import { connect, type Socket } from 'node:net';
+import { pipeline, type Duplex } from 'node:stream';
 import { createServer as createHttpsServer } from 'node:https';
 import { createSecureContext, type SecureContext } from 'node:tls';
 import type { ServerState } from '@shared/domains';
@@ -49,6 +50,63 @@ export function createDomainsProxy(deps: {
   const hosts = deps.hosts ?? ['127.0.0.1', '::1'];
   let servers: Server[] = [];
   let httpsPort: number | null = null;
+  const tunnels = new Set<Duplex>();
+
+  function refuse(socket: Duplex, status: number, reason: string) {
+    socket.on('error', () => {});
+    socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  }
+
+  function upgrade(proto: 'http' | 'https') {
+    return (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      const resolution = resolveHost(deps.table(), req.headers.host);
+      if (resolution.kind === 'forbidden') return refuse(socket, 403, 'Forbidden');
+      if (resolution.kind !== 'forward')
+        return refuse(
+          socket,
+          resolution.kind === 'unknown' ? 404 : 503,
+          resolution.kind === 'unknown' ? 'Not Found' : 'Service Unavailable',
+        );
+      const { route, port } = resolution;
+      // Upgrade and Connection are hop-by-hop: put them back for the target.
+      const headers = proxyRequestHeaders(req.rawHeaders, {
+        host: route.name,
+        proto,
+        remoteAddress: req.socket.remoteAddress,
+        rewriteHostTo: route.rewriteHost ? `localhost:${port}` : null,
+      });
+      const lines = [`${req.method ?? 'GET'} ${req.url ?? '/'} HTTP/1.1`];
+      for (let i = 0; i + 1 < headers.length; i += 2)
+        lines.push(`${headers[i]}: ${headers[i + 1]}`);
+      lines.push('Connection: Upgrade', `Upgrade: ${req.headers.upgrade ?? 'websocket'}`);
+      const upstream: Socket = connect(port, route.ipv6Only ? '::1' : '127.0.0.1');
+      tunnels.add(socket);
+      tunnels.add(upstream);
+      const close = () => {
+        socket.destroy();
+        upstream.destroy();
+        tunnels.delete(socket);
+        tunnels.delete(upstream);
+      };
+      upstream.once('connect', () => {
+        upstream.write(`${lines.join('\r\n')}\r\n\r\n`);
+        if (head.length > 0) upstream.write(head);
+        upstream.pipe(socket);
+        socket.pipe(upstream);
+      });
+      upstream.on('error', (error: NodeJS.ErrnoException) => {
+        deps.logger.info('domains upgrade failed', {
+          name: route.name,
+          port,
+          code: error.code ?? 'unknown',
+        });
+        close();
+      });
+      socket.on('error', close);
+      upstream.on('close', close);
+      socket.on('close', close);
+    };
+  }
 
   function handle(proto: 'http' | 'https') {
     return (req: IncomingMessage, res: ServerResponse) => {
@@ -147,13 +205,14 @@ export function createDomainsProxy(deps: {
                 },
               },
               handle('https'),
-            ),
+            ).on('upgrade', upgrade('https')),
           wantedHttps,
         );
       }
       httpsPort = https.state === 'running' ? wantedHttps : null;
       const http = await bind(
-        () => createHttpServer({ requestTimeout: 0 }, handle('http')),
+        () =>
+          createHttpServer({ requestTimeout: 0 }, handle('http')).on('upgrade', upgrade('http')),
         httpPort,
       );
       deps.logger.info('domains started', {
@@ -169,6 +228,8 @@ export function createDomainsProxy(deps: {
       const closing = servers;
       servers = [];
       httpsPort = null;
+      for (const socket of tunnels) socket.destroy();
+      tunnels.clear();
       await Promise.all(closing.map((server) => closeServer(server)));
     },
   };

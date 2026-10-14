@@ -1,5 +1,5 @@
 import { createServer, request, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo, type Socket } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createMemoryLogger } from '../logger';
 import { createDomainsProxy, type DomainsProxy } from './proxy';
@@ -239,5 +239,86 @@ describe('domains proxy over HTTP', () => {
     const state = await proxy.start({ httpPort: port, httpsPort: await freePort(), sni: null });
     expect(state.http).toMatchObject({ state: 'failed', port, code: 'EADDRINUSE' });
     await expect(get(port, 'shop.localhost')).rejects.toMatchObject({ code: 'ECONNREFUSED' });
+  });
+});
+
+/** A raw upgrade: the target answers 101 and echoes what it gets afterwards. */
+async function upgradeTarget(behaviour: 'echo' | 'close'): Promise<number> {
+  const s = createServer();
+  s.on('upgrade', (_req, socket: Socket) => {
+    if (behaviour === 'close') return socket.destroy();
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
+    );
+    socket.on('data', (d) => socket.write(d));
+    socket.on('end', () => socket.end());
+  });
+  servers.push(s);
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+  return (s.address() as AddressInfo).port;
+}
+
+function rawUpgrade(port: number, host: string): Promise<{ head: string; socket: Socket }> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(
+        `GET /hmr HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`,
+      );
+    });
+    socket.once('data', (d) => resolve({ head: d.toString(), socket }));
+    socket.on('error', reject);
+  });
+}
+
+async function startProxy(port: number | null): Promise<number> {
+  proxy = createDomainsProxy({
+    table: () => tableFor(port),
+    logger: createMemoryLogger(),
+    hosts: ['127.0.0.1'],
+  });
+  const httpPort = await freePort();
+  await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+  return httpPort;
+}
+
+describe('domains proxy upgrades', () => {
+  it('pipes a WebSocket upgrade both ways', async () => {
+    const httpPort = await startProxy(await upgradeTarget('echo'));
+    const { head, socket } = await rawUpgrade(httpPort, 'shop.localhost');
+    expect(head).toContain('101 Switching Protocols');
+    const echoed = new Promise<string>((r) => socket.once('data', (d) => r(d.toString())));
+    socket.write('ping');
+    expect(await echoed).toBe('ping');
+    socket.destroy();
+  });
+
+  it('closes the client when the target drops the upgrade', async () => {
+    const httpPort = await startProxy(await upgradeTarget('close'));
+    const socket = connect(httpPort, '127.0.0.1', () =>
+      socket.write(
+        'GET / HTTP/1.1\r\nHost: shop.localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n',
+      ),
+    );
+    await new Promise<void>((r) => socket.on('close', () => r()));
+  });
+
+  it('refuses an upgrade for a foreign Host', async () => {
+    const httpPort = await startProxy(null);
+    const { head } = await rawUpgrade(httpPort, 'example.com');
+    expect(head).toMatch(/^HTTP\/1\.1 403/);
+  });
+
+  it('answers 503 for a project that is not running', async () => {
+    const httpPort = await startProxy(null);
+    const { head } = await rawUpgrade(httpPort, 'shop.localhost');
+    expect(head).toMatch(/^HTTP\/1\.1 503/);
+  });
+
+  it('destroys tunnelled sockets on stop', async () => {
+    const httpPort = await startProxy(await upgradeTarget('echo'));
+    const { socket } = await rawUpgrade(httpPort, 'shop.localhost');
+    const closed = new Promise<void>((r) => socket.on('close', () => r()));
+    await proxy?.stop();
+    await closed;
   });
 });
