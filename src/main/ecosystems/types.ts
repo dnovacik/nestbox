@@ -42,6 +42,8 @@ export interface EcosystemDeps {
 export interface DetectContext {
   /** The project root's file and folder names when the folder is a workspace package; null for the root. */
   root: { path: string; files: ReadonlySet<string>; dirs: ReadonlySet<string> } | null;
+  /** A file of the folder (its name relative to the folder) that couldn't be used, and why. Never its contents. */
+  onWarning?(file: string, reason: 'unreadable' | 'invalid-json' | 'not-an-object'): void;
 }
 
 /** Warnings a module may raise while reading the root's workspace config: file names and a reason only. */

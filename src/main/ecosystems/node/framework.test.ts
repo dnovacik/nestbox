@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { detectFramework, frameworkLabel } from './framework';
+import { FRAMEWORK_IDS } from '@shared/ecosystems/node';
+import { detectFramework, FRAMEWORK_ORDER, frameworkLabel } from './framework';
 
 const pkg = (
   dependencies: Record<string, string>,
@@ -71,5 +72,11 @@ describe('frameworkLabel', () => {
     expect(frameworkLabel({ id: 'next', major: 15 })).toBe('Next.js 15');
     expect(frameworkLabel({ id: 'sveltekit', major: null })).toBe('SvelteKit');
     expect(frameworkLabel({ id: 'nestjs', major: 10 })).toBe('NestJS 10');
+  });
+});
+
+describe('FRAMEWORK_ORDER', () => {
+  it('matches the shared ids, in the same order', () => {
+    expect(FRAMEWORK_ORDER).toEqual([...FRAMEWORK_IDS]);
   });
 });

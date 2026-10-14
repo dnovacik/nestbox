@@ -2,21 +2,13 @@
 // through the package manager, and Turborepo's tasks from turbo.json. Names only; script text is never kept.
 import { join } from 'node:path';
 import { parse } from 'jsonc-parser';
-import { z } from 'zod';
+import type { Monorepo } from '@shared/ecosystems/node';
 import type { DetectedTask } from '../types';
 import type { NodeInfo } from './detect';
 import { readPackageJson, readSmall } from './package-json';
 import { nodeWorkspaces } from './workspaces';
 
-export const MonorepoSchema = z.object({
-  /** Script names that two or more workspace packages define (plain words only, at most 20). */
-  shared: z.array(z.string()),
-  /** turbo.json's task names (plain, without `#`) when turbo is a root dependency. */
-  turbo: z.array(z.string()),
-  /** Yarn 2+ (`.yarnrc.yml` at the root) runs a script everywhere with `workspaces foreach`. */
-  yarnBerry: z.boolean(),
-});
-export type Monorepo = z.infer<typeof MonorepoSchema>;
+export type { Monorepo };
 
 /** A name that reaches cmd.exe as one plain word. */
 const PLAIN = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/;

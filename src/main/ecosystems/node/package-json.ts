@@ -25,16 +25,28 @@ export async function readSmall(path: string, max: number): Promise<string | nul
   }
 }
 
+/** Why a package.json couldn't be used: names only, never its contents. */
+export type PackageJsonProblem = 'unreadable' | 'invalid-json' | 'not-an-object';
+
+/** package.json as an object, or why it can't be used (missing or over 1 MiB counts as unreadable). */
+export async function readPackageJsonChecked(
+  dir: string,
+): Promise<{ json: Record<string, unknown> } | { problem: PackageJsonProblem }> {
+  const text = await readSmall(join(dir, 'package.json'), PACKAGE_JSON_MAX_BYTES);
+  if (!text) return text === '' ? { problem: 'invalid-json' } : { problem: 'unreadable' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+  } catch {
+    return { problem: 'invalid-json' };
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? { json: parsed as Record<string, unknown> }
+    : { problem: 'not-an-object' };
+}
+
 /** package.json as an object; null when missing, too big, unreadable or not a JSON object. */
 export async function readPackageJson(dir: string): Promise<Record<string, unknown> | null> {
-  const text = await readSmall(join(dir, 'package.json'), PACKAGE_JSON_MAX_BYTES);
-  if (!text) return null;
-  try {
-    const parsed: unknown = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+  const read = await readPackageJsonChecked(dir);
+  return 'json' in read ? read.json : null;
 }

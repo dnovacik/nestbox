@@ -1,33 +1,14 @@
-// Node.js detection of one folder: a package.json (read once, capped: the packageManager field
-// and dependency names), the manager from the lockfile's name, else that field, and the framework.
-import { z } from 'zod';
-import { PACKAGE_MANAGERS } from '@shared/detected';
+// Node.js detection of one folder: a package.json (read once, capped: name, scripts, the packageManager
+// field and dependency names), the manager from the lockfile's name, else that field, and the framework.
+import { type NodeInfo, NodeInfoSchema } from '@shared/ecosystems/node';
 import type { DetectContext } from '../types';
-import { detectFramework, FrameworkSchema } from './framework';
-import { detectMonorepo, MonorepoSchema } from './monorepo';
-import { readPackageJson } from './package-json';
+import { detectFramework } from './framework';
+import { detectMonorepo } from './monorepo';
+import { readPackageJson, readPackageJsonChecked } from './package-json';
 import { nodePorts } from './ports';
-import { choosePackageManager, lockfilesIn, PACKAGE_MANAGER_SOURCES } from './package-manager';
+import { choosePackageManager, lockfilesIn } from './package-manager';
 
-/**
- * Node.js project info: which package manager runs this package, and what it is built with.
- */
-export const NodeInfoSchema = z.object({
-  /** From the lockfile, else package.json's packageManager field, else npm. */
-  packageManager: z.enum(PACKAGE_MANAGERS),
-  packageManagerSource: z.enum(PACKAGE_MANAGER_SOURCES),
-  /** The lockfile names in the folder that decided (the root's for a workspace package when it has any). */
-  lockfiles: z.array(z.string()),
-  /** From dependency names (Next.js before Vite, …); null when none is known. */
-  framework: FrameworkSchema.nullable(),
-  /** Where the dev server listens: ports the dev/start scripts name, then the framework's default. */
-  ports: z.array(z.number().int().min(1).max(65_535)),
-  /** package.json lists dependencies or devDependencies (so there is something to install). */
-  hasDependencies: z.boolean(),
-  /** A root that declares workspaces: scripts its packages share, turbo.json's tasks. Null elsewhere. */
-  monorepo: MonorepoSchema.nullable(),
-});
-export type NodeInfo = z.infer<typeof NodeInfoSchema>;
+export { NodeInfoSchema, type NodeInfo };
 
 /** The manager a lockfile names; null when it came from the packageManager field or npm's default. */
 export function lockfileManager(info: NodeInfo): NodeInfo['packageManager'] | null {
@@ -64,7 +45,10 @@ export async function detectNode(
 ): Promise<NodeInfo | null> {
   if (!files.has('package.json')) return null;
   const root = ctx?.root ?? null;
-  const json = await readPackageJson(dir);
+  const read = await readPackageJsonChecked(dir);
+  if ('problem' in read) ctx?.onWarning?.('package.json', read.problem);
+  const json = 'json' in read ? read.json : null;
+  const name = json?.['name'];
   const fromLockfile = choosePackageManager({ files, root: root && { files: root.files } });
   const { manager, source } =
     fromLockfile.source === 'lockfile'
@@ -81,12 +65,15 @@ export async function detectNode(
         });
   const rootLockfiles = root ? lockfilesIn(root.files) : [];
   const framework = detectFramework(json);
+  const scripts = scriptsOf(json);
   return {
+    name: typeof name === 'string' && name.trim() ? name : null,
+    scripts,
     packageManager: manager,
     packageManagerSource: source,
     lockfiles: rootLockfiles.length > 0 ? rootLockfiles : lockfilesIn(files),
     framework,
-    ports: nodePorts(scriptsOf(json), framework),
+    ports: nodePorts(scripts, framework),
     hasDependencies: hasDependencies(json),
     monorepo: root ? null : await detectMonorepo(dir, files, json),
   };
