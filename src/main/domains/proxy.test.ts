@@ -247,6 +247,82 @@ describe('domains proxy over HTTP', () => {
   });
 });
 
+describe('domains proxy targets', () => {
+  async function ipv6Target(): Promise<number | null> {
+    const s = createServer((req, res) => {
+      if (req.headers.upgrade) return;
+      res.end(`v6 ${req.url ?? ''}`);
+    });
+    s.on('upgrade', (_req, socket: Socket) => {
+      socket.write(
+        'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
+      );
+      socket.on('data', (d) => socket.write(d));
+      socket.on('end', () => socket.end());
+    });
+    servers.push(s);
+    const ok = await new Promise<boolean>((resolve) => {
+      s.once('error', () => resolve(false));
+      s.listen(0, '::1', () => resolve(true));
+    });
+    return ok ? (s.address() as AddressInfo).port : null;
+  }
+
+  function detectedTable(port: number): RouteTable {
+    return buildRoutes({
+      projects: [{ id: 'r1', name: 'shop', workspaces: [] }],
+      overrides: {},
+      rewriteHost: {},
+      mainScripts: new Map(),
+      processes: [],
+      ports: [],
+      detectedPorts: new Map([['r1', port]]),
+      ownPorts: [],
+    });
+  }
+
+  it('reaches a detected port that listens only on ::1 (requests and upgrades)', async () => {
+    const port = await ipv6Target();
+    if (port === null) return; // no IPv6 loopback here
+    proxy = createDomainsProxy({
+      table: () => detectedTable(port),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+    const res = await get(httpPort, 'shop.localhost', '/hi');
+    expect(res.status).toBe(200);
+    expect(res.body).toBe('v6 /hi');
+    const { head, socket } = await rawUpgrade(httpPort, 'shop.localhost');
+    expect(head).toContain('101 Switching Protocols');
+    socket.destroy();
+  });
+});
+
+describe('domains proxy server errors', () => {
+  it('logs a server error after listening instead of throwing', async () => {
+    const logger = createMemoryLogger();
+    const listening: Server[] = [];
+    proxy = createDomainsProxy({
+      table: () => tableFor(null),
+      logger,
+      hosts: ['127.0.0.1'],
+      onListening: (server) => listening.push(server),
+    });
+    await proxy.start({ httpPort: await freePort(), httpsPort: await freePort(), sni: null });
+    expect(listening).toHaveLength(1);
+    const server = listening[0] as Server;
+    const error = Object.assign(new Error('accept failed at /secret/path'), { code: 'EMFILE' });
+    expect(() => server.emit('error', error)).not.toThrow();
+    expect(() => server.emit('error', error)).not.toThrow();
+    const logged = logger.entries.filter((e) => e.message === 'domains server error');
+    expect(logged).toHaveLength(2);
+    expect(logged[0]?.level).toBe('warn');
+    expect(logged[0]?.fields).toEqual({ code: 'EMFILE' });
+  });
+});
+
 /** A raw upgrade: the target answers 101 and echoes what it gets afterwards. */
 async function upgradeTarget(behaviour: 'echo' | 'close'): Promise<number> {
   const s = createServer();

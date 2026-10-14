@@ -34,6 +34,10 @@ const closeServer = (server: Server) =>
     server.closeAllConnections?.();
   });
 
+// A route whose port row says IPv6-only goes to ::1; anything else (including a detected port with no row)
+// goes to localhost with happy eyeballs, so a server listening only on ::1 or only on 127.0.0.1 is reached.
+const targetHost = (ipv6Only: boolean) => (ipv6Only ? '::1' : 'localhost');
+
 const send = (res: ServerResponse, status: number, html: string) => {
   res.writeHead(status, {
     'content-type': 'text/html; charset=utf-8',
@@ -46,6 +50,8 @@ export function createDomainsProxy(deps: {
   table(): RouteTable;
   logger: Logger;
   hosts?: readonly string[];
+  /** Tests: each server once it listens. */
+  onListening?: (server: Server) => void;
 }): DomainsProxy {
   const hosts = deps.hosts ?? ['127.0.0.1', '::1'];
   let servers: Server[] = [];
@@ -79,7 +85,11 @@ export function createDomainsProxy(deps: {
       for (let i = 0; i + 1 < headers.length; i += 2)
         lines.push(`${headers[i]}: ${headers[i + 1]}`);
       lines.push('Connection: Upgrade', `Upgrade: ${req.headers.upgrade ?? 'websocket'}`);
-      const upstream: Socket = connect(port, route.ipv6Only ? '::1' : '127.0.0.1');
+      const upstream: Socket = connect({
+        port,
+        host: targetHost(route.ipv6Only),
+        autoSelectFamily: true,
+      });
       tunnels.add(socket);
       tunnels.add(upstream);
       const close = () => {
@@ -122,8 +132,9 @@ export function createDomainsProxy(deps: {
         return res.end();
       }
       const upstream = request({
-        host: route.ipv6Only ? '::1' : '127.0.0.1',
+        host: targetHost(route.ipv6Only),
         port,
+        autoSelectFamily: true,
         method: req.method,
         path: req.url,
         headers: proxyRequestHeaders(req.rawHeaders, {
@@ -162,10 +173,19 @@ export function createDomainsProxy(deps: {
     for (const host of hosts) {
       const server = make();
       const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
-        server.once('error', resolve);
-        server.listen(port, host, () => resolve(null));
+        const onError = (e: NodeJS.ErrnoException) => resolve(e);
+        server.once('error', onError);
+        server.listen(port, host, () => {
+          server.off('error', onError);
+          resolve(null);
+        });
       });
       if (error === null) {
+        // A later error (EMFILE on accept, …) would otherwise be uncaught in main. Codes only.
+        server.on('error', (e: NodeJS.ErrnoException) =>
+          deps.logger.warn('domains server error', { code: e.code ?? 'unknown' }),
+        );
+        deps.onListening?.(server);
         bound.push(server);
         continue;
       }
