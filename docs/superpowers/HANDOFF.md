@@ -1,4 +1,4 @@
-# Handoff (2026-10-14)
+# Handoff (2026-10-14, evening)
 
 Where work stands, so the next session (local or cloud) can pick it up. Read `CLAUDE.md` first; this file only adds the current state and how the owner likes to work.
 
@@ -39,6 +39,19 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 | Plan | `docs/superpowers/specs/2026-10-07-nestbox-v2-ecosystems-plan.md`: framework, .NET and Node into a module done; Python next (jubele); later any git repo as a project, make/just targets. |
 
 ## Next steps
+
+0. **Team config (#87), start here next session.**
+   - **State:** the spec (approved) and the plan (11 tasks) are on branch `team-config`. No code yet.
+     - Spec: `docs/superpowers/specs/2026-10-14-nestbox-v2-team-config-design.md`
+     - Plan: `docs/superpowers/plans/2026-10-14-nestbox-v2-team-config.md`
+   - **Execution:** subagent-driven (recommended; the owner will confirm). Start from Task 1 with `superpowers:subagent-driven-development`, which writes its ledger in `.superpowers/sdd/2026-10-14-nestbox-v2-team-config/`.
+   - **Owner's decisions:**
+     - for teammates on the same repo;
+     - carries commands and run groups, health checks, mock routes and local domain names;
+     - local by default, with an explicit "Share with the team";
+     - accepted once per content hash, and a changed file keeps the last accepted snapshot until reviewed;
+     - one merged view at the settings boundary;
+     - ships as v1.31.0.
 
 1. **Review the Python PR** when jubele opens it. The guide and both modules are the reference.
 2. **Ideas raised along the way:** input to running commands (#45); Nx's plugin-inferred targets on demand (`nx show project`).
