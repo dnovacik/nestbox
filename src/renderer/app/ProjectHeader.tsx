@@ -1,4 +1,5 @@
 import { ExternalLink, Folder, GitBranch, MoreHorizontal, Square, SquareTerminal } from 'lucide-react';
+import { nodeOf, packageManagerLabel } from '@shared/ecosystems/node';
 import { belongsTo, isLive } from '@shared/processes';
 import { useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,7 @@ import { RenameInput } from './RenameInput';
 
 export function ProjectHeader({ node }: { node: ProjectNode }) {
   const { detected, summary, isWorkspace } = node;
+  const nodeInfo = nodeOf(detected);
   const [renaming, setRenaming] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const keepFocus = useRef(false);
@@ -87,9 +89,9 @@ export function ProjectHeader({ node }: { node: ProjectNode }) {
               <Folder aria-hidden className="size-3.5 shrink-0 text-fg-faint" />
               <span className="truncate">{detected.path}</span>
             </span>
-            {detected.packageManager && (
+            {nodeInfo && (
               <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-fg">
-                {detected.packageManager}
+                {packageManagerLabel(nodeInfo)}
               </span>
             )}
             {detected.ecosystems.map((ecosystem) => (

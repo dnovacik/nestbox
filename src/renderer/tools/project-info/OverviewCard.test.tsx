@@ -30,6 +30,17 @@ describe('ProjectInfoCard', () => {
     expect(await screen.findByText('pnpm')).toBeInTheDocument();
   });
 
+  it('says npm is the default when no lockfile or packageManager field names a manager, and none outside Node', async () => {
+    let detected = makeDetected({ packageManager: null });
+    installMockBridge({ 'tools:invoke': () => detected });
+    const { unmount } = renderWithProviders(<ProjectInfoCard projectId="p1" />);
+    expect(await screen.findByText('npm (default)')).toBeInTheDocument();
+    unmount();
+    detected = makeDetected({ packageJson: null, packageManager: null });
+    renderWithProviders(<ProjectInfoCard projectId="p1" />);
+    expect(await screen.findByText('none')).toBeInTheDocument();
+  });
+
   it("shows each ecosystem's summary line", async () => {
     installMockBridge({
       'tools:invoke': () =>

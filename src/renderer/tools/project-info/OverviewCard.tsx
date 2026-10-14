@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { EcosystemIconBadge } from '@/components/EcosystemIconBadge';
 import type { ToolPanelProps } from '../types';
 import { useProjectFacts } from './use-facts';
+import { nodeOf, packageManagerLabel } from '@shared/ecosystems/node';
 
 export function ProjectInfoCard({ projectId }: ToolPanelProps) {
   const { data, isError, refetch, isFetching } = useProjectFacts(projectId);
@@ -28,7 +29,8 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
       </section>
     );
   }
-  const scripts = Object.keys(data.packageJson?.scripts ?? {}).length;
+  const node = nodeOf(data);
+  const scripts = Object.keys(node?.scripts ?? {}).length;
   const claudeFiles = Object.values(data.claude).filter(Boolean).length;
   return (
     <section
@@ -55,7 +57,7 @@ export function ProjectInfoCard({ projectId }: ToolPanelProps) {
           </>
         )}
         <dt className="text-fg-muted">Package manager</dt>
-        <dd className="font-mono text-fg">{data.packageManager ?? 'none'}</dd>
+        <dd className="font-mono text-fg">{node ? packageManagerLabel(node) : 'none'}</dd>
         <dt className="text-fg-muted">Scripts</dt>
         <dd className="text-fg">{scripts} scripts</dd>
         <dt className="text-fg-muted">Env files</dt>
