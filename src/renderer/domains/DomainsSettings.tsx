@@ -111,30 +111,34 @@ export function DomainsSettings() {
               Apply ports
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className={data.trust === 'trusted' ? 'text-ok' : 'text-warn'}>
-              {TRUST_LABEL[data.trust]}
-            </span>
-            {data.trust !== 'trusted' && (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => actions.trust.mutate()}
-              >
-                {data.trust === 'none' ? 'Trust' : 'Trust again'}
-              </Button>
-            )}
-            <Button type="button" size="sm" variant="ghost" onClick={() => actions.remove.mutate()}>
-              Remove NestBox's certificate authority
-            </Button>
-          </div>
           <p className="text-[11px] text-fg-faint">
             Browsers only: backends should keep calling localhost:&lt;port&gt;. Next.js may need the
             name in allowedDevOrigins. Firefox: Settings → Privacy &amp; Security → Certificates →
             "Allow Firefox to automatically trust third-party root certificates you install".
           </p>
         </>
+      )}
+      {(data.enabled || data.trust !== 'none') && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className={data.trust === 'trusted' ? 'text-ok' : 'text-warn'}>
+            {TRUST_LABEL[data.trust]}
+          </span>
+          {data.enabled && data.trust !== 'trusted' && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => actions.trust.mutate()}
+            >
+              {data.trust === 'none' ? 'Trust' : 'Trust again'}
+            </Button>
+          )}
+          {data.trust !== 'none' && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => actions.remove.mutate()}>
+              Remove NestBox's certificate authority
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -43,6 +43,33 @@ describe('DomainsSettings', () => {
     expect(await screen.findByText('Trusted')).toBeInTheDocument();
   });
 
+  it('offers removing the CA while domains are off, only when there is one', async () => {
+    let removed = 0;
+    installMockBridge({
+      'domains:status': () => status({ enabled: false, trust: 'trusted' }),
+      'domains:removeCa': () => {
+        removed += 1;
+        return { result: 'removed' };
+      },
+    } as never);
+    renderWithProviders(<DomainsSettings />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: "Remove NestBox's certificate authority" }),
+    );
+    await waitFor(() => expect(removed).toBe(1));
+  });
+
+  it('hides Remove when domains are off and nothing is trusted', async () => {
+    installMockBridge({
+      'domains:status': () => status({ enabled: false, trust: 'none' }),
+    } as never);
+    renderWithProviders(<DomainsSettings />);
+    await screen.findByRole('switch', { name: 'Local domains' });
+    expect(
+      screen.queryByRole('button', { name: "Remove NestBox's certificate authority" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows why a server couldn't start", async () => {
     installMockBridge({
       'domains:status': () =>
