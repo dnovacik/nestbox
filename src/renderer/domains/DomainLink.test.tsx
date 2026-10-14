@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DomainsStatus } from '@shared/domains';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
@@ -78,5 +78,15 @@ describe('DomainLink', () => {
     installMockBridge({ 'domains:status': () => status({ enabled: false }) } as never);
     renderWithProviders(<DomainLink projectId="p1" />);
     await expect(screen.findByText(/shop\.localhost/, {}, { timeout: 300 })).rejects.toThrow();
+  });
+
+  it('shows a toast instead of an unhandled rejection when the clipboard refuses', async () => {
+    installMockBridge({ 'domains:status': () => status() } as never);
+    const writeText = vi.fn(() => Promise.reject(new Error('denied')));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderWithProviders(<DomainLink projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy local domain' }));
+    expect(writeText).toHaveBeenCalledWith('https://shop.localhost');
+    expect(await screen.findByText("Couldn't copy the address")).toBeInTheDocument();
   });
 });

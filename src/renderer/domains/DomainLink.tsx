@@ -1,4 +1,5 @@
 import { Copy } from 'lucide-react';
+import { toast } from 'sonner';
 import type { DomainsStatus } from '@shared/domains';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
@@ -45,7 +46,12 @@ export function DomainLink({ projectId }: { projectId: string }) {
         size="icon"
         className="size-5"
         aria-label="Copy local domain"
-        onClick={() => void navigator.clipboard.writeText(url)}
+        onClick={() =>
+          void navigator.clipboard.writeText(url).then(
+            () => toast.success('Copied'),
+            () => toast.error("Couldn't copy the address"),
+          )
+        }
       >
         <Copy className="size-3" aria-hidden />
       </Button>
