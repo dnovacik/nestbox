@@ -37,6 +37,8 @@ const closeServer = (server: Server) =>
 // A route whose port row says IPv6-only goes to ::1; anything else (including a detected port with no row)
 // goes to localhost with happy eyeballs, so a server listening only on ::1 or only on 127.0.0.1 is reached.
 const targetHost = (ipv6Only: boolean) => (ipv6Only ? '::1' : 'localhost');
+// Passed on to net.connect by the agent; @types/node's RequestOptions doesn't list it.
+const HAPPY_EYEBALLS: { autoSelectFamily: boolean } = { autoSelectFamily: true };
 
 const send = (res: ServerResponse, status: number, html: string) => {
   res.writeHead(status, {
@@ -134,7 +136,7 @@ export function createDomainsProxy(deps: {
       const upstream = request({
         host: targetHost(route.ipv6Only),
         port,
-        autoSelectFamily: true,
+        ...HAPPY_EYEBALLS,
         method: req.method,
         path: req.url,
         headers: proxyRequestHeaders(req.rawHeaders, {

@@ -31,9 +31,9 @@ async function forgeLeaf(
     'sign',
     'verify',
   ])) as webcrypto.CryptoKeyPair;
-  const signingKey = await webcrypto.subtle.importKey('pkcs8', pemBody(root.key), ALG, false, [
+  const signingKey = (await webcrypto.subtle.importKey('pkcs8', pemBody(root.key), ALG, false, [
     'sign',
-  ]);
+  ])) as unknown as webcrypto.CryptoKey;
   const issuer = new x509.X509Certificate(root.cert);
   const cert = await x509.X509CertificateGenerator.create({
     serialNumber: '01',
@@ -41,8 +41,8 @@ async function forgeLeaf(
     issuer: issuer.subject,
     notBefore: new Date(Date.now() - DAY),
     notAfter: new Date(Date.now() + DAY),
-    signingKey: signingKey as CryptoKey,
-    publicKey: keys.publicKey as CryptoKey,
+    signingKey,
+    publicKey: keys.publicKey,
     signingAlgorithm: ALG,
     extensions: [
       new x509.BasicConstraintsExtension(false, undefined, true),
