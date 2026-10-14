@@ -23,7 +23,7 @@ export const CheckInputSchema = z.discriminatedUnion('kind', [
 ]);
 export type CheckInput = z.input<typeof CheckInputSchema>;
 
-const StoredCheckSchema = z.discriminatedUnion('kind', [
+export const StoredCheckSchema = z.discriminatedUnion('kind', [
   z.object({ id: z.string().min(1).max(64), kind: z.literal('url'), url: HttpUrlSchema, expect: StatusSchema.optional() }),
   z.object({ id: z.string().min(1).max(64), kind: z.literal('env'), key: UrlKeySchema, path: PathSchema.default('/'), expect: StatusSchema.optional() }),
 ]);

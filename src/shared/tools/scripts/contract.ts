@@ -20,6 +20,9 @@ export const CustomCommandSchema = z.object({
 });
 export type CustomCommand = z.infer<typeof CustomCommandSchema>;
 
+/** Which env file a script or command gets (null = none). */
+export const EnvFileEntrySchema = RunGroupEntrySchema.extend({ file: EnvFileNameSchema.nullable() });
+
 const settingsSchema = z.object({
   /** Scripts with auto-restart on, across the root and its workspace packages. */
   autoRestart: z.array(RunGroupEntrySchema).max(500).default([]),
@@ -29,10 +32,7 @@ const settingsSchema = z.object({
    * Which env file a script or command gets, where it differs from the default (.env for custom commands,
    * none for package.json scripts). null = none.
    */
-  envFiles: z
-    .array(RunGroupEntrySchema.extend({ file: EnvFileNameSchema.nullable() }))
-    .max(500)
-    .default([]),
+  envFiles: z.array(EnvFileEntrySchema).max(500).default([]),
   /** The main script or command of a package, at most one per package. */
   main: z.array(RunGroupEntrySchema).max(200).default([]),
   /** Hidden detected commands (ecosystem tasks), can be restored. */

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DomainsSettingsSchema } from './domains';
+import { TeamConfigProjectSchema } from './team-config-project';
 
 export const ProjectNameSchema = z.string().trim().min(1).max(100);
 
@@ -54,6 +55,8 @@ export const ProjectSchema = z.object({
       https: z.boolean(),
     })
     .optional(),
+  /** Team config (v1.31): the accepted .nestbox.json hash, "never for this project", and local hides. */
+  teamConfig: TeamConfigProjectSchema.default(() => TeamConfigProjectSchema.parse({})),
   /** Per tool id, owned and validated by the tool. */
   toolSettings: z.record(z.string(), z.unknown()).default({}),
 });

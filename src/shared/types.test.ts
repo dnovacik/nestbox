@@ -22,6 +22,7 @@ describe('persisted types', () => {
       aliases: {},
       runGroups: [],
       envProfiles: [],
+      teamConfig: { acceptedHash: null, ignored: false, hidden: {} },
       toolSettings: {},
     });
   });
