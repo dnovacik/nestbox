@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeDetectedForTest } from '../../test-fixtures';
 import { deployContract, deployDefinition } from './contract';
+import { nodeEntry } from '../../ecosystems/node-fixtures';
 
 describe('deploy contract', () => {
   const deploy = deployContract.deploy.input;
@@ -29,6 +30,8 @@ describe('deploy contract', () => {
   it('applies to every package, and to a folder with only a deployment config', () => {
     expect(deployDefinition.appliesTo(makeDetectedForTest())).toBe(true);
     expect(deployDefinition.appliesTo(makeDetectedForTest({ ecosystems: [] }))).toBe(false);
+    // An Nx library with only a project.json has nothing of its own to deploy.
+    expect(deployDefinition.appliesTo(makeDetectedForTest({ ecosystems: [nodeEntry({ packageJson: false })] }))).toBe(false);
     expect(
       deployDefinition.appliesTo(makeDetectedForTest({ ecosystems: [], deploy: ['fly'] })),
     ).toBe(true);

@@ -3,6 +3,7 @@ import { type NodeInfo, nodeOf, packageManagerLabel } from './node';
 
 const info: NodeInfo = {
   name: 'shop',
+  packageJson: true,
   scripts: { dev: 'vite' },
   packageManager: 'pnpm',
   packageManagerSource: 'lockfile',
@@ -11,6 +12,7 @@ const info: NodeInfo = {
   ports: [5173],
   hasDependencies: true,
   monorepo: null,
+  nx: null,
 };
 
 describe('nodeOf', () => {

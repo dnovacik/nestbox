@@ -7,6 +7,7 @@ import type { NodeInfo } from './node';
 export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
   return {
     name: null,
+    packageJson: true,
     scripts: {},
     packageManager: 'npm',
     packageManagerSource: 'lockfile',
@@ -15,6 +16,7 @@ export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
     ports: [],
     hasDependencies: false,
     monorepo: null,
+    nx: null,
     ...over,
   };
 }

@@ -31,8 +31,17 @@ export const MonorepoSchema = z.object({
   turbo: z.array(z.string()),
   /** Yarn 2+ (`.yarnrc.yml` at the root) runs a script everywhere with `workspaces foreach`. */
   yarnBerry: z.boolean(),
+  /** An Nx root's targets for `nx run-many`: nx.json's targetDefaults and the projects' targets. */
+  nx: z.array(z.string()),
 });
 export type Monorepo = z.infer<typeof MonorepoSchema>;
+
+/** A project of an Nx workspace: its Nx name and the targets its project.json lists. */
+export const NxProjectSchema = z.object({
+  project: z.string().min(1),
+  targets: z.array(z.string()),
+});
+export type NxProject = z.infer<typeof NxProjectSchema>;
 
 export const PACKAGE_MANAGER_SOURCES = ['lockfile', 'packageManager', 'default'] as const;
 export type PackageManagerSource = (typeof PACKAGE_MANAGER_SOURCES)[number];
@@ -41,8 +50,10 @@ export type PackageManagerSource = (typeof PACKAGE_MANAGER_SOURCES)[number];
  * Node.js project info: the package's name and scripts, which package manager runs it, and what it is built with.
  */
 export const NodeInfoSchema = z.object({
-  /** package.json's name; null when it has none (or a blank one). */
+  /** package.json's name, else the Nx project's; null when there's none (or a blank one). */
   name: z.string().min(1).nullable(),
+  /** The folder has its own package.json (false for an Nx project with only a project.json). */
+  packageJson: z.boolean(),
   /** package.json's scripts with string values. */
   scripts: z.record(z.string(), z.string()),
   /** From the lockfile, else package.json's packageManager field, else npm. */
@@ -58,6 +69,8 @@ export const NodeInfoSchema = z.object({
   hasDependencies: z.boolean(),
   /** A root that declares workspaces: scripts its packages share, turbo.json's tasks. Null elsewhere. */
   monorepo: MonorepoSchema.nullable(),
+  /** The folder's Nx project (a project.json under an Nx root); null elsewhere. */
+  nx: NxProjectSchema.nullable(),
 });
 export type NodeInfo = z.infer<typeof NodeInfoSchema>;
 
