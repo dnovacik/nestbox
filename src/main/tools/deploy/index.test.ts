@@ -20,6 +20,7 @@ import { NestboxError } from '@shared/errors';
 import { createEnvFileAccess } from '../env/env-files';
 import type { ScriptRunResult } from './run-script';
 import { createDeployTool } from './index';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 type SpawnArgs = { cwd: string; command: string; args: string[]; env: NodeJS.ProcessEnv };
 type Answer = { code: number | null; stdout?: string; stderr?: string } | 'hold';
@@ -106,9 +107,8 @@ function setup(
   const ctx = {
     project: makeDetectedForTest({
       path: dir,
-      packageManager: 'npm',
       deploy: opts.deploy ?? ['vercel', 'netlify', 'cloudflare', 'fly'],
-      packageJson: { name: 'shop', scripts: opts.scripts ?? {} },
+      ecosystems: [nodeEntry({ name: 'shop', scripts: opts.scripts ?? {} })],
       git: opts.git ? { branch: 'main', head: null } : null,
     }),
     shared: createSharedContext().forProject('p1'),

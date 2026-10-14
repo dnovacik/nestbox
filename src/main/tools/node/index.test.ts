@@ -35,14 +35,12 @@ async function setup(
     id: 'r1',
     rootId: 'r1',
     path: rootPath,
-    packageManager: 'pnpm',
   });
   const project = makeDetectedForTest({
     id: 'r1::packages/api',
     rootId: 'r1',
     relPath: 'packages/api',
     path: pkgPath,
-    packageManager: 'pnpm',
   });
   const exec: Record<string, { code: number; stdout: string }> = {
     'node --version': { code: 0, stdout: 'v20.11.1\n' },

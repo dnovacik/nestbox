@@ -14,6 +14,7 @@ import { createSharedContext } from '../shared-context';
 import type { AnyMainTool, ToolContext } from '../types';
 import { createDatabaseTool } from './index';
 import type { Reach } from './reach';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 const URL = 'postgresql://alice:s3cr3t@localhost:5432/shop?schema=public';
 const SCHEMA = 'datasource db {\n  provider = "postgresql"\n  url = env("DATABASE_URL")\n}\n';
@@ -36,7 +37,7 @@ async function files(entries: Record<string, string>) {
   }
 }
 
-function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schema.prisma', packageManager: 'pnpm' }, reach: Reach = { result: 'reachable', reason: null }) {
+function setup(project: Partial<DetectedProject> = { prismaSchema: 'prisma/schema.prisma' }, reach: Reach = { result: 'reachable', reason: null }) {
   const platform = { ...fakePlatform(), openTerminal: vi.fn(async () => undefined), commandExists: vi.fn(async () => false) };
   const logger = createMemoryLogger();
   const checkReachable = vi.fn(async () => reach);
@@ -133,7 +134,7 @@ describe('database tool: commands', () => {
   it('finds Prisma installed in a parent folder (a workspace root)', async () => {
     await rm(join(root, 'node_modules'), { recursive: true });
     await files({ 'packages/api/prisma/schema.prisma': SCHEMA, ...PRISMA_INSTALLED });
-    const { call, platform } = setup({ prismaSchema: 'prisma/schema.prisma', packageManager: 'pnpm', path: join(root, 'packages', 'api') });
+    const { call, platform } = setup({ prismaSchema: 'prisma/schema.prisma', path: join(root, 'packages', 'api') });
     await call('run', { command: 'generate' });
     expect(platform.spawnCommand).toHaveBeenCalled();
   });
@@ -169,7 +170,7 @@ describe('database tool: commands', () => {
   });
 
   it('opens migrate dev in a terminal', async () => {
-    const { call, platform } = setup({ prismaSchema: 'prisma/schema.prisma', packageManager: 'npm' });
+    const { call, platform } = setup({ prismaSchema: 'prisma/schema.prisma', ecosystems: [nodeEntry()] });
     await call('migrateDev');
     expect(platform.openTerminal).toHaveBeenCalledWith(root, 'npx --no-install prisma migrate dev --schema prisma/schema.prisma');
   });
@@ -261,8 +262,6 @@ describe('database tool: test login', () => {
 describe('database tool: .NET connection strings', () => {
   const dotnet = (over: Record<string, unknown> = {}): Partial<DetectedProject> => ({
     prismaSchema: null,
-    packageJson: null,
-    packageManager: null,
     envFiles: [],
     ecosystems: [
       {
@@ -371,8 +370,6 @@ describe('database tool: EF Core', () => {
   const readFixture = (name: string) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
   const efDotnet = (over: Record<string, unknown> = {}): Partial<DetectedProject> => ({
     prismaSchema: null,
-    packageJson: null,
-    packageManager: null,
     envFiles: [],
     ecosystems: [
       {

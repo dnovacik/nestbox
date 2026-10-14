@@ -54,7 +54,6 @@ function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
     relPath: 'packages/api',
     name: '@shop/api',
     path: api,
-    packageManager: 'npm',
     ecosystems: NODE,
   });
   const rootProject = makeDetectedForTest({
@@ -62,7 +61,6 @@ function setup(answers: Record<string, { code: number; stdout: string }> = {}) {
     rootId: 'r1',
     path: root,
     name: 'shop',
-    packageManager: 'npm',
     ecosystems: NODE,
     workspaces: [workspace],
   });
@@ -194,8 +192,6 @@ describe('deps tool', () => {
       relPath: 'src/Shop.Core',
       name: 'Shop.Core',
       path: join(tmpdir(), 'Shop', 'src', 'Shop.Core'),
-      packageJson: null,
-      packageManager: null,
       ecosystems: [{ id: 'dotnet', info }],
     });
     const solution = makeDetectedForTest({
@@ -203,8 +199,6 @@ describe('deps tool', () => {
       rootId: 'r2',
       path: join(tmpdir(), 'Shop'),
       name: 'Shop',
-      packageJson: null,
-      packageManager: null,
       ecosystems: [{ id: 'dotnet', info: { ...info, solution: 'Shop.slnx', project: null, targetFrameworks: [] } }],
       workspaces: [core],
     });

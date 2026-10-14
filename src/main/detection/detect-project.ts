@@ -75,8 +75,6 @@ function missingProject(target: DirTarget): DetectedProject {
     relPath: target.relPath,
     name: target.name ?? basename(target.path),
     missing: true,
-    packageJson: null,
-    packageManager: null,
     envFiles: [],
     envSymlinks: [],
     workspaces: [],
@@ -142,9 +140,6 @@ async function detectDir(
     relPath: target.relPath,
     name: target.name ?? node?.name ?? basename(target.path),
     missing: false,
-    // Deprecated copies of the Node entry (#63), until every reader uses nodeOf().
-    packageJson: node && (node.name === null ? { scripts: node.scripts } : { name: node.name, scripts: node.scripts }),
-    packageManager: node && node.packageManagerSource !== 'default' ? node.packageManager : null,
     envFiles: envFiles.sort(),
     envSymlinks: envSymlinks.sort(),
     workspaces: [],

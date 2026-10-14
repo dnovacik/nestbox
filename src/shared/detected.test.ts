@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type DetectedProject, DetectedProjectSchema, findDetected, splitProjectId, workspaceId } from './detected';
+import { nodeEntry } from './ecosystems/node-fixtures';
 
 function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
   return {
@@ -9,8 +10,6 @@ function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
     relPath: '',
     name: 'shop',
     missing: false,
-    packageJson: { name: 'shop', scripts: { dev: 'vite' } },
-    packageManager: 'pnpm',
     envFiles: ['.env', '.env.example'], envSymlinks: [],
     workspaces: [],
     prismaSchema: null,
@@ -18,7 +17,7 @@ function project(overrides: Partial<DetectedProject> = {}): DetectedProject {
     git: { branch: 'main', head: null },
     buildOutput: null,
     claude: { claudeMd: true, claudeLocalMd: false, claudeDir: false, mcpJson: false },
-    ecosystems: [],
+    ecosystems: [nodeEntry({ name: 'shop', scripts: { dev: 'vite' }, packageManager: 'pnpm' })],
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { DetectedProject } from '@shared/detected';
+import type { PackageManager } from '@shared/detected';
 import type { NodeSettings, NodeStatus, StartAdvice } from '@shared/tools/node/contract';
 import type { PlatformAdapter } from '../../platform/adapter';
 import { fakePlatform } from '../../processes/fake-child';
@@ -21,7 +21,7 @@ interface Setup {
   platformId?: 'win32' | 'darwin';
   shellEnv?: NodeJS.ProcessEnv;
   settings?: Partial<NodeSettings>;
-  packageManager?: DetectedProject['packageManager'];
+  packageManager?: PackageManager | null;
   lockfiles?: string[];
 }
 

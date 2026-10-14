@@ -18,6 +18,7 @@ import { createSharedContext } from '../shared-context';
 import { createToolHost } from '../tool-host';
 import { createScriptsTool, PROCESSES_FACT } from './index';
 import { nodeInfo } from '../../ecosystems/node/fixtures';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 const ROOT = resolve('/dev/shop');
 /** What detection gives a folder with a package.json: npm from a package-lock.json, and its scripts. */
@@ -43,13 +44,13 @@ const api = makeDetectedForTest({
   relPath: 'packages/api',
   name: '@shop/api',
   path: API,
-  packageJson: { name: '@shop/api', scripts: { dev: 'nest start --watch' } },
+  ecosystems: [nodeEntry({ name: '@shop/api', scripts: { dev: 'nest start --watch' }, packageManager: 'pnpm' })],
 });
 const root = makeDetectedForTest({
   id: 'r1',
   rootId: 'r1',
   path: ROOT,
-  packageJson: { name: 'shop', scripts: { dev: 'vite', build: 'vite build' } },
+  ecosystems: [nodeEntry({ name: 'shop', scripts: { dev: 'vite', build: 'vite build' }, packageManager: 'pnpm' })],
   workspaces: [api],
 });
 
@@ -495,7 +496,7 @@ const backend = makeDetectedForTest({
   relPath: 'backend',
   name: 'backend',
   path: BACKEND,
-  packageJson: { name: 'backend', scripts: {} },
+  ecosystems: [nodeEntry({ name: 'backend', scripts: {}, packageManager: 'pnpm' })],
 });
 const frontend = makeDetectedForTest({
   id: 'r2::frontend',
@@ -503,15 +504,14 @@ const frontend = makeDetectedForTest({
   relPath: 'frontend',
   name: 'web',
   path: resolve(APP, 'frontend'),
-  packageJson: { name: 'web', scripts: { dev: 'vite' } },
+  ecosystems: [nodeEntry({ name: 'web', scripts: { dev: 'vite' }, packageManager: 'pnpm' })],
 });
 const app = makeDetectedForTest({
   id: 'r2',
   rootId: 'r2',
   path: APP,
   name: 'app',
-  packageJson: null,
-  packageManager: null,
+  ecosystems: [],
   workspaces: [backend, frontend],
 });
 
@@ -545,8 +545,6 @@ describe('scripts tool: ecosystem commands', () => {
     rootId: 'r3',
     path: SVC,
     name: 'svc',
-    packageJson: null,
-    packageManager: null,
     ecosystems: [{ id: 'dotnet', info: dotnetInfo }],
   });
 
@@ -806,11 +804,10 @@ describe('scripts tool: dependencies to install', () => {
       id: 'f1',
       rootId: 'f1',
       path: dir,
-      packageJson: { name: 'fresh', scripts: { dev: 'vite' } },
       ecosystems: [
         {
           id: 'node',
-          info: nodeInfo({ scripts: { dev: 'vite' }, lockfiles: ['package-lock.json'], hasDependencies: true }),
+          info: nodeInfo({ name: 'fresh', scripts: { dev: 'vite' }, lockfiles: ['package-lock.json'], hasDependencies: true }),
         },
       ],
     });

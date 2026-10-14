@@ -11,13 +11,15 @@ import { createSharedContext } from './shared-context';
 import { createToolHost } from './tool-host';
 import { defineMainTool } from './types';
 import { noopRunner } from '../platform/testing';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
+import { nodeOf } from '@shared/ecosystems/node';
 
 const project: DetectedProject = {
   id: 'p1', rootId: 'p1', path: '/p', relPath: '', name: 'shop', missing: false,
-  packageJson: { name: 'shop', scripts: {} }, packageManager: 'pnpm', envFiles: [], envSymlinks: [], workspaces: [],
+  envFiles: [], envSymlinks: [], workspaces: [],
   prismaSchema: null, dockerCompose: null, deploy: [], git: null, buildOutput: null,
   claude: { claudeMd: false, claudeLocalMd: false, claudeDir: false, mcpJson: false },
-  ecosystems: [],
+  ecosystems: [nodeEntry({ name: 'shop', packageManager: 'pnpm' })],
 };
 
 const echoContract = defineContract({
@@ -26,7 +28,7 @@ const echoContract = defineContract({
 });
 const echoTool = defineMainTool({
   id: 'echo', name: 'Echo', icon: 'repeat', settingsSchema: z.object({}),
-  appliesTo: (p) => p.packageManager === 'pnpm',
+  appliesTo: (p) => nodeOf(p)?.packageManager === 'pnpm',
   contract: echoContract,
   handlers: {
     echo: async (ctx, input) => {
@@ -108,7 +110,7 @@ describe('tool host', () => {
   });
 
   it('refuses tools that do not apply to the project', async () => {
-    const { h } = host(() => ({ ...project, packageManager: null }));
+    const { h } = host(() => ({ ...project, ecosystems: [] }));
     expect((await h.list('p1')).map((t) => t.id)).toEqual(['project-info']);
     await expect(h.invoke('echo', 'p1', 'echo', { text: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

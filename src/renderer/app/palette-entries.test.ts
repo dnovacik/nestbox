@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { makeDetected, makeProcess, makeSummary } from '@/test/fixtures';
 import { findProjectNode } from './find-project';
 import { paletteEntries, type PaletteInput } from './palette-entries';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
-const api = makeDetected({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packages/api', name: '@shop/api', packageJson: { scripts: { start: 'node .' } } });
+const api = makeDetected({ id: 'p1::packages/api', rootId: 'p1', relPath: 'packages/api', name: '@shop/api', ecosystems: [nodeEntry({ scripts: { start: 'node .' } })] });
 const shop = makeSummary({ detected: makeDetected({ workspaces: [api] }) });
 const blog = makeSummary({ id: 'p2', name: 'blog' });
 

@@ -15,6 +15,7 @@ import type { AnyMainTool, ToolContext } from '../types';
 import { createClaudeDocs } from './docs';
 import { CONTEXT_END, CONTEXT_START } from './context';
 import { createClaudeTool } from './index';
+import { nodeEntry } from '@shared/ecosystems/node-fixtures';
 
 let root = '';
 let tool: AnyMainTool | null = null;
@@ -136,8 +137,7 @@ describe('claude tool', () => {
     await mkdir(join(root, 'prisma'));
     const { call } = setup(
       {
-        packageManager: 'pnpm',
-        packageJson: { name: 'shop', scripts: { dev: 'vite' } },
+        ecosystems: [nodeEntry({ name: 'shop', scripts: { dev: 'vite' }, packageManager: 'pnpm' })],
         envFiles: ['.env', '.env.example'],
         prismaSchema: 'prisma/schema.prisma',
       },

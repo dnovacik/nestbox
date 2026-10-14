@@ -28,9 +28,9 @@ describe('deploy contract', () => {
 
   it('applies to every package, and to a folder with only a deployment config', () => {
     expect(deployDefinition.appliesTo(makeDetectedForTest())).toBe(true);
-    expect(deployDefinition.appliesTo(makeDetectedForTest({ packageJson: null }))).toBe(false);
+    expect(deployDefinition.appliesTo(makeDetectedForTest({ ecosystems: [] }))).toBe(false);
     expect(
-      deployDefinition.appliesTo(makeDetectedForTest({ packageJson: null, deploy: ['fly'] })),
+      deployDefinition.appliesTo(makeDetectedForTest({ ecosystems: [], deploy: ['fly'] })),
     ).toBe(true);
   });
 });
