@@ -61,14 +61,19 @@ import { appMenuTemplate } from './app-menu';
 import { crashNotice } from './tray/crash-notifier';
 import { createTrayController, type TrayController } from './tray/tray-controller';
 import { buildTrayModel, type TrayActions } from './tray/tray-menu';
+import { userDataDir } from './user-data';
 import { createMainWindow } from './window';
 import { applyWindowTheme } from './window-theme';
 
 const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL'];
 
-// End-to-end tests run against an isolated profile. Only honoured unpackaged, and before the
-// single-instance lock, which is keyed on the userData folder.
-const userDataOverride = app.isPackaged ? undefined : process.env['NESTBOX_USER_DATA_DIR'];
+// Development runs on its own profile (NESTBOX_USER_DATA_DIR picks another, for end-to-end tests); a
+// packaged build keeps the default. Set before the single-instance lock, which is keyed on userData.
+const userDataOverride = userDataDir({
+  isPackaged: app.isPackaged,
+  override: process.env['NESTBOX_USER_DATA_DIR'],
+  appData: app.getPath('appData'),
+});
 if (userDataOverride) app.setPath('userData', userDataOverride);
 
 if (!app.requestSingleInstanceLock()) {

@@ -7,7 +7,7 @@ Source of truth: `docs/nestbox-spec.md`. Milestone designs and plans: `docs/supe
 
 | Command | What it does |
 | --- | --- |
-| `pnpm dev` | Run the app with HMR (electron-vite) |
+| `pnpm dev` | Run the app with HMR (electron-vite), on its own profile (`<appData>/nestbox-dev`, so it never shares projects, settings or the local CA with an installed NestBox; `NESTBOX_USER_DATA_DIR` picks another) |
 | `pnpm build` | Build main, preload and renderer into `out/` |
 | `pnpm lint` | ESLint (includes the `process.platform` and hex-colour rules) |
 | `pnpm typecheck` | `tsc` for the node and web projects |
