@@ -7,6 +7,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
+import { pipeline } from 'node:stream';
 import { createServer as createHttpsServer } from 'node:https';
 import { createSecureContext, type SecureContext } from 'node:tls';
 import type { ServerState } from '@shared/domains';
@@ -25,6 +26,12 @@ export interface DomainsProxy {
   }): Promise<{ http: ServerState; https: ServerState }>;
   stop(): Promise<void>;
 }
+
+const closeServer = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
+    server.closeAllConnections?.();
+  });
 
 const send = (res: ServerResponse, status: number, html: string) => {
   res.writeHead(status, {
@@ -70,7 +77,7 @@ export function createDomainsProxy(deps: {
       });
       upstream.on('response', (up) => {
         res.writeHead(up.statusCode ?? 502, up.rawHeaders);
-        up.pipe(res);
+        pipeline(up, res, () => {});
       });
       upstream.on('error', (error: NodeJS.ErrnoException) => {
         deps.logger.info('domains upstream failed', {
@@ -81,30 +88,37 @@ export function createDomainsProxy(deps: {
         if (!res.headersSent) send(res, 502, badGatewayPage(route.name, port));
         else res.destroy();
       });
-      req.on('aborted', () => upstream.destroy());
+      res.on('close', () => {
+        if (!res.writableFinished) upstream.destroy();
+      });
       req.pipe(upstream);
     };
   }
 
-  /** Binds one server per loopback address; the first address decides the state. IPv6 may be missing. */
+  /**
+   * Binds one server per loopback address. The first address decides success; a later one may fail only
+   * when the machine has no IPv6 (browsers resolve *.localhost to ::1 first), else the whole port is failed.
+   */
   async function bind(make: () => Server, port: number): Promise<ServerState> {
-    let primary: ServerState | null = null;
+    const bound: Server[] = [];
     for (const host of hosts) {
       const server = make();
-      const result = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+      const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
         server.once('error', resolve);
         server.listen(port, host, () => resolve(null));
       });
-      if (result === null) servers.push(server);
-      if (primary === null) {
-        primary =
-          result === null
-            ? { state: 'running', port, code: null, owner: null }
-            : { state: 'failed', port, code: result.code ?? 'UNKNOWN', owner: null };
-        if (result !== null) break;
+      if (error === null) {
+        bound.push(server);
+        continue;
       }
+      const noIpv6 = error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT';
+      if (bound.length > 0 && noIpv6) continue;
+      await Promise.all(bound.map((x) => closeServer(x)));
+      return { state: 'failed', port, code: error.code ?? 'UNKNOWN', owner: null };
     }
-    return primary ?? { state: 'failed', port, code: 'UNKNOWN', owner: null };
+    if (bound.length === 0) return { state: 'failed', port, code: 'UNKNOWN', owner: null };
+    servers.push(...bound);
+    return { state: 'running', port, code: null, owner: null };
   }
 
   return {
@@ -117,6 +131,7 @@ export function createDomainsProxy(deps: {
           () =>
             createHttpsServer(
               {
+                requestTimeout: 0,
                 SNICallback: (servername, cb) => {
                   const cached = contexts.get(servername);
                   if (cached) return cb(null, cached);
@@ -137,7 +152,10 @@ export function createDomainsProxy(deps: {
         );
       }
       httpsPort = https.state === 'running' ? wantedHttps : null;
-      const http = await bind(() => createHttpServer(handle('http')), httpPort);
+      const http = await bind(
+        () => createHttpServer({ requestTimeout: 0 }, handle('http')),
+        httpPort,
+      );
       deps.logger.info('domains started', {
         http: http.state,
         https: https.state,
@@ -151,15 +169,7 @@ export function createDomainsProxy(deps: {
       const closing = servers;
       servers = [];
       httpsPort = null;
-      await Promise.all(
-        closing.map(
-          (server) =>
-            new Promise<void>((resolve) => {
-              server.close(() => resolve());
-              server.closeAllConnections?.();
-            }),
-        ),
-      );
+      await Promise.all(closing.map((server) => closeServer(server)));
     },
   };
 }

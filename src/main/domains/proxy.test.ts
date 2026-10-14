@@ -155,4 +155,89 @@ describe('domains proxy over HTTP', () => {
     expect(state.http).toMatchObject({ state: 'running', port: second });
     await expect(get(first, 'shop.localhost')).rejects.toMatchObject({ code: 'ECONNREFUSED' });
   });
+
+  it('ends the client response when the target dies mid-body', async () => {
+    const s = createServer((req, res) => {
+      res.writeHead(200, { 'content-length': '100' });
+      res.write('part');
+      setTimeout(() => req.socket.destroy(), 20);
+    });
+    servers.push(s);
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+    const target = (s.address() as AddressInfo).port;
+    proxy = createDomainsProxy({
+      table: () => tableFor(target),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+    const outcome = await new Promise<string>((resolve) => {
+      const req = request(
+        { host: '127.0.0.1', port: httpPort, path: '/', headers: { host: 'shop.localhost' } },
+        (res) => {
+          res.on('data', () => {});
+          res.on('error', () => resolve('error'));
+          res.on('close', () => resolve('close'));
+        },
+      );
+      req.on('error', () => resolve('error'));
+      req.end();
+    });
+    expect(['error', 'close']).toContain(outcome);
+  });
+
+  it('destroys the upstream request when the client aborts mid-stream', async () => {
+    let closed: () => void = () => {};
+    const upstreamClosed = new Promise<void>((r) => (closed = r));
+    const s = createServer((req, res) => {
+      req.on('close', () => closed());
+      res.writeHead(200);
+      res.write('tick');
+    });
+    servers.push(s);
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+    const target = (s.address() as AddressInfo).port;
+    proxy = createDomainsProxy({
+      table: () => tableFor(target),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    await proxy.start({ httpPort, httpsPort: await freePort(), sni: null });
+    await new Promise<void>((resolve) => {
+      const req = request(
+        { host: '127.0.0.1', port: httpPort, path: '/', headers: { host: 'shop.localhost' } },
+        (res) => {
+          res.once('data', () => {
+            req.destroy();
+            resolve();
+          });
+          res.on('error', () => {});
+        },
+      );
+      req.on('error', () => {});
+      req.end();
+    });
+    await upstreamClosed;
+  });
+
+  it('fails a port whose ::1 side cannot bind for a reason other than missing IPv6', async () => {
+    const taken = createServer();
+    servers.push(taken);
+    const listening = await new Promise<boolean>((resolve) => {
+      taken.once('error', () => resolve(false));
+      taken.listen(0, '::1', () => resolve(true));
+    });
+    if (!listening) return; // no IPv6 loopback here: nothing to conflict with
+    const port = (taken.address() as AddressInfo).port;
+    proxy = createDomainsProxy({
+      table: () => tableFor(null),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1', '::1'],
+    });
+    const state = await proxy.start({ httpPort: port, httpsPort: await freePort(), sni: null });
+    expect(state.http).toMatchObject({ state: 'failed', port, code: 'EADDRINUSE' });
+    await expect(get(port, 'shop.localhost')).rejects.toMatchObject({ code: 'ECONNREFUSED' });
+  });
 });
