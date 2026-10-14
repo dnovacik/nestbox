@@ -35,7 +35,11 @@ type UntrustFn = () => Promise<'removed' | 'failed'>;
 
 async function setup(
   over: Partial<DomainsSettings> = {},
-  opts: { projects?: DomainsProject[]; wrapCa?: (ca: LocalCa) => LocalCa } = {},
+  opts: {
+    projects?: DomainsProject[];
+    wrapCa?: (ca: LocalCa) => LocalCa;
+    detectedPort?: () => number | null;
+  } = {},
 ) {
   let settings: DomainsSettings = {
     ...DomainsSettingsSchema.parse({}),
@@ -47,6 +51,10 @@ async function setup(
   const untrust = vi.fn<UntrustFn>(async () => 'removed');
   const confirm = vi.fn(async (_kind: 'trust' | 'remove') => true);
   const emit = vi.fn();
+  const projects = vi.fn(
+    async (): Promise<DomainsProject[]> =>
+      opts.projects ?? [{ id: 'r1', name: 'Shop', path: '/shop', workspaces: [] }],
+  );
   const caFile = join(await mkdtemp(join(tmpdir(), 'nestbox-svc-')), 'ca.json');
   const ca = createLocalCa({
     file: caFile,
@@ -55,12 +63,11 @@ async function setup(
   });
   service = createDomainsService({
     settings: { get: () => settings, update: (fn) => void (settings = fn(settings)) },
-    projects: async () =>
-      opts.projects ?? [{ id: 'r1', name: 'Shop', path: '/shop', workspaces: [] }],
+    projects,
     mainScript: () => null,
     processes: () => [],
     ports: async () => ({ rows: [], scannedAt: 0, stale: false }),
-    detectedPort: async () => 5173,
+    detectedPort: async () => (opts.detectedPort ? opts.detectedPort() : 5173),
     ca: opts.wrapCa ? opts.wrapCa(ca) : ca,
     trust: { trust, untrust },
     confirm,
@@ -68,7 +75,7 @@ async function setup(
     logger: createMemoryLogger(),
     hosts: ['127.0.0.1'],
   });
-  return { get: () => settings, trust, untrust, confirm, emit, service, caFile };
+  return { get: () => settings, trust, untrust, confirm, emit, projects, service, caFile };
 }
 
 const exists = (file: string) =>
@@ -103,6 +110,41 @@ function handshake(port: number, servername: string): Promise<'ok' | Error> {
 }
 
 describe('domains service', () => {
+  it('does no rebuild work on refresh() while off, but status() still builds', async () => {
+    let detected = 5173;
+    const s = await setup({}, { detectedPort: () => detected });
+    expect((await s.service.status()).routes.map((r) => r.port)).toEqual([5173]);
+    s.projects.mockClear();
+    detected = 3000;
+    s.service.refresh();
+    s.service.refresh();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(s.projects).not.toHaveBeenCalled();
+    // The change still shows the next time the status is asked for.
+    expect((await s.service.status()).routes.map((r) => r.port)).toEqual([3000]);
+    expect(s.projects).toHaveBeenCalledTimes(1);
+    expect((await s.service.status()).routes.map((r) => r.port)).toEqual([3000]);
+    expect(s.projects).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits domains:changed only when the routes or clashes change', async () => {
+    let detected = 5173;
+    const s = await setup({ enabled: true }, { detectedPort: () => detected });
+    await s.service.start();
+    s.emit.mockClear();
+    s.service.refresh();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(s.projects).toHaveBeenCalledTimes(2);
+    expect(s.emit).not.toHaveBeenCalled();
+    detected = 3000;
+    s.service.refresh();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(s.emit).toHaveBeenCalledTimes(1);
+    s.service.refresh();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(s.emit).toHaveBeenCalledTimes(1);
+  });
+
   it('is off by default and starts both servers when turned on', async () => {
     const s = await setup();
     expect(await s.service.status()).toMatchObject({

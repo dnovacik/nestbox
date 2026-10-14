@@ -83,6 +83,10 @@ const POLL_MS = 5_000;
 
 export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
   let table: RouteTable = EMPTY;
+  /** The last routes and clashes sent out: domains:changed goes out only when they differ. */
+  let shown = '';
+  /** Set by refresh() while off: no work then, status() rebuilds when it is next asked. */
+  let dirty = false;
   const off = (port: number): ServerState => ({ state: 'off', port, code: null, owner: null });
   let servers: { http: ServerState; https: ServerState } = {
     http: off(deps.settings.get().httpPort),
@@ -137,7 +141,9 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
     return root;
   }
 
-  async function rebuild(): Promise<void> {
+  /** Rebuilds the table; emits (and answers true) only when the routes or clashes changed. */
+  async function rebuild(): Promise<boolean> {
+    dirty = false;
     const settings = deps.settings.get();
     const projects = await deps.projects();
     // Overrides of removed projects are dropped here (no hook into project removal needed). Only the root
@@ -181,7 +187,11 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
       detectedPorts,
       ownPorts: [current.httpPort, current.httpsPort],
     });
+    const key = JSON.stringify([table.routes, table.clashes]);
+    if (key === shown) return false;
+    shown = key;
     deps.emit();
+    return true;
   }
 
   async function ownerOf(state: ServerState): Promise<ServerState> {
@@ -222,7 +232,8 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
     poll ??= setInterval(() => {
       if (deps.processes().some((p) => isLive(p.state))) void rebuild().catch(() => undefined);
     }, POLL_MS);
-    await rebuild();
+    // The servers changed even when the routes didn't.
+    if (!(await rebuild())) deps.emit();
   }
 
   const restart = () => serial(applySettings);
@@ -247,7 +258,7 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
 
   return {
     async status() {
-      if (table === EMPTY) await rebuild();
+      if (table === EMPTY || dirty) await rebuild();
       return status();
     },
     async setEnabled(enabled) {
@@ -339,6 +350,10 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
     },
     refresh() {
       if (stopped) return;
+      if (!deps.settings.get().enabled) {
+        dirty = true;
+        return;
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => void rebuild().catch(() => undefined), REBUILD_MS);
     },
