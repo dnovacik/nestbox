@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PACKAGE_MANAGERS } from '../../detected';
+import { ECOSYSTEM_IDS, PACKAGE_MANAGERS } from '../../detected';
 import { DEPS_SCHEDULES } from '../../types';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
 import { nodeOf } from '../../ecosystems/node';
@@ -57,6 +57,8 @@ export const PackageResultSchema = z.object({
   projectId: z.string(),
   relPath: z.string(),
   name: z.string(),
+  /** The ecosystem whose check this is: a folder that is both Node and .NET gets one result each. */
+  ecosystem: z.enum(ECOSYSTEM_IDS),
   /** The package manager that ran; Yarn 2+ is 'yarn-berry' (its commands differ from Yarn 1's); .NET is 'dotnet'. */
   manager: z.enum([...PACKAGE_MANAGERS, 'yarn-berry', 'dotnet']),
   checkedAt: z.number(),
@@ -66,7 +68,10 @@ export const PackageResultSchema = z.object({
 export type PackageResult = z.infer<typeof PackageResultSchema>;
 
 export const ResultsSchema = z.object({
-  /** This package, or a root and its workspace packages (root first); only the ones checked so far. */
+  /**
+   * This package, or a root and its workspace packages (root first), one result per ecosystem checked
+   * (Node first); only the ones checked so far.
+   */
   packages: z.array(PackageResultSchema),
   checking: z.boolean(),
 });
@@ -77,7 +82,12 @@ export const depsContract = defineContract({
   /** Runs the package managers (network); resolves when the check is done. */
   check: { input: z.strictObject({}), output: ResultsSchema },
   copyUpdateCommand: {
-    input: z.strictObject({ relPath: z.string().max(4096), name: z.string().min(1).max(214) }),
+    input: z.strictObject({
+      relPath: z.string().max(4096),
+      name: z.string().min(1).max(214),
+      /** Which of the package's results the row is in, when it has several; the first with the row otherwise. */
+      ecosystem: z.enum(ECOSYSTEM_IDS).optional(),
+    }),
     output: z.object({ command: z.string() }),
   },
 });

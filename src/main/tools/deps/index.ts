@@ -1,7 +1,7 @@
 // The Dependencies tool: outdated and vulnerable dependencies through each ecosystem's own commands.
 // The one tool that reaches the network (through the package manager), and only on Check or the user's
 // schedule. Results are kept per package in the deps cache file; nothing here runs on its own.
-import { type DetectedProject, workspaceId } from '@shared/detected';
+import { type DetectedProject, type EcosystemId, workspaceId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
 import {
@@ -32,31 +32,33 @@ const targetsOf = (project: DetectedProject): DetectedProject[] =>
   project.relPath === '' ? [project, ...project.workspaces] : [project];
 
 /**
- * A folder in several ecosystems gets one result. Node goes first, as before ecosystems had checks of their
- * own: an ASP.NET app with a front-end build has its npm dependencies checked, not its NuGet ones.
+ * A folder in several ecosystems (an ASP.NET app with a front end) gets one result per ecosystem with a
+ * check. Node goes first, then module order.
  */
 const byPreference = (entries: DetectedProject['ecosystems']) =>
   [...entries].sort((a, b) => Number(b.id === 'node') - Number(a.id === 'node'));
 
-/** One package's check: its first ecosystem with a check that has something to say; null otherwise. */
-async function checkTarget(target: DetectedProject, run: DepsRun): Promise<EcosystemDeps | null> {
+/** One package's checks, one ecosystem at a time: those that have something to say. */
+async function checkTarget(
+  target: DetectedProject,
+  run: DepsRun,
+): Promise<{ ecosystem: EcosystemId; result: EcosystemDeps }[]> {
+  const checked: { ecosystem: EcosystemId; result: EcosystemDeps }[] = [];
   for (const entry of byPreference(target.ecosystems)) {
     const module = ECOSYSTEM_MODULES.find((m) => m.id === entry.id);
     const parsed = module?.infoSchema.safeParse(entry.info);
     if (!module?.deps || !parsed?.success) continue;
     const result = await module.deps(parsed.data, run, target.path);
-    if (result !== null) return result;
+    if (result !== null) checked.push({ ecosystem: entry.id, result });
   }
-  return null;
+  return checked;
 }
 
 export function createDepsTool(deps: DepsToolDeps): AnyMainTool {
   const now = deps.now ?? Date.now;
 
   function results(ctx: Ctx): Results {
-    const packages = targetsOf(ctx.project)
-      .map((p) => deps.cache.get(p.id))
-      .filter((r): r is PackageResult => r !== undefined);
+    const packages = targetsOf(ctx.project).flatMap((p) => deps.cache.forPackage(p.id));
     return { packages, checking: deps.running.has(ctx.project.rootId) };
   }
 
@@ -77,26 +79,28 @@ export function createDepsTool(deps: DepsToolDeps): AnyMainTool {
           for (const target of targetsOf(ctx.project)) {
             const started = now();
             const checked = await checkTarget(target, createRun(ctx.platform, target.path));
-            if (checked === null) continue;
-            const { manager, rows, errors } = checked;
-            deps.cache.set({
-              projectId: target.id,
-              relPath: target.relPath,
-              name: target.name,
-              manager,
-              checkedAt: now(),
-              rows,
-              errors,
-            });
-            deps.logger.info('deps check', {
-              projectId: target.id,
-              manager,
-              rows: rows.length,
-              outdated: rows.filter((r) => r.outdated).length,
-              vulnerable: rows.filter((r) => r.advisories.length > 0).length,
-              errors: errors.map((e) => `${e.step}:${e.code}`).join(',') || 'none',
-              ms: now() - started,
-            });
+            for (const { ecosystem, result } of checked) {
+              const { manager, rows, errors } = result;
+              deps.cache.set({
+                projectId: target.id,
+                relPath: target.relPath,
+                name: target.name,
+                ecosystem,
+                manager,
+                checkedAt: now(),
+                rows,
+                errors,
+              });
+              deps.logger.info('deps check', {
+                projectId: target.id,
+                manager,
+                rows: rows.length,
+                outdated: rows.filter((r) => r.outdated).length,
+                vulnerable: rows.filter((r) => r.advisories.length > 0).length,
+                errors: errors.map((e) => `${e.step}:${e.code}`).join(',') || 'none',
+                ms: now() - started,
+              });
+            }
           }
         } finally {
           deps.running.delete(rootId);
@@ -105,12 +109,17 @@ export function createDepsTool(deps: DepsToolDeps): AnyMainTool {
         return results(ctx);
       },
 
-      copyUpdateCommand: async (ctx: Ctx, { relPath, name }) => {
+      copyUpdateCommand: async (ctx: Ctx, { relPath, name, ecosystem }) => {
         const id = relPath === '' ? ctx.project.rootId : workspaceId(ctx.project.rootId, relPath);
-        const result = targetsOf(ctx.project).some((p) => p.id === id)
-          ? deps.cache.get(id)
-          : undefined;
-        const row = result?.rows.find((r) => r.name === name && r.type !== null);
+        const results = targetsOf(ctx.project).some((p) => p.id === id)
+          ? deps.cache
+              .forPackage(id)
+              .filter((r) => ecosystem === undefined || r.ecosystem === ecosystem)
+          : [];
+        const direct = (r: PackageResult) =>
+          r.rows.find((row) => row.name === name && row.type !== null);
+        const result = results.find((r) => direct(r) !== undefined);
+        const row = result && direct(result);
         if (!result || !row) throw new NestboxError('NOT_FOUND', 'Unknown dependency');
         // The ecosystem whose manager produced the row spells the command.
         const spelled = { manager: result.manager, type: row.type };

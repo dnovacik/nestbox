@@ -43,6 +43,7 @@ describe('depsCheck', () => {
     projectId,
     relPath: '',
     name: 'shop',
+    ecosystem: 'node',
     manager: 'npm',
     checkedAt: 1,
     errors: [],

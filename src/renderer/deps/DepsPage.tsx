@@ -18,6 +18,8 @@ interface Usage {
   project: string;
   projectId: string;
   pkg: string;
+  /** A folder that is both Node and .NET has one result each. */
+  ecosystem: string;
   range: string | null;
   current: string | null;
   latest: string | null;
@@ -35,6 +37,7 @@ function usagesOf(overview: DepsOverview, name: string): Usage[] {
           project: project.name,
           projectId: project.id,
           pkg: pkg.relPath === '' ? 'root' : pkg.relPath,
+          ecosystem: pkg.ecosystem,
           range: r.range,
           current: r.current,
           latest: r.outdated ? r.latest : null,
@@ -152,7 +155,10 @@ export function DepsPage() {
             <table aria-label={`Projects using ${name}`} className="mt-1 w-full text-left text-xs">
               <tbody>
                 {usagesOf(data, name).map((u) => (
-                  <tr key={`${u.projectId}/${u.pkg}`} className="border-t border-line/60">
+                  <tr
+                    key={`${u.projectId}/${u.pkg}/${u.ecosystem}`}
+                    className="border-t border-line/60"
+                  >
                     <td className="py-1 pr-3">
                       <button
                         type="button"

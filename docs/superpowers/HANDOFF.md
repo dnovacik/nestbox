@@ -40,8 +40,8 @@ Where work stands, so the next session (local or cloud) can pick it up. Read `CL
 
 1. **Review the Python PR** when jubele opens it. The guide and both modules are the reference.
 2. **#63, package.json data from the Node module:** done (PR #80 and its follow-up; unreleased). The owner wants no release until the remaining Node work (#76 Nx and the rest) is in: everything ships together as 1.29.0, so later PRs keep that version and extend its README row.
-3. **Nx tasks** (#76), split from #60.
-4. **Ideas raised along the way:** checking both npm and NuGet in a folder that is both (the Dependencies tool checks Node first today; one result per package); input to running commands (#45).
+3. **Nx (#76) and npm + NuGet in one folder:** built (design `docs/superpowers/specs/2026-10-14-nestbox-v2-nx-and-mixed-deps-design.md`), PRs #82 and the deps PR stacked on it. Then release 1.29.0.
+4. **Ideas raised along the way:** input to running commands (#45); Nx's plugin-inferred targets on demand (`nx show project`).
 
 ## Notes for a local session
 

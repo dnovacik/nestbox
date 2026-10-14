@@ -1,5 +1,7 @@
 # NestBox v2: Nx workspaces, and npm + NuGet in one folder (design)
 
+**Status: built (2026-10-14).**
+
 The rest of the Node batch that ships as 1.29.0 with #63. Owner's choices (2026-10-14): Nx support covers the root's run-many tasks **and** project.json-only projects as packages; the Dependencies tool checks every ecosystem of a folder that is both Node and .NET.
 
 ## Part 1: Nx (#76)

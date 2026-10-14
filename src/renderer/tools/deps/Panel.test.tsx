@@ -6,7 +6,7 @@ import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { DepsCard } from './OverviewCard';
 import DepsPanel from './Panel';
-import { result } from './fixtures';
+import { result, SEMVER } from './fixtures';
 
 function setup(results: Results) {
   const calls: { channel: string; method?: string; input?: unknown }[] = [];
@@ -81,7 +81,7 @@ describe('DepsPanel', () => {
           .map((c) => c.input),
       ).toEqual([
         { url: 'https://github.com/advisories/GHSA-35jh-r3h4-6jhm' },
-        { relPath: '', name: 'semver' },
+        { relPath: '', name: 'semver', ecosystem: 'node' },
       ]),
     );
     expect(await screen.findByText('Copied: npm install -D semver@latest')).toBeInTheDocument();
@@ -104,5 +104,29 @@ describe('DepsPanel', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'packages/api' }));
     expect(screen.getByText(/Audit timed out/)).toBeInTheDocument();
     expect(screen.getByText('Nothing to show.')).toBeInTheDocument();
+  });
+
+  it('shows npm and NuGet results of one folder side by side, and copies from the one picked', async () => {
+    const nuget = result({
+      ecosystem: 'dotnet',
+      manager: 'dotnet',
+      rows: [{ ...SEMVER, name: 'Newtonsoft.Json', type: 'prod' }],
+    });
+    const { calls } = setup({ packages: [result(), nuget], checking: false });
+    renderWithProviders(<DepsPanel projectId="p1" />);
+    const picker = await screen.findByRole('group', { name: 'Package' });
+    const buttons = within(picker).getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['shop (root) · npm', 'shop (root) · NuGet']);
+    await userEvent.click(within(picker).getByRole('button', { name: 'shop (root) · NuGet' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Copy update command for Newtonsoft.Json' }),
+    );
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'copyUpdateCommand')?.input).toEqual({
+        relPath: '',
+        name: 'Newtonsoft.Json',
+        ecosystem: 'dotnet',
+      }),
+    );
   });
 });
