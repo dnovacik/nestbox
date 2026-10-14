@@ -15,7 +15,8 @@ import {
   type NodeCheckInput,
   type NodeVersionCheck,
 } from '../../ecosystems/node/version-check';
-import { lockfileManager, type NodeInfo, NodeInfoSchema } from '../../ecosystems/node/detect';
+import { nodeOf } from '@shared/ecosystems/node';
+import { lockfileManager } from '../../ecosystems/node/detect';
 import { createVersionedFiles } from '../../fs/versioned-file';
 import type { Logger } from '../../logger';
 import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
@@ -42,13 +43,8 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
   const check = deps.check ?? createNodeVersionCheck();
 
   function lockfileOf(project: DetectedProject): NodeCheckInput['packageManager'] {
-    const info = nodeInfoOf(project);
+    const info = nodeOf(project);
     return info ? lockfileManager(info) : null;
-  }
-
-  function nodeInfoOf(project: DetectedProject): NodeInfo | null {
-    const info = NodeInfoSchema.safeParse(project.ecosystems.find((e) => e.id === 'node')?.info);
-    return info.success ? info.data : null;
   }
 
   function rootDirOf(project: DetectedProject): string | null {
@@ -65,7 +61,7 @@ export function createNodeTool(deps: NodeToolDeps): AnyMainTool {
     rootDir: rootDirOf(ctx.project),
     // The lockfile's manager only, as the module's runEnv passes it: both share the check's cache.
     packageManager: lockfileOf(ctx.project),
-    lockfiles: nodeInfoOf(ctx.project)?.lockfiles ?? [],
+    lockfiles: nodeOf(ctx.project)?.lockfiles ?? [],
     fnm: ctx.settings.get().fnm,
     platform: ctx.platform,
     onChecked: (state, ms) =>

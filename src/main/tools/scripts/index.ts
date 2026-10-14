@@ -22,6 +22,7 @@ import { type AnyMainTool, defineMainTool, type ToolContext } from '../types';
 import { exportFileName, formatExport } from './export';
 import { createLogBatcher } from './log-batcher';
 import type { PlatformAdapter } from '../../platform/adapter';
+import { nodeOf } from '@shared/ecosystems/node';
 
 export interface ScriptsToolDeps {
   processes: ProcessManager;
@@ -90,7 +91,7 @@ function runnables(project: DetectedProject, settings: ScriptsSettings): Runnabl
   // Scripts list says what kind of package these belong to.
   const primaryEcosystem = project.ecosystems[0]?.id;
 
-  const npm: Runnable[] = Object.entries(project.packageJson?.scripts ?? {}).map(([name, command]) => ({
+  const npm: Runnable[] = Object.entries(nodeOf(project)?.scripts ?? {}).map(([name, command]) => ({
     name,
     kind: 'npm',
     command,
@@ -213,7 +214,7 @@ export function createScriptsTool(deps: ScriptsToolDeps): AnyMainTool {
       projectId: project.id,
       script: runnable.name,
       cwd: project.path,
-      packageManager: project.packageManager,
+      packageManager: nodeOf(project)?.packageManager ?? null,
       autoRestart: isAuto(settings, project, runnable.name),
       ...(envFile === null ? {} : { loadEnv: { file: envFile, read: () => deps.envFiles.read(project.path, envFile) } }),
     };

@@ -33,6 +33,7 @@ import type { checkReachable as CheckReachable } from './reach';
 import { readDatasource } from './schema';
 import { findUrl } from './source';
 import { describeUrl } from './url';
+import { nodeOf } from '@shared/ecosystems/node';
 
 export interface DatabaseToolDeps {
   envFiles: Pick<EnvFileAccess, 'read'>;
@@ -173,7 +174,10 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
   /** `prisma <args>` through the package manager, with the shell env. */
   async function prismaSpawn(ctx: Ctx, args: string[], stdin?: string): Promise<SpawnSpec> {
     const env = { ...(await ctx.platform.resolveShellEnv()), FORCE_COLOR: '1' };
-    const { command, args: full } = prismaCommand(ctx.project.packageManager, args);
+    const { command, args: full } = prismaCommand(
+      nodeOf(ctx.project)?.packageManager ?? null,
+      args,
+    );
     return { command, args: full, env, ...(stdin === undefined ? {} : { stdin }) };
   }
 
@@ -613,7 +617,7 @@ export function createDatabaseTool(deps: DatabaseToolDeps): AnyMainTool {
       },
 
       migrateDev: async (ctx: Ctx) => {
-        const { command, args } = prismaCommand(ctx.project.packageManager, [
+        const { command, args } = prismaCommand(nodeOf(ctx.project)?.packageManager ?? null, [
           'migrate',
           'dev',
           ...(await prismaArgs(ctx)),

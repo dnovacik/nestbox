@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DEPLOY_PLATFORMS, type DeployPlatform } from '../../detected';
 import { LogLineSchema, LogSnapshotSchema } from '../../processes';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
+import { nodeOf } from '../../ecosystems/node';
 
 export { DEPLOY_PLATFORMS, type DeployPlatform };
 
@@ -10,7 +11,7 @@ export const deployDefinition: ToolDefinition<Record<string, never>> = {
   name: 'Deploy',
   icon: 'rocket',
   // Every package: without a platform config the tab explains how to set one up.
-  appliesTo: (p) => p.packageJson !== null || p.deploy.length > 0,
+  appliesTo: (p) => nodeOf(p) !== null || p.deploy.length > 0,
   settingsSchema: z.object({}),
 };
 

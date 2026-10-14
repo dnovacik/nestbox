@@ -13,6 +13,7 @@ import type { ClaudeCli } from './cli';
 import { applyBlock, buildBlock, type ContextFacts } from './context';
 import type { ClaudeDocs } from './docs';
 import { readEnvFacts } from './env-facts';
+import { nodeOf } from '@shared/ecosystems/node';
 
 export interface ClaudeToolDeps {
   cli: ClaudeCli;
@@ -101,8 +102,8 @@ export function createClaudeTool(deps: ClaudeToolDeps): AnyMainTool {
     const p = ctx.project;
     const env = await readEnvFacts(deps.envFiles, p.path, p.envFiles);
     return {
-      packageManager: p.packageManager,
-      scripts: Object.entries(p.packageJson?.scripts ?? {}).map(([name, command]) => ({ name, command })),
+      packageManager: nodeOf(p)?.packageManager ?? null,
+      scripts: Object.entries(nodeOf(p)?.scripts ?? {}).map(([name, command]) => ({ name, command })),
       // Run groups belong to the root project; their entries name packages by relPath.
       runGroups:
         p.relPath === ''
