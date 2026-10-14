@@ -14,7 +14,7 @@ import { scriptsDefinition } from '@shared/tools/scripts/contract';
 import { brandAsset } from './assets';
 import { detectProject } from './detection/detect-project';
 import { createLocalCa } from './domains/ca';
-import { createDomainsService } from './domains/service';
+import { createDomainsService, toDomainsProjects } from './domains/service';
 import { ecosystemPorts } from './ecosystems';
 import { dotnetModule } from './ecosystems/dotnet';
 import { nodeVersionCheck } from './ecosystems/node/version-check';
@@ -163,18 +163,16 @@ if (!app.requestSingleInstanceLock()) {
         get: () => store.getSettings().domains,
         update: (fn) => store.updateSettings((s) => ({ ...s, domains: fn(s.domains) })),
       },
-      // Sidebar order: clashing names are numbered in it.
-      projects: async () =>
-        (await projects.list()).map((p) => ({
-          id: p.id,
-          name: p.name,
-          path: p.path,
-          workspaces: p.detected.workspaces.map((w) => ({ id: w.id, name: w.name, relPath: w.relPath, path: w.path })),
-        })),
+      // Sidebar order (clashing names are numbered in it) and sidebar names (workspace aliases included).
+      projects: async () => toDomainsProjects(await projects.list()),
       mainScript: (projectId) => {
         const { rootId, relPath } = splitProjectId(projectId);
-        const parsed = scriptsDefinition.settingsSchema.safeParse(projects.getToolSettings(rootId, 'scripts') ?? {});
-        return parsed.success ? (parsed.data.main.find((m) => m.relPath === relPath)?.script ?? null) : null;
+        try {
+          const parsed = scriptsDefinition.settingsSchema.safeParse(projects.getToolSettings(rootId, 'scripts') ?? {});
+          return parsed.success ? (parsed.data.main.find((m) => m.relPath === relPath)?.script ?? null) : null;
+        } catch {
+          return null; // removed while the route table was being rebuilt
+        }
       },
       processes: () => processes.list(),
       ports: () => ports.list(),

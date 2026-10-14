@@ -5,6 +5,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DomainsSettings, DomainsStatus, ServerState, TrustResult } from '@shared/domains';
+import { type ProjectSummary, splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import type { PortList } from '@shared/ports';
 import { isLive, type ProcessSummary } from '@shared/processes';
@@ -18,6 +19,24 @@ export interface DomainsProject {
   name: string;
   path: string;
   workspaces: readonly { id: string; name: string; relPath: string; path: string }[];
+}
+
+/**
+ * The sidebar's projects as the router sees them. A summary's workspaces already carry the name the sidebar
+ * shows (the user's alias, applied in ProjectService.toSummary), so labels follow renames.
+ */
+export function toDomainsProjects(summaries: readonly ProjectSummary[]): DomainsProject[] {
+  return summaries.map((p) => ({
+    id: p.id,
+    name: p.name,
+    path: p.path,
+    workspaces: p.detected.workspaces.map((w) => ({
+      id: w.id,
+      name: w.name,
+      relPath: w.relPath,
+      path: w.path,
+    })),
+  }));
 }
 
 export interface DomainsServiceDeps {
@@ -76,6 +95,15 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
   });
   let timer: NodeJS.Timeout | null = null;
   let poll: NodeJS.Timeout | null = null;
+  /** restart() and stop() run one at a time, in call order, on this chain. */
+  let chain: Promise<void> = Promise.resolve();
+  /** Set by stop() (quit): nothing binds or re-arms a timer afterwards, until start() is called again. */
+  let stopped = false;
+  const serial = (fn: () => Promise<void>): Promise<void> => {
+    const run = chain.then(fn);
+    chain = run.catch(() => undefined);
+    return run;
+  };
   /** The newly made root whose trust state was already set back to none (once per root, not per restart). */
   let ackedRoot: string | null = null;
 
@@ -112,18 +140,18 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
   async function rebuild(): Promise<void> {
     const settings = deps.settings.get();
     const projects = await deps.projects();
-    // Overrides of removed projects are dropped here (no hook into project removal needed).
-    const ids = new Set(projects.flatMap((p) => [p.id, ...p.workspaces.map((w) => w.id)]));
+    // Overrides of removed projects are dropped here (no hook into project removal needed). Only the root
+    // decides: a project whose folder is missing lists no workspaces, and their overrides must survive.
+    const roots = new Set(projects.map((p) => p.id));
+    const kept = (id: string) => roots.has(splitProjectId(id).rootId);
     const stale = [...Object.keys(settings.names), ...Object.keys(settings.rewriteHost)].filter(
-      (id) => !ids.has(id),
+      (id) => !kept(id),
     );
     if (stale.length > 0)
       housekeeping((s) => ({
         ...s,
-        names: Object.fromEntries(Object.entries(s.names).filter(([id]) => ids.has(id))),
-        rewriteHost: Object.fromEntries(
-          Object.entries(s.rewriteHost).filter(([id]) => ids.has(id)),
-        ),
+        names: Object.fromEntries(Object.entries(s.names).filter(([id]) => kept(id))),
+        rewriteHost: Object.fromEntries(Object.entries(s.rewriteHost).filter(([id]) => kept(id))),
       }));
     const processes = deps.processes();
     const ports =
@@ -132,7 +160,12 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
     const detectedPorts = new Map<string, number>();
     for (const p of projects)
       for (const pkg of [{ id: p.id, path: p.path }, ...p.workspaces]) {
-        const main = deps.mainScript(pkg.id);
+        let main: string | null = null;
+        try {
+          main = deps.mainScript(pkg.id);
+        } catch {
+          // removed while rebuilding: no main command
+        }
         if (main) mainScripts.set(pkg.id, main);
         const detected = await deps.detectedPort(pkg.id, pkg.path).catch(() => null);
         if (detected !== null) detectedPorts.set(pkg.id, detected);
@@ -160,25 +193,39 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
     return { ...state, owner };
   }
 
-  async function restart(): Promise<void> {
+  const wanted = () => !stopped && deps.settings.get().enabled;
+
+  async function shutDown(): Promise<void> {
+    if (poll) clearInterval(poll);
+    poll = null;
+    await proxy.stop();
     const s = deps.settings.get();
-    if (!s.enabled) {
-      await proxy.stop();
-      servers = { http: off(s.httpPort), https: off(s.httpsPort) };
-      if (poll) clearInterval(poll);
-      poll = null;
-      deps.emit();
+    servers = { http: off(s.httpPort), https: off(s.httpsPort) };
+  }
+
+  /** Brings the servers in line with the settings. Always through serial(); re-checks after each await. */
+  async function applySettings(): Promise<void> {
+    if (!wanted()) {
+      await shutDown();
+      if (!stopped) deps.emit();
       return;
     }
     // Load (or make) the root first, so a new one resets the trust state before anyone asks.
     await currentRoot().catch(() => deps.logger.warn('domains ca unavailable'));
+    if (!wanted()) return shutDown();
+    const s = deps.settings.get();
     const started = await proxy.start({ httpPort: s.httpPort, httpsPort: s.httpsPort, sni });
-    servers = { http: await ownerOf(started.http), https: await ownerOf(started.https) };
+    if (!wanted()) return shutDown();
+    const next = { http: await ownerOf(started.http), https: await ownerOf(started.https) };
+    if (!wanted()) return shutDown();
+    servers = next;
     poll ??= setInterval(() => {
       if (deps.processes().some((p) => isLive(p.state))) void rebuild().catch(() => undefined);
     }, POLL_MS);
     await rebuild();
   }
+
+  const restart = () => serial(applySettings);
 
   function status(): DomainsStatus {
     const s = deps.settings.get();
@@ -264,10 +311,16 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
       if (!(await deps.confirm('remove'))) return { result: 'cancelled' };
       let result: 'removed' | 'failed';
       try {
-        result =
-          deps.settings.get().trust === 'none'
-            ? 'removed'
-            : await deps.trust.untrust(await deps.ca.root());
+        // currentRoot() first: a root made just now (the file was lost) sets trust to none, and the old
+        // root's ids are gone, so there is nothing to untrust.
+        const root = deps.settings.get().trust === 'none' ? null : await currentRoot();
+        const trust = deps.settings.get().trust;
+        if (root && trust === 'trusted') result = await deps.trust.untrust(root);
+        else {
+          // Untrusted: declined or failed, so most likely never added. Best effort; the reset goes ahead.
+          if (root && trust === 'untrusted') await deps.trust.untrust(root).catch(() => 'failed');
+          result = 'removed';
+        }
         if (result === 'removed') {
           await deps.ca.reset();
           ackedRoot = null;
@@ -285,15 +338,19 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
       return { result };
     },
     refresh() {
+      if (stopped) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => void rebuild().catch(() => undefined), REBUILD_MS);
     },
-    start: restart,
+    start() {
+      stopped = false;
+      return restart();
+    },
     async stop() {
+      stopped = true;
       if (timer) clearTimeout(timer);
-      if (poll) clearInterval(poll);
-      timer = poll = null;
-      await proxy.stop();
+      timer = null;
+      await serial(shutDown);
     },
   };
 }
