@@ -571,3 +571,45 @@ describe('win32 describeProcesses', () => {
     expect(await createWin32Adapter({ runner, getEditorCommand: () => 'code' }).describeProcesses([5])).toEqual(new Map([[5, null]]));
   });
 });
+
+describe('win32 trust store', () => {
+  const make = (script: ExecScript = {}) => {
+    const runner = fakeRunner([], script);
+    return { runner, adapter: createWin32Adapter({ runner, getEditorCommand: () => 'code' }) };
+  };
+
+  it("adds the root to the user's store", async () => {
+    const { runner, adapter } = make();
+    expect(await adapter.trustRootCa('C:\\Temp\\nestbox-ca.crt')).toBe('trusted');
+    expect(runner.execCalls.at(-1)).toEqual({ file: 'certutil.exe', args: ['-user', '-addstore', 'Root', 'C:\\Temp\\nestbox-ca.crt'] });
+  });
+
+  it('reads the prompt being cancelled', async () => {
+    const { adapter } = make({
+      'certutil.exe': { code: -2147023673, stdout: 'CertUtil: -addstore command FAILED: 0x800704c7 (WIN32: 1223 ERROR_CANCELLED)' },
+    });
+    expect(await adapter.trustRootCa('C:\\Temp\\ca.crt')).toBe('cancelled');
+  });
+
+  it('calls any other failure failed', async () => {
+    const { adapter } = make({ 'certutil.exe': { code: 1, stdout: 'boom' } });
+    expect(await adapter.trustRootCa('C:\\Temp\\ca.crt')).toBe('failed');
+  });
+
+  it('removes it by serial', async () => {
+    const { runner, adapter } = make();
+    expect(await adapter.untrustRootCa({ sha1: 'ab'.repeat(20), serialHex: '1f2e' })).toBe('removed');
+    expect(runner.execCalls.at(-1)).toEqual({ file: 'certutil.exe', args: ['-user', '-delstore', 'Root', '1f2e'] });
+  });
+
+  it('reports a failed removal', async () => {
+    const { adapter } = make({ 'certutil.exe': { code: 1, stdout: '' } });
+    expect(await adapter.untrustRootCa({ sha1: 'ab'.repeat(20), serialHex: '1f2e' })).toBe('failed');
+  });
+
+  it('refuses ids that are not hex, without running anything', async () => {
+    const { runner, adapter } = make();
+    await expect(adapter.untrustRootCa({ sha1: 'x', serialHex: '1 & del' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.execCalls).toEqual([]);
+  });
+});

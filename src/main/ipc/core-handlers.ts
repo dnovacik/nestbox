@@ -3,6 +3,7 @@ import { NestboxError } from '@shared/errors';
 import { belongsTo } from '@shared/processes';
 import type { SystemStats } from '@shared/system-stats';
 import type { AppInfo, AppSettings } from '@shared/types';
+import type { DomainsService } from '../domains/service';
 import type { PlatformAdapter } from '../platform/adapter';
 import type { PortService } from '../ports/port-service';
 import type { ProcessManager } from '../processes/process-manager';
@@ -43,6 +44,10 @@ export interface CoreHandlerDeps {
   settings: Pick<StoreService, 'getSettings' | 'updateSettings' | 'isReadOnly'>;
   ports: Pick<PortService, 'list' | 'kill' | 'waitUntilFree'>;
   deps: { overview(): Promise<DepsOverview>; checkAll(): void };
+  domains: Pick<
+    DomainsService,
+    'status' | 'setEnabled' | 'setPorts' | 'setName' | 'setRewriteHost' | 'trustCa' | 'removeCa' | 'copyUrl'
+  >;
   getSystemStats(): Promise<SystemStats>;
   /** Called after a successful settings:update (tray theme and friends react here). */
   onSettingsChanged(settings: AppSettings): void;
@@ -120,6 +125,14 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'deps:checkAll': async () => {
       deps.deps.checkAll();
     },
+    'domains:status': () => deps.domains.status(),
+    'domains:setEnabled': ({ enabled }) => deps.domains.setEnabled(enabled),
+    'domains:setPorts': (input) => deps.domains.setPorts(input),
+    'domains:setName': (input) => deps.domains.setName(input),
+    'domains:setRewriteHost': (input) => deps.domains.setRewriteHost(input),
+    'domains:trustCa': () => deps.domains.trustCa(),
+    'domains:removeCa': () => deps.domains.removeCa(),
+    'domains:copyUrl': ({ projectId }) => deps.domains.copyUrl(projectId),
     'system:getStats': () => deps.getSystemStats(),
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {

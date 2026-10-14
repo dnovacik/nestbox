@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DetectedProject } from '@shared/detected';
+import type { DomainsStatus } from '@shared/domains';
 import { NestboxError } from '@shared/errors';
 import { AppSettingsSchema, type AppSettings } from '@shared/types';
 import { SettingsPatchSchema } from '@shared/settings';
@@ -25,6 +26,15 @@ function memorySettings(readOnly = false) {
     }),
   };
 }
+
+const domainsStatus: DomainsStatus = {
+  enabled: true,
+  http: { state: 'running', port: 80, code: null, owner: null },
+  https: { state: 'running', port: 443, code: null, owner: null },
+  trust: 'none',
+  routes: [],
+  clashes: [],
+};
 
 function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
   return {
@@ -68,6 +78,16 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
     deps: {
       overview: vi.fn(async () => ({ projects: [], runningAll: false, schedule: 'off' as const })),
       checkAll: vi.fn(),
+    },
+    domains: {
+      status: vi.fn(async () => domainsStatus),
+      setEnabled: vi.fn(async () => domainsStatus),
+      setPorts: vi.fn(async () => domainsStatus),
+      setName: vi.fn(async () => domainsStatus),
+      setRewriteHost: vi.fn(async () => domainsStatus),
+      trustCa: vi.fn(async () => ({ result: 'trusted' as const })),
+      removeCa: vi.fn(async () => ({ result: 'removed' as const })),
+      copyUrl: vi.fn(async (_projectId: string) => ({ url: 'https://shop.localhost' })),
     },
     getSystemStats: vi.fn(async () => ({ cpuPercent: 10, memoryUsed: 1024 * 1024 * 1024, memoryTotal: 8 * 1024 * 1024 * 1024 })),
     ...over,
@@ -220,6 +240,26 @@ describe('core handlers', () => {
       expect(d.ports.kill).toHaveBeenCalledWith({ pid: 77, port: 5432, confirmed: true });
       expect(await handlers['ports:waitFree']({ port: 3000, timeoutMs: 5_000 })).toBe(true);
       expect(d.ports.waitUntilFree).toHaveBeenCalledWith(3000, 5_000);
+    });
+  });
+
+  describe('domains', () => {
+    it('passes inputs through to the domains service', async () => {
+      const d = deps();
+      const handlers = createCoreHandlers(d);
+      expect(await handlers['domains:setPorts']({ httpPort: 8080, httpsPort: 8443 })).toEqual(domainsStatus);
+      expect(d.domains.setPorts).toHaveBeenCalledWith({ httpPort: 8080, httpsPort: 8443 });
+      await handlers['domains:setEnabled']({ enabled: true });
+      expect(d.domains.setEnabled).toHaveBeenCalledWith(true);
+      await handlers['domains:setName']({ projectId: 'p1', label: 'store' });
+      expect(d.domains.setName).toHaveBeenCalledWith({ projectId: 'p1', label: 'store' });
+      await handlers['domains:setRewriteHost']({ projectId: 'p1', rewrite: true });
+      expect(d.domains.setRewriteHost).toHaveBeenCalledWith({ projectId: 'p1', rewrite: true });
+      expect(await handlers['domains:trustCa']()).toEqual({ result: 'trusted' });
+      expect(await handlers['domains:removeCa']()).toEqual({ result: 'removed' });
+      expect(await handlers['domains:copyUrl']({ projectId: 'p1' })).toEqual({ url: 'https://shop.localhost' });
+      expect(d.domains.copyUrl).toHaveBeenCalledWith('p1');
+      expect(await handlers['domains:status']()).toEqual(domainsStatus);
     });
   });
 

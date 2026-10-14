@@ -115,6 +115,18 @@ export function createWin32Adapter(deps: PlatformDeps): PlatformAdapter {
       });
     },
 
+    async trustRootCa(certFile) {
+      const { code, stdout } = await deps.runner.exec('certutil.exe', ['-user', '-addstore', 'Root', certFile], { timeoutMs: 300_000 });
+      if (code === 0) return 'trusted';
+      return /800704c7|ERROR_CANCELLED/i.test(stdout) ? 'cancelled' : 'failed';
+    },
+
+    async untrustRootCa({ serialHex }) {
+      if (!/^[0-9a-f]{1,64}$/i.test(serialHex)) throw new NestboxError('VALIDATION', 'Invalid certificate serial');
+      const { code } = await deps.runner.exec('certutil.exe', ['-user', '-delstore', 'Root', serialHex], { timeoutMs: 300_000 });
+      return code === 0 ? 'removed' : 'failed';
+    },
+
     async killTree(pid) {
       assertPid(pid);
       const { code, stdout } = await deps.runner.exec('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {

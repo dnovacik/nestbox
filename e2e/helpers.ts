@@ -37,6 +37,8 @@ export async function launch(
     /** Put first on PATH, e.g. a fake command. */ pathPrepend?: string;
     /** Start like a new install, with the first-run tool picker (by default the profile has answered it). */
     firstRun?: boolean;
+    /** Replace the OS trust commands with a stub (local domains; honoured only when unpackaged). */
+    fakeTrust?: boolean;
   } = {},
 ): Promise<{ app: ElectronApplication; page: Page; userData: string }> {
   const userData = opts.userData ?? (await mkdtemp(join(tmpdir(), 'nestbox-e2e-profile-')));
@@ -57,6 +59,7 @@ export async function launch(
       ...process.env,
       [pathKey]: path,
       NESTBOX_USER_DATA_DIR: userData,
+      ...(opts.fakeTrust ? { NESTBOX_FAKE_TRUST: '1' } : {}),
       // macOS and Linux build PATH from a login shell, which puts system folders first: prepend there too.
       ...(opts.pathPrepend ? { NESTBOX_PATH_PREPEND: opts.pathPrepend } : {}),
     }).filter(

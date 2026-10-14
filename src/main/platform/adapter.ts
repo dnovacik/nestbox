@@ -102,6 +102,13 @@ export interface PlatformAdapter {
   describeProcesses(pids: readonly number[]): Promise<Map<number, string | null>>;
   killTree(pid: number): Promise<void>;
   /**
+   * Adds NestBox's local CA root to the current user's trust store. The OS shows its own prompt;
+   * 'cancelled' only where the OS reports it (Windows). Never logs or returns command output.
+   */
+  trustRootCa(certFile: string): Promise<'trusted' | 'cancelled' | 'failed'>;
+  /** Removes that root again, by serial (Windows) or SHA-1 (macOS); hex strings only. */
+  untrustRootCa(ids: { sha1: string; serialHex: string }): Promise<'removed' | 'failed'>;
+  /**
    * After killTree(pid) left the tree running: stops processes that tree's kill missed because they started
    * after it (or during it) and no earlier than `since` (epoch ms). Resolves how many it stopped. macOS: 0,
    * since a group kill reaches late children too.

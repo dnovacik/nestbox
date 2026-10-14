@@ -146,6 +146,24 @@ export function createDarwinAdapter(deps: PlatformDeps, extras: DarwinExtras = {
       return result;
     },
 
+    async trustRootCa(certFile) {
+      const keychain = join(homedir(), 'Library', 'Keychains', 'login.keychain-db');
+      const { code } = await deps.runner.exec('/usr/bin/security', ['add-trusted-cert', '-r', 'trustRoot', '-k', keychain, certFile], {
+        timeoutMs: 300_000,
+      });
+      // security reports a cancel on stderr only, which exec doesn't return: both are 'failed'.
+      return code === 0 ? 'trusted' : 'failed';
+    },
+
+    async untrustRootCa({ sha1 }) {
+      if (!/^[0-9a-f]{40}$/i.test(sha1)) throw new NestboxError('VALIDATION', 'Invalid certificate hash');
+      const keychain = join(homedir(), 'Library', 'Keychains', 'login.keychain-db');
+      const { code } = await deps.runner.exec('/usr/bin/security', ['delete-certificate', '-Z', sha1.toUpperCase(), keychain], {
+        timeoutMs: 300_000,
+      });
+      return code === 0 ? 'removed' : 'failed';
+    },
+
     async killTree(pid) {
       assertPid(pid);
       await killProcessTree(pid, { kill, list: listProcesses, sleep });

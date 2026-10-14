@@ -10,6 +10,8 @@ import { isToolEnabled } from '@shared/tools';
 import { useUiStore } from '@/state/ui-store';
 import { composeStepMessage } from '@/tools/scripts/compose-steps';
 import { scriptListKey } from '@/tools/scripts/use-scripts';
+import { domainUrl } from '@/domains/DomainLink';
+import { useDomainsStatus } from '@/domains/use-domains';
 import { findProjectNode } from './find-project';
 import { PALETTE_GROUPS, type PaletteAction, paletteEntries } from './palette-entries';
 
@@ -55,6 +57,16 @@ export function CommandPalette() {
   const { data: tools = [] } = useTools(open && selected ? selected.detected.id : null);
   const { data: settings } = useSettings();
   const claudeOn = isToolEnabled(settings?.disabledTools ?? [], 'claude');
+  const { data: domainsStatus } = useDomainsStatus();
+  const domains = useMemo(
+    () =>
+      domainsStatus?.enabled
+        ? domainsStatus.routes
+            .filter((r) => r.port !== null)
+            .map((r) => ({ projectId: r.projectId, name: r.name, url: domainUrl(domainsStatus, r.name) }))
+        : [],
+    [domainsStatus],
+  );
   const rootId = selected?.summary.id ?? '';
   const { data: list } = useQuery({
     queryKey: scriptListKey(rootId),
@@ -73,9 +85,10 @@ export function CommandPalette() {
             runnables: list?.packages ?? [],
             tools,
             claudeOn,
+            domains,
           })
         : [],
-    [open, projects, selected, processes, list, tools, claudeOn],
+    [open, projects, selected, processes, list, tools, claudeOn, domains],
   );
 
   const run = async (action: PaletteAction) => {
@@ -112,6 +125,9 @@ export function CommandPalette() {
           return;
         case 'claude':
           await api.tools.invoke('claude', action.projectId, action.op, {});
+          return;
+        case 'url':
+          await api.app.openExternal(action.url);
           return;
         case 'ports':
           ui.showPorts();

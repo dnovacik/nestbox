@@ -1,5 +1,14 @@
 import { z } from 'zod';
 import { ProjectSummarySchema } from './detected';
+import {
+  DomainsNameInputSchema,
+  DomainsPortsInputSchema,
+  DomainsRewriteInputSchema,
+  DomainsStatusSchema,
+  TrustResultSchema,
+  DomainsCopyUrlInputSchema,
+  DomainsCopyUrlOutputSchema,
+} from './domains';
 import type { InvokeChannel } from './ipc-names';
 import { PortKillInputSchema, PortKillResultSchema, PortListSchema, PortWaitInputSchema } from './ports';
 import { ProcessSummarySchema } from './processes';
@@ -80,6 +89,17 @@ export const channels = {
   'deps:overview': { input: NoInput, output: DepsOverviewSchema },
   /** Starts checking every project in the background (network); returns at once. */
   'deps:checkAll': { input: NoInput, output: z.void() },
+  /** v1.30 local domains: servers, trust and the route table. */
+  'domains:status': { input: NoInput, output: DomainsStatusSchema },
+  'domains:setEnabled': { input: z.strictObject({ enabled: z.boolean() }), output: DomainsStatusSchema },
+  'domains:setPorts': { input: DomainsPortsInputSchema, output: DomainsStatusSchema },
+  'domains:setName': { input: DomainsNameInputSchema, output: DomainsStatusSchema },
+  'domains:setRewriteHost': { input: DomainsRewriteInputSchema, output: DomainsStatusSchema },
+  /** Shows a native confirmation in main first; command output never reaches the renderer. */
+  'domains:trustCa': { input: NoInput, output: TrustResultSchema },
+  'domains:removeCa': { input: NoInput, output: TrustResultSchema },
+  /** Main writes the address (the renderer has no clipboard permission); never arbitrary text. */
+  'domains:copyUrl': { input: DomainsCopyUrlInputSchema, output: DomainsCopyUrlOutputSchema },
   /** Current system resource usage (CPU, memory). */
   'system:getStats': { input: NoInput, output: SystemStatsSchema },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;

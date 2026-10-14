@@ -38,6 +38,14 @@ function setup(
       return { result: input.pid === 40 ? 'stopped-script' : 'killed', processName: 'x' };
     },
     'projects:list': () => [makeSummary({ id: 'p1', name: 'shop' })],
+    'domains:status': () => ({
+      enabled: true,
+      http: { state: 'running', port: 80, code: null, owner: null },
+      https: { state: 'running', port: 443, code: null, owner: null },
+      trust: 'trusted',
+      routes: [{ name: 'shop.localhost', projectId: 'p1', script: 'dev', port: 3000, source: 'main', rewriteHost: false }],
+      clashes: [],
+    }),
   });
   renderWithProviders(<PortsPage />);
   return bridge;
@@ -66,6 +74,13 @@ describe('PortsPage', () => {
     expect(within(rows[0] as HTMLElement).getByRole('button', { name: 'shop · dev' })).toBeInTheDocument();
     expect(rows[1]).toHaveTextContent('postgres.exe');
     expect(rows[1]).toHaveTextContent('127.0.0.1');
+  });
+
+  it('shows the local domain of a port in the Domain column', async () => {
+    setup();
+    const table = await screen.findByRole('table', { name: 'Listening ports' });
+    expect(within(table).getByRole('columnheader', { name: 'Domain' })).toBeInTheDocument();
+    expect(await within(table).findByText('shop.localhost')).toBeInTheDocument();
   });
 
   it('filters by text and by NestBox ownership', async () => {

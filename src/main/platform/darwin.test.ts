@@ -211,3 +211,29 @@ describe('darwin adapter: commandExists', () => {
     expect(runner.exec).not.toHaveBeenCalled();
   });
 });
+
+describe('darwin trust store', () => {
+  it('adds the root to the login keychain as a trust root, and removes it by hash', async () => {
+    const { adapter, runner } = setup();
+    expect(await adapter.trustRootCa('/tmp/nestbox-ca.crt')).toBe('trusted');
+    const add = runner.exec.mock.calls.at(-1);
+    expect(add?.[0]).toBe('/usr/bin/security');
+    expect(add?.[1].slice(0, 4)).toEqual(['add-trusted-cert', '-r', 'trustRoot', '-k']);
+    expect(add?.[1][4]).toMatch(/Library[\\/]Keychains[\\/]login\.keychain-db$/);
+    expect(add?.[1][5]).toBe('/tmp/nestbox-ca.crt');
+    expect(await adapter.untrustRootCa({ sha1: 'ab'.repeat(20), serialHex: '1f' })).toBe('removed');
+    const del = runner.exec.mock.calls.at(-1);
+    expect(del?.[0]).toBe('/usr/bin/security');
+    expect(del?.[1].slice(0, 2)).toEqual(['delete-certificate', '-Z']);
+    expect(del?.[1][2]).toBe('AB'.repeat(20));
+  });
+
+  it('reports failures and refuses a bad hash without running anything', async () => {
+    const { adapter, runner } = setup({ exec: () => ({ code: 1, stdout: '' }) });
+    expect(await adapter.trustRootCa('/tmp/ca.crt')).toBe('failed');
+    expect(await adapter.untrustRootCa({ sha1: 'cd'.repeat(20), serialHex: '1f' })).toBe('failed');
+    const before = runner.exec.mock.calls.length;
+    await expect(adapter.untrustRootCa({ sha1: 'zz', serialHex: '1f' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.exec.mock.calls.length).toBe(before);
+  });
+});

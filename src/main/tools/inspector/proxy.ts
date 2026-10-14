@@ -9,39 +9,18 @@ import {
 } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { MAX_REQUEST_BYTES } from '@shared/tools/inspector/contract';
+import { HOP_BY_HOP, hostName, isLocalHost } from '../../net/forward';
 import { Capture, type Entry, type HeaderPairs, headerPairs } from './record';
 
+export { hostName, isLocalHost };
+
 export const HEADERS_TIMEOUT_MS = 30_000;
-const HOP_BY_HOP = new Set([
-  'connection',
-  'keep-alive',
-  'proxy-connection',
-  'proxy-authenticate',
-  'proxy-authorization',
-  'te',
-  'trailer',
-  'transfer-encoding',
-  'upgrade',
-]);
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export interface OutboundRequest {
   method: string;
   /** Path and query, starting with /. */
   path: string;
   headers: HeaderPairs;
-}
-
-/** "[::1]:4020" → "[::1]"; "localhost:4020" → "localhost". */
-export function hostName(host: string | undefined): string {
-  if (!host) return '';
-  const value = host.trim().toLowerCase();
-  if (value.startsWith('[')) return value.slice(0, value.indexOf(']') + 1);
-  return value.split(':')[0] ?? '';
-}
-
-export function isLocalHost(host: string | undefined): boolean {
-  return LOCAL_HOSTS.has(hostName(host));
 }
 
 /** The target's base path joined with the request's path and query. */

@@ -9,6 +9,7 @@ import { isUnsupported, usePorts } from '@/lib/ports';
 import { useProjects } from '@/lib/queries';
 import { useUiStore } from '@/state/ui-store';
 import { findProjectNode } from '@/app/find-project';
+import { useDomainsStatus } from '@/domains/use-domains';
 import { usePortKiller } from './use-port-killer';
 
 /** "shop · dev", or "shop · api · dev" for a workspace package. */
@@ -36,6 +37,8 @@ export function PortsPage() {
   const ownerLabel = useOwnerLabel();
   const killer = usePortKiller();
   const ui = useUiStore();
+  const { data: domains } = useDomainsStatus();
+  const domainOf = (port: number) => (domains?.enabled ? (domains.routes.find((r) => r.port === port)?.name ?? null) : null);
 
   const rows = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -102,6 +105,7 @@ export function PortsPage() {
                 <th className="w-36 py-1.5 font-semibold">Process</th>
                 <th className="w-20 py-1.5 font-semibold">PID</th>
                 <th className="w-48 py-1.5 font-semibold">Owner</th>
+                <th className="w-44 py-1.5 font-semibold">Domain</th>
                 <th className="py-1.5 font-semibold">Command</th>
                 <th className="w-16 py-1.5" />
               </tr>
@@ -122,6 +126,7 @@ export function PortsPage() {
                       <span className="text-fg-faint">—</span>
                     )}
                   </td>
+                  <td className="truncate py-1.5 font-mono text-xs text-fg-muted">{domainOf(r.port) ?? ''}</td>
                   <td className="truncate py-1.5 font-mono text-fg-muted" title={r.command ?? undefined}>
                     {r.command ?? '—'}
                   </td>

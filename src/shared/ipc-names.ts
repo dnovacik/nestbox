@@ -31,11 +31,19 @@ export const INVOKE_CHANNELS = [
   'ports:waitFree',
   'deps:overview',
   'deps:checkAll',
+  'domains:status',
+  'domains:setEnabled',
+  'domains:setPorts',
+  'domains:setName',
+  'domains:setRewriteHost',
+  'domains:trustCa',
+  'domains:removeCa',
+  'domains:copyUrl',
   'system:getStats',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
 
-export const EVENT_CHANNELS = ['projects:changed', 'tools:event', 'processes:changed', 'app:navigate', 'app:openSettings'] as const;
+export const EVENT_CHANNELS = ['projects:changed', 'tools:event', 'processes:changed', 'app:navigate', 'app:openSettings', 'domains:changed'] as const;
 export type EventChannel = (typeof EVENT_CHANNELS)[number];
 
 export function isInvokeChannel(value: unknown): value is InvokeChannel {

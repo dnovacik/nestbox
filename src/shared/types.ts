@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DomainsSettingsSchema } from './domains';
 
 export const ProjectNameSchema = z.string().trim().min(1).max(100);
 
@@ -88,6 +89,8 @@ export const AppSettingsSchema = z.object({
   disabledTools: z.array(z.string().min(1).max(64)).max(64).default([]),
   /** Whether the first-run tool picker was answered. Stores from before v1.17 default to true (no picker). */
   toolsChosen: z.boolean().default(true),
+  /** Local domains (v1.30), off until turned on; added with a default, so the store stays at v2. */
+  domains: DomainsSettingsSchema.default(() => DomainsSettingsSchema.parse({})),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
