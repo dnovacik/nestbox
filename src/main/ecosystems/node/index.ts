@@ -9,6 +9,7 @@ import { detectNode, lockfileManager, type NodeInfo, NodeInfoSchema } from './de
 import { frameworkLabel } from './framework';
 import { installState, installWarning } from './install-state';
 import { lockfileWarning } from './package-manager';
+import { nxProjectDirs } from './nx';
 import { nodeTasks } from './tasks';
 import { nodeVersionCheck, type NodeVersionCheck } from './version-check';
 import { nodeWorkspaces } from './workspaces';
@@ -48,9 +49,14 @@ export function createNodeModule(
 
     declaredWorkspaces: nodeWorkspaces,
 
+    /** An Nx root's projects, those with only a project.json included. */
+    workspaceDirs: nxProjectDirs,
+
     tasks: nodeTasks,
 
-    deps: checkNode,
+    /** A folder without its own package.json (an Nx library) has no dependencies of its own. */
+    deps: (info, run, dir) =>
+      info.packageJson ? checkNode(info, run, dir) : Promise.resolve(null),
 
     depsUpdateCommand: nodeUpdateCommand,
 
@@ -89,6 +95,7 @@ export function createNodeModule(
     summary(info: NodeInfo): string | null {
       const parts = ['Node.js', info.packageManager];
       if (info.framework) parts.push(frameworkLabel(info.framework));
+      if (info.monorepo && info.monorepo.nx.length > 0) parts.push('Nx');
       if (lockfileWarning(info.lockfiles, info.packageManager) !== null)
         parts.push(`${info.lockfiles.length} lockfiles`);
       return parts.join(' · ');

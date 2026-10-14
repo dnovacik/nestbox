@@ -11,7 +11,7 @@ export const deployDefinition: ToolDefinition<Record<string, never>> = {
   name: 'Deploy',
   icon: 'rocket',
   // Every package: without a platform config the tab explains how to set one up.
-  appliesTo: (p) => nodeOf(p) !== null || p.deploy.length > 0,
+  appliesTo: (p) => nodeOf(p)?.packageJson === true || p.deploy.length > 0,
   settingsSchema: z.object({}),
 };
 

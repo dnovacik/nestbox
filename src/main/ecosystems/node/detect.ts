@@ -5,6 +5,7 @@ import type { DetectContext } from '../types';
 import { detectFramework } from './framework';
 import { detectMonorepo } from './monorepo';
 import { readPackageJson, readPackageJsonChecked } from './package-json';
+import { isNxRoot, readNxProject } from './nx';
 import { nodePorts } from './ports';
 import { choosePackageManager, lockfilesIn } from './package-manager';
 
@@ -33,9 +34,9 @@ function scriptsOf(json: Record<string, unknown> | null): Record<string, string>
 }
 
 /**
- * Detect Node.js projects by looking for package.json, and pick the package manager (choosePackageManager):
- * the lockfile's name, else the packageManager field, else npm. The same rule as the project's packageManager,
- * so tasks and scripts agree: a workspace package takes the root's lockfile, then the root's field, first.
+ * Detect Node.js projects by looking for package.json (or, under an Nx root, a project.json alone), and pick
+ * the package manager (choosePackageManager): the lockfile's name, else the packageManager field, else npm.
+ * A workspace package takes the root's lockfile, then the root's field, first.
  */
 export async function detectNode(
   dir: string,
@@ -43,12 +44,28 @@ export async function detectNode(
   _dirs: ReadonlySet<string>,
   ctx?: DetectContext,
 ): Promise<NodeInfo | null> {
-  if (!files.has('package.json')) return null;
   const root = ctx?.root ?? null;
-  const read = await readPackageJsonChecked(dir);
-  if ('problem' in read) ctx?.onWarning?.('package.json', read.problem);
-  const json = 'json' in read ? read.json : null;
-  const name = json?.['name'];
+  let rootJson: Promise<Record<string, unknown> | null> | undefined;
+  const readRoot = () =>
+    (rootJson ??= root?.files.has('package.json')
+      ? readPackageJson(root.path)
+      : Promise.resolve(null));
+  const hasPackageJson = files.has('package.json');
+  const underNx = async () => (root ? isNxRoot(root.files, await readRoot()) : false);
+  // A project.json without package.json counts only inside an Nx workspace.
+  if (!hasPackageJson && !(files.has('project.json') && (await underNx()))) return null;
+  let json: Record<string, unknown> | null = null;
+  if (hasPackageJson) {
+    const read = await readPackageJsonChecked(dir);
+    if ('problem' in read) ctx?.onWarning?.('package.json', read.problem);
+    json = 'json' in read ? read.json : null;
+  }
+  const rawName = json?.['name'];
+  const packageName = typeof rawName === 'string' && rawName.trim() ? rawName : null;
+  const nx =
+    files.has('project.json') && (root ? await underNx() : isNxRoot(files, json))
+      ? await readNxProject(dir, packageName)
+      : null;
   const fromLockfile = choosePackageManager({ files, root: root && { files: root.files } });
   const { manager, source } =
     fromLockfile.source === 'lockfile'
@@ -58,16 +75,15 @@ export async function detectNode(
           field: json?.['packageManager'],
           root: root && {
             files: root.files,
-            field: root.files.has('package.json')
-              ? (await readPackageJson(root.path))?.['packageManager']
-              : undefined,
+            field: (await readRoot())?.['packageManager'],
           },
         });
   const rootLockfiles = root ? lockfilesIn(root.files) : [];
   const framework = detectFramework(json);
   const scripts = scriptsOf(json);
   return {
-    name: typeof name === 'string' && name.trim() ? name : null,
+    name: packageName ?? nx?.project ?? null,
+    packageJson: hasPackageJson,
     scripts,
     packageManager: manager,
     packageManagerSource: source,
@@ -76,5 +92,6 @@ export async function detectNode(
     ports: nodePorts(scripts, framework),
     hasDependencies: hasDependencies(json),
     monorepo: root ? null : await detectMonorepo(dir, files, json),
+    nx,
   };
 }

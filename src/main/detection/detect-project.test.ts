@@ -177,6 +177,39 @@ describe('detectProject workspaces', () => {
     ]);
   });
 
+  it("takes an Nx workspace's projects as packages, those with only a project.json too", async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ name: 'acme', devDependencies: { nx: '20.1.0' } }),
+      'pnpm-lock.yaml': '',
+      'nx.json': JSON.stringify({ targetDefaults: { build: {} } }),
+      'apps/web/package.json': JSON.stringify({ name: '@acme/web', scripts: { dev: 'vite' } }),
+      'apps/web/project.json': JSON.stringify({ targets: { build: {}, serve: {} } }),
+      'libs/shared/ui/project.json': JSON.stringify({ name: 'ui', targets: { test: {} } }),
+      'tools/notes/project.json': '{ broken',
+    });
+    const d = await detectProject({ id: 'root', path: dir });
+    expect(nodeOf(d)?.monorepo?.nx).toEqual(['build', 'serve', 'test']);
+    expect(d.workspaces.map((w) => [w.relPath, w.name, nodeOf(w)?.packageJson, nodeOf(w)?.nx])).toEqual([
+      ['apps/web', '@acme/web', true, { project: '@acme/web', targets: ['build', 'serve'] }],
+      ['libs/shared/ui', 'ui', false, { project: 'ui', targets: ['test'] }],
+      // An unreadable project.json still makes a package (the folder's name), without Nx tasks.
+      ['tools/notes', 'notes', false, null],
+    ]);
+    const ui = d.workspaces[1];
+    expect(ui && nodeModule.tasks(nodeModule.infoSchema.parse(ui.ecosystems[0]?.info))).toEqual([
+      { name: 'nx:test', argv: ['pnpm', 'exec', 'nx', 'run', 'ui:test'], title: 'nx run ui:test' },
+    ]);
+  });
+
+  it('ignores a project.json outside an Nx workspace', async () => {
+    dir = await makeTree({
+      'package.json': JSON.stringify({ name: 'app', workspaces: ['packages/*'] }),
+      'packages/a/project.json': JSON.stringify({ name: 'a', targets: { build: {} } }),
+    });
+    const d = await detectProject({ id: 'root', path: dir });
+    expect(d.workspaces).toEqual([]);
+  });
+
   it("gives a monorepo root workspace-wide tasks for the scripts its packages share", async () => {
     dir = await makeTree({
       'package.json': JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }),

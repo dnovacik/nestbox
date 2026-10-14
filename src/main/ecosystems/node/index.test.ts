@@ -139,3 +139,20 @@ describe('nodeModule.summary', () => {
     ).toBe('Node.js · pnpm · Next.js 15');
   });
 });
+
+describe('nodeModule in an Nx workspace', () => {
+  it('checks no dependencies in a project without its own package.json', async () => {
+    const run = vi.fn();
+    expect(
+      await nodeModule.deps?.(nodeInfo({ packageJson: false }), run, '/acme/libs/ui'),
+    ).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('names Nx in the summary of an Nx root', () => {
+    const monorepo = { shared: [], turbo: [], yarnBerry: false, nx: ['build'] };
+    expect(nodeModule.summary?.(nodeInfo({ packageManager: 'pnpm', monorepo }))).toBe(
+      'Node.js · pnpm · Nx',
+    );
+  });
+});

@@ -1,17 +1,17 @@
 // Workspace-wide tasks on a monorepo root: a script that several packages define, run in every package
-// through the package manager, and Turborepo's tasks from turbo.json. Names only; script text is never kept.
+// through the package manager, Turborepo's tasks from turbo.json and Nx's run-many targets (nx.ts). Names only; script text is never kept.
 import { join } from 'node:path';
 import { parse } from 'jsonc-parser';
 import type { Monorepo } from '@shared/ecosystems/node';
 import type { DetectedTask } from '../types';
 import type { NodeInfo } from './detect';
+import { PLAIN } from './names';
+import { isNxRoot, nxProjectDirs, nxRootTargets } from './nx';
 import { readPackageJson, readSmall } from './package-json';
 import { nodeWorkspaces } from './workspaces';
 
 export type { Monorepo };
 
-/** A name that reaches cmd.exe as one plain word. */
-const PLAIN = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/;
 const MAX_PACKAGES = 50;
 const MAX_NAMES = 20;
 const TURBO_MAX_BYTES = 64 * 1024;
@@ -37,8 +37,8 @@ async function turboTasks(dir: string, files: ReadonlySet<string>, json: Record<
 }
 
 /**
- * A root that declares workspaces (null otherwise): the script names its packages share and turbo.json's
- * tasks. Reads each package's package.json (capped, at most 50 packages).
+ * A root that declares workspaces or is an Nx root (null otherwise): the script names its packages share,
+ * turbo.json's tasks and Nx's targets. Reads each package's package.json (capped, at most 50 packages).
  */
 export async function detectMonorepo(
   dir: string,
@@ -47,9 +47,10 @@ export async function detectMonorepo(
 ): Promise<Monorepo | null> {
   if (!json) return null;
   const packages = await nodeWorkspaces(dir).catch(() => null);
-  if (packages === null) return null;
+  const nx = isNxRoot(files, json) ? await nxRootTargets(dir, await nxProjectDirs(dir)) : null;
+  if (packages === null && nx === null) return null;
   const counts = new Map<string, number>();
-  for (const relPath of packages.slice(0, MAX_PACKAGES)) {
+  for (const relPath of (packages ?? []).slice(0, MAX_PACKAGES)) {
     const pkg = await readPackageJson(join(dir, relPath));
     for (const name of keysOf(pkg?.['scripts'])) counts.set(name, (counts.get(name) ?? 0) + 1);
   }
@@ -58,7 +59,26 @@ export async function detectMonorepo(
     .map(([name]) => name)
     .sort()
     .slice(0, MAX_NAMES);
-  return { shared, turbo: await turboTasks(dir, files, json), yarnBerry: files.has('.yarnrc.yml') };
+  return {
+    shared,
+    turbo: await turboTasks(dir, files, json),
+    yarnBerry: files.has('.yarnrc.yml'),
+    nx: nx ?? [],
+  };
+}
+
+/** The workspace's installed nx through the package manager (`npm exec --no` refuses to download it). */
+export function nxCommand(info: NodeInfo, args: readonly string[]): string[] {
+  switch (info.packageManager) {
+    case 'npm':
+      return ['npm', 'exec', '--no', '--', 'nx', ...args];
+    case 'pnpm':
+      return ['pnpm', 'exec', 'nx', ...args];
+    case 'yarn':
+      return ['yarn', 'nx', ...args];
+    case 'bun':
+      return ['bun', 'run', 'nx', ...args];
+  }
 }
 
 function everywhere(info: NodeInfo, script: string, yarnBerry: boolean): string[] {
@@ -104,6 +124,11 @@ export function monorepoTasks(info: NodeInfo): DetectedTask[] {
       name: `turbo:${task}`,
       argv: turbo(info, task),
       title: `turbo run ${task}`,
+    })),
+    ...repo.nx.map((target) => ({
+      name: `nx:${target}`,
+      argv: nxCommand(info, ['run-many', '-t', target]),
+      title: `nx run-many -t ${target}`,
     })),
   ];
 }

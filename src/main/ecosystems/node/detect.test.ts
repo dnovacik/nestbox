@@ -10,6 +10,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json', 'pnpm-lock.yaml']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
@@ -18,6 +19,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -25,6 +27,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json', 'package-lock.json']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'npm',
       packageManagerSource: 'lockfile',
@@ -33,6 +36,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -40,6 +44,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json', 'yarn.lock']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
@@ -48,6 +53,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -55,6 +61,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json', 'bun.lockb']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'bun',
       packageManagerSource: 'lockfile',
@@ -63,6 +70,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -70,6 +78,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'npm',
       packageManagerSource: 'default',
@@ -78,6 +87,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -90,6 +100,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json', 'bun.lock']);
     expect(await detectNode('/test', files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'bun',
       packageManagerSource: 'lockfile',
@@ -98,6 +109,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -118,6 +130,7 @@ describe('detectNode', () => {
     const own = new Set(['package.json']);
     expect(await detectNode('/mono/packages/a', own, new Set(), { root })).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
@@ -126,11 +139,13 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
     // The root's lockfile wins over the package's own, as in DetectedProject.packageManager.
     const yarn = new Set(['package.json', 'yarn.lock']);
     expect(await detectNode('/mono/packages/a', yarn, new Set(), { root })).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'pnpm',
       packageManagerSource: 'lockfile',
@@ -139,11 +154,13 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
     // A root without a lockfile leaves the package's own.
     const bare = { ...root, files: new Set(['package.json']) };
     expect(await detectNode('/mono/packages/a', yarn, new Set(), { root: bare })).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
@@ -152,6 +169,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 
@@ -164,6 +182,7 @@ describe('detectNode', () => {
     const files = new Set(['package.json']);
     expect(await detectNode(root, files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'pnpm',
       packageManagerSource: 'packageManager',
@@ -172,10 +191,12 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
     const ctx = { root: { path: root, files, dirs: new Set<string>() } };
     expect(await detectNode(pkg, files, new Set(), ctx)).toEqual({
       name: 'a',
+      packageJson: true,
       scripts: {},
       packageManager: 'pnpm',
       packageManagerSource: 'packageManager',
@@ -184,11 +205,13 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
     // A lockfile still decides when package.json can't be read; without one that is npm.
     await writeFile(join(root, 'package.json'), '{ not json');
     expect(await detectNode(root, new Set(['package.json', 'yarn.lock']), new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'yarn',
       packageManagerSource: 'lockfile',
@@ -197,9 +220,11 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
     expect(await detectNode(root, files, new Set())).toEqual({
       name: null,
+      packageJson: true,
       scripts: {},
       packageManager: 'npm',
       packageManagerSource: 'default',
@@ -208,6 +233,7 @@ describe('detectNode', () => {
       ports: [],
       hasDependencies: false,
       monorepo: null,
+      nx: null,
     });
   });
 

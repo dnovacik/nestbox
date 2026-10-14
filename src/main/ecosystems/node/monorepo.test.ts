@@ -30,7 +30,27 @@ describe('detectMonorepo', () => {
       shared: ['build', 'test'],
       turbo: [],
       yarnBerry: false,
+      nx: [],
     });
+  });
+
+  it("is a monorepo on an Nx root without declared workspaces, with nx run-many's targets", async () => {
+    const root = { name: 'acme', devDependencies: { nx: '20.1.0' } };
+    const dir = await tree({
+      'package.json': root,
+      'nx.json': { targetDefaults: { build: {}, test: {} } },
+      'apps/web/project.json': { name: 'web', targets: { serve: {} } },
+    });
+    expect(await detectMonorepo(dir, new Set(['package.json', 'nx.json']), root)).toEqual({
+      shared: [],
+      turbo: [],
+      yarnBerry: false,
+      nx: ['build', 'serve', 'test'],
+    });
+    // nx.json without nx installed: nothing to run, and no monorepo.
+    expect(
+      await detectMonorepo(dir, new Set(['package.json', 'nx.json']), { name: 'acme' }),
+    ).toBeNull();
   });
 
   it("reads turbo.json's tasks (v2) or pipeline (v1) when turbo is a root dependency", async () => {
@@ -61,7 +81,7 @@ describe('detectMonorepo', () => {
 });
 
 describe('monorepoTasks', () => {
-  const monorepo = { shared: ['build'], turbo: ['build', 'dev'], yarnBerry: false };
+  const monorepo = { shared: ['build'], turbo: ['build', 'dev'], yarnBerry: false, nx: [] };
 
   it.each([
     ['pnpm', false, ['pnpm', '-r', 'run', 'build']],
@@ -104,6 +124,22 @@ describe('monorepoTasks', () => {
         }),
       )[0]?.argv,
     ).toEqual(['pnpm', 'exec', 'turbo', 'run', 'lint']);
+  });
+
+  it.each([
+    ['npm', ['npm', 'exec', '--no', '--', 'nx', 'run-many', '-t', 'build']],
+    ['pnpm', ['pnpm', 'exec', 'nx', 'run-many', '-t', 'build']],
+    ['yarn', ['yarn', 'nx', 'run-many', '-t', 'build']],
+    ['bun', ['bun', 'run', 'nx', 'run-many', '-t', 'build']],
+  ] as const)('%s runs an Nx target in every project, never a download', (packageManager, argv) => {
+    expect(
+      monorepoTasks(
+        nodeInfo({
+          packageManager,
+          monorepo: { ...monorepo, shared: [], turbo: [], nx: ['build'] },
+        }),
+      ),
+    ).toEqual([{ name: 'nx:build', argv: [...argv], title: 'nx run-many -t build' }]);
   });
 
   it('has none outside a monorepo root', () => {

@@ -8,7 +8,7 @@ export const depsDefinition: ToolDefinition<Record<string, never>> = {
   id: 'deps',
   name: 'Dependencies',
   icon: 'package',
-  appliesTo: (p) => nodeOf(p) !== null || p.ecosystems.some((e) => e.id === 'dotnet'),
+  appliesTo: (p) => nodeOf(p)?.packageJson === true || p.ecosystems.some((e) => e.id === 'dotnet'),
   settingsSchema: z.object({}),
 };
 
