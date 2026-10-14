@@ -194,6 +194,7 @@ if (!app.requestSingleInstanceLock()) {
       trust: fakeTrust
         ? { trust: async () => 'trusted', untrust: async () => 'removed' }
         : { trust: (file) => platform.trustRootCa(file), untrust: (ids) => platform.untrustRootCa(ids) },
+      clipboard: { writeText: (text) => clipboard.writeText(text) },
       confirm: async (kind) => {
         const options =
           kind === 'trust'

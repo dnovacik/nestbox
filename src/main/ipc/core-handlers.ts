@@ -46,7 +46,7 @@ export interface CoreHandlerDeps {
   deps: { overview(): Promise<DepsOverview>; checkAll(): void };
   domains: Pick<
     DomainsService,
-    'status' | 'setEnabled' | 'setPorts' | 'setName' | 'setRewriteHost' | 'trustCa' | 'removeCa'
+    'status' | 'setEnabled' | 'setPorts' | 'setName' | 'setRewriteHost' | 'trustCa' | 'removeCa' | 'copyUrl'
   >;
   getSystemStats(): Promise<SystemStats>;
   /** Called after a successful settings:update (tray theme and friends react here). */
@@ -132,6 +132,7 @@ export function createCoreHandlers(deps: CoreHandlerDeps): CoreHandlers {
     'domains:setRewriteHost': (input) => deps.domains.setRewriteHost(input),
     'domains:trustCa': () => deps.domains.trustCa(),
     'domains:removeCa': () => deps.domains.removeCa(),
+    'domains:copyUrl': ({ projectId }) => deps.domains.copyUrl(projectId),
     'system:getStats': () => deps.getSystemStats(),
     'settings:get': async () => settingsView(),
     'settings:update': async (patch) => {

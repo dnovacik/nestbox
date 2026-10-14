@@ -87,6 +87,7 @@ function deps(over: Partial<CoreHandlerDeps> = {}): CoreHandlerDeps {
       setRewriteHost: vi.fn(async () => domainsStatus),
       trustCa: vi.fn(async () => ({ result: 'trusted' as const })),
       removeCa: vi.fn(async () => ({ result: 'removed' as const })),
+      copyUrl: vi.fn(async (_projectId: string) => ({ url: 'https://shop.localhost' })),
     },
     getSystemStats: vi.fn(async () => ({ cpuPercent: 10, memoryUsed: 1024 * 1024 * 1024, memoryTotal: 8 * 1024 * 1024 * 1024 })),
     ...over,
@@ -256,6 +257,8 @@ describe('core handlers', () => {
       expect(d.domains.setRewriteHost).toHaveBeenCalledWith({ projectId: 'p1', rewrite: true });
       expect(await handlers['domains:trustCa']()).toEqual({ result: 'trusted' });
       expect(await handlers['domains:removeCa']()).toEqual({ result: 'removed' });
+      expect(await handlers['domains:copyUrl']({ projectId: 'p1' })).toEqual({ url: 'https://shop.localhost' });
+      expect(d.domains.copyUrl).toHaveBeenCalledWith('p1');
       expect(await handlers['domains:status']()).toEqual(domainsStatus);
     });
   });

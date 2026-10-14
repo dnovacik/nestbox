@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppSettingsSchema } from './types';
-import { DomainsPortsInputSchema, DomainsNameInputSchema, LABEL } from './domains';
+import { DomainsPortsInputSchema, DomainsNameInputSchema, domainUrl, LABEL, type DomainsStatus } from './domains';
 
 describe('domains settings', () => {
   it('defaults to off on 80/443 with nothing trusted, so old stores need no migration', () => {
@@ -29,5 +29,29 @@ describe('domains settings', () => {
     expect(LABEL.test('Shop')).toBe(false);
     expect(DomainsNameInputSchema.safeParse({ projectId: 'p1', label: 'a.b' }).success).toBe(false);
     expect(DomainsNameInputSchema.safeParse({ projectId: 'p1', label: null }).success).toBe(true);
+  });
+});
+
+describe('domainUrl', () => {
+  const running = { state: 'running' as const, code: null, owner: null };
+  const status = (over: Partial<DomainsStatus> = {}): DomainsStatus => ({
+    enabled: true,
+    http: { ...running, port: 80 },
+    https: { ...running, port: 443 },
+    trust: 'trusted',
+    routes: [],
+    clashes: [],
+    ...over,
+  });
+
+  it('prefers HTTPS and drops default ports', () => {
+    expect(domainUrl(status(), 'shop.localhost')).toBe('https://shop.localhost');
+    expect(domainUrl(status({ https: { ...running, port: 8443 } }), 'shop.localhost')).toBe('https://shop.localhost:8443');
+    expect(
+      domainUrl(status({ https: { state: 'failed', port: 443, code: 'EADDRINUSE', owner: null } }), 'shop.localhost'),
+    ).toBe('http://shop.localhost');
+    expect(
+      domainUrl(status({ http: { ...running, port: 8080 }, https: { state: 'off', port: 443, code: null, owner: null } }), 'a.localhost'),
+    ).toBe('http://a.localhost:8080');
   });
 });

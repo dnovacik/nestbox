@@ -1,16 +1,11 @@
 import { Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import type { DomainsStatus } from '@shared/domains';
+import { domainUrl } from '@shared/domains';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useDomainsStatus } from './use-domains';
 
-export function domainUrl(status: DomainsStatus, name: string): string {
-  const https = status.https.state === 'running';
-  const port = https ? status.https.port : status.http.port;
-  const suffix = (https && port === 443) || (!https && port === 80) ? '' : `:${port}`;
-  return `${https ? 'https' : 'http'}://${name}${suffix}`;
-}
+export { domainUrl };
 
 /** The project's local domain in the header: a link while it routes somewhere, greyed out otherwise. */
 export function DomainLink({ projectId }: { projectId: string }) {
@@ -46,9 +41,10 @@ export function DomainLink({ projectId }: { projectId: string }) {
         size="icon"
         className="size-5"
         aria-label="Copy local domain"
+        // Main writes the clipboard: the sandboxed renderer has no clipboard permission.
         onClick={() =>
-          void navigator.clipboard.writeText(url).then(
-            () => toast.success('Copied'),
+          void api.domains.copyUrl(projectId).then(
+            ({ url: copied }) => toast.success(`Copied ${copied}`),
             () => toast.error("Couldn't copy the address"),
           )
         }

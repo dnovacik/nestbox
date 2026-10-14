@@ -51,6 +51,7 @@ async function setup(
   const untrust = vi.fn<UntrustFn>(async () => 'removed');
   const confirm = vi.fn(async (_kind: 'trust' | 'remove') => true);
   const emit = vi.fn();
+  const clipboard = { writeText: vi.fn((_text: string) => {}) };
   const projects = vi.fn(
     async (): Promise<DomainsProject[]> =>
       opts.projects ?? [{ id: 'r1', name: 'Shop', path: '/shop', workspaces: [] }],
@@ -72,10 +73,11 @@ async function setup(
     trust: { trust, untrust },
     confirm,
     emit,
+    clipboard,
     logger: createMemoryLogger(),
     hosts: ['127.0.0.1'],
   });
-  return { get: () => settings, trust, untrust, confirm, emit, projects, service, caFile };
+  return { get: () => settings, trust, untrust, confirm, emit, projects, service, caFile, clipboard };
 }
 
 const exists = (file: string) =>
@@ -143,6 +145,17 @@ describe('domains service', () => {
     s.service.refresh();
     await new Promise((r) => setTimeout(r, 400));
     expect(s.emit).toHaveBeenCalledTimes(1);
+  });
+
+  it("copies a project's URL from main, and only for a known route while enabled", async () => {
+    const s = await setup();
+    await expect(s.service.copyUrl('r1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const on = await s.service.setEnabled(true);
+    const expected = `https://shop.localhost:${on.https.port}`;
+    expect(await s.service.copyUrl('r1')).toEqual({ url: expected });
+    expect(s.clipboard.writeText).toHaveBeenCalledWith(expected);
+    await expect(s.service.copyUrl('nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(s.clipboard.writeText).toHaveBeenCalledTimes(1);
   });
 
   it('is off by default and starts both servers when turned on', async () => {

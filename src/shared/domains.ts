@@ -70,3 +70,14 @@ export const TrustResultSchema = z.object({
   result: z.enum(['trusted', 'cancelled', 'failed', 'removed']),
 });
 export type TrustResult = z.infer<typeof TrustResultSchema>;
+
+/** A route's address: https:// while the HTTPS server runs (else http://), the port only when not the default. */
+export function domainUrl(status: DomainsStatus, name: string): string {
+  const https = status.https.state === 'running';
+  const port = https ? status.https.port : status.http.port;
+  const suffix = (https && port === 443) || (!https && port === 80) ? '' : `:${port}`;
+  return `${https ? 'https' : 'http'}://${name}${suffix}`;
+}
+
+export const DomainsCopyUrlInputSchema = z.strictObject({ projectId: Id });
+export const DomainsCopyUrlOutputSchema = z.object({ url: z.string() });

@@ -38,6 +38,7 @@ export const INVOKE_CHANNELS = [
   'domains:setRewriteHost',
   'domains:trustCa',
   'domains:removeCa',
+  'domains:copyUrl',
   'system:getStats',
 ] as const;
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DomainsSettings, DomainsStatus, ServerState, TrustResult } from '@shared/domains';
+import { type DomainsSettings, type DomainsStatus, domainUrl, type ServerState, type TrustResult } from '@shared/domains';
 import { type ProjectSummary, splitProjectId } from '@shared/detected';
 import { NestboxError } from '@shared/errors';
 import type { PortList } from '@shared/ports';
@@ -56,6 +56,8 @@ export interface DomainsServiceDeps {
   };
   /** The native confirmation; true = go ahead. */
   confirm(kind: 'trust' | 'remove'): Promise<boolean>;
+  /** Main's clipboard: the sandboxed renderer has no clipboard permission. */
+  clipboard: { writeText(text: string): void };
   emit(): void;
   logger: Logger;
   hosts?: readonly string[];
@@ -69,6 +71,8 @@ export interface DomainsService {
   setRewriteHost(i: { projectId: string; rewrite: boolean }): Promise<DomainsStatus>;
   trustCa(): Promise<TrustResult>;
   removeCa(): Promise<TrustResult>;
+  /** Writes a project's own address to the clipboard (NOT_FOUND while off or without a route). */
+  copyUrl(projectId: string): Promise<{ url: string }>;
   /** Process, port or project changes: rebuild soon (debounced). */
   refresh(): void;
   /** At startup: start the servers if enabled. */
@@ -317,6 +321,16 @@ export function createDomainsService(deps: DomainsServiceDeps): DomainsService {
       deps.logger.info('domains trust', { result });
       deps.emit();
       return { result };
+    },
+    async copyUrl(projectId) {
+      if (table === EMPTY || dirty) await rebuild();
+      const current = status();
+      // The project's own route comes first: buildRoutes pushes it before its extra servers' routes.
+      const route = current.enabled ? current.routes.find((r) => r.projectId === projectId) : undefined;
+      if (!route) throw new NestboxError('NOT_FOUND', 'No local domain for this project');
+      const url = domainUrl(current, route.name);
+      deps.clipboard.writeText(url);
+      return { url };
     },
     async removeCa() {
       if (!(await deps.confirm('remove'))) return { result: 'cancelled' };

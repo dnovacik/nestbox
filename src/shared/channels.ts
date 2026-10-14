@@ -6,6 +6,8 @@ import {
   DomainsRewriteInputSchema,
   DomainsStatusSchema,
   TrustResultSchema,
+  DomainsCopyUrlInputSchema,
+  DomainsCopyUrlOutputSchema,
 } from './domains';
 import type { InvokeChannel } from './ipc-names';
 import { PortKillInputSchema, PortKillResultSchema, PortListSchema, PortWaitInputSchema } from './ports';
@@ -96,6 +98,8 @@ export const channels = {
   /** Shows a native confirmation in main first; command output never reaches the renderer. */
   'domains:trustCa': { input: NoInput, output: TrustResultSchema },
   'domains:removeCa': { input: NoInput, output: TrustResultSchema },
+  /** Main writes the address (the renderer has no clipboard permission); never arbitrary text. */
+  'domains:copyUrl': { input: DomainsCopyUrlInputSchema, output: DomainsCopyUrlOutputSchema },
   /** Current system resource usage (CPU, memory). */
   'system:getStats': { input: NoInput, output: SystemStatsSchema },
 } as const satisfies Record<InvokeChannel, ChannelSpec>;

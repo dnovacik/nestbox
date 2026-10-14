@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { DomainsStatus } from '@shared/domains';
 import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
@@ -80,13 +80,30 @@ describe('DomainLink', () => {
     await expect(screen.findByText(/shop\.localhost/, {}, { timeout: 300 })).rejects.toThrow();
   });
 
-  it('shows a toast instead of an unhandled rejection when the clipboard refuses', async () => {
-    installMockBridge({ 'domains:status': () => status() } as never);
-    const writeText = vi.fn(() => Promise.reject(new Error('denied')));
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  it('copies the address through main (the renderer has no clipboard permission)', async () => {
+    const copied: unknown[] = [];
+    installMockBridge({
+      'domains:status': () => status(),
+      'domains:copyUrl': (input: unknown) => {
+        copied.push(input);
+        return { url: 'https://shop.localhost' };
+      },
+    } as never);
     renderWithProviders(<DomainLink projectId="p1" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Copy local domain' }));
-    expect(writeText).toHaveBeenCalledWith('https://shop.localhost');
+    expect(await screen.findByText('Copied https://shop.localhost')).toBeInTheDocument();
+    expect(copied).toEqual([{ projectId: 'p1' }]);
+  });
+
+  it('shows a toast when main refuses to copy', async () => {
+    installMockBridge({
+      'domains:status': () => status(),
+      'domains:copyUrl': () => {
+        throw Object.assign(new Error('Unknown project'), { code: 'NOT_FOUND' });
+      },
+    } as never);
+    renderWithProviders(<DomainLink projectId="p1" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy local domain' }));
     expect(await screen.findByText("Couldn't copy the address")).toBeInTheDocument();
   });
 });

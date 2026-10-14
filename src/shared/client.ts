@@ -60,6 +60,7 @@ export function createNestboxClient(getBridge: () => NestboxBridge) {
       setRewriteHost: (projectId: string, rewrite: boolean) => call('domains:setRewriteHost', { projectId, rewrite }),
       trustCa: () => call('domains:trustCa'),
       removeCa: () => call('domains:removeCa'),
+      copyUrl: (projectId: string) => call('domains:copyUrl', { projectId }),
     },
     deps: {
       overview: () => call('deps:overview'),
