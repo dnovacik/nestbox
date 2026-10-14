@@ -73,6 +73,12 @@ async function makeRoot(now: number): Promise<CaFile['root']> {
     permittedSubtrees: new GeneralSubtrees([
       new GeneralSubtree({ base: new GeneralName({ dNSName: 'localhost' }) }),
     ]),
+    // IP address SANs aren't covered by a dNSName subtree (RFC 5280), so every IPv4 and IPv6 address is
+    // excluded: address and mask all zeros (8 and 32 bytes).
+    excludedSubtrees: new GeneralSubtrees([
+      new GeneralSubtree({ base: new GeneralName({ iPAddress: '0.0.0.0/0' }) }),
+      new GeneralSubtree({ base: new GeneralName({ iPAddress: '::/0' }) }),
+    ]),
   });
   const serialHex = serial();
   const cert = await x509.X509CertificateGenerator.createSelfSigned({
