@@ -73,6 +73,7 @@ describe('persisted types', () => {
       disabledTools: [],
       // A store from before v1.17 has no picker answer: it keeps every tool and never sees the picker.
       toolsChosen: true,
+      domains: { enabled: false, httpPort: 80, httpsPort: 443, names: {}, rewriteHost: {}, trust: 'none' },
     });
   });
 
