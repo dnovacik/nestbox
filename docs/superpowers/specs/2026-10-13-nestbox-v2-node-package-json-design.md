@@ -1,8 +1,8 @@
-# NestBox v2: package.json data from the Node module (design, for review)
+# NestBox v2: package.json data from the Node module (design)
 
 Issue #63, left over from #47. Since 1.28's Node work, the Node module already reads `package.json` once per folder (`ecosystems/node/package-json.ts`) for the `packageManager` field, dependency names (framework, `hasDependencies`), the dev and start scripts (ports) and, on a monorepo root, its packages' script names. Generic detection still reads the same file for `DetectedProject.packageJson` (name and scripts), and `DetectedProject.packageManager` is still computed outside the module. Tools read those two fields directly. This is the last Node-only path outside `ecosystems/node/`, so a Python or Go package can't take part in it the same way.
 
-**Status: proposal.** Nothing here is implemented. It needs the owner's answers to the questions at the end.
+**Status: approved (2026-10-14).** See the decisions at the end.
 
 ## Where the fields are read today
 
@@ -31,8 +31,8 @@ Most readers are in main, but four are in the renderer. The renderer can't parse
 - Other ecosystems' package files (pyproject.toml, go.mod): this only makes room for them.
 - Reading more of `package.json`: values stay where they are used (version sources in `version-check.ts`), names only in detection.
 
-## Questions for the owner
+## Decisions (2026-10-14)
 
-1. **Two PRs** (deprecate, then remove) or one?
-2. **Header and Project info:** show `npm (default)` when no lockfile or field names a manager, or keep "none"?
-3. **Order:** before or after the 1.28.0 release? The change touches about ten tools, so doing it after the release keeps 1.28.0's Node features apart from the refactor.
+1. **Two PRs:** deprecate and copy first, then remove.
+2. **Header and Project info show `npm (default)`** when no lockfile or `packageManager` field names a manager. This is the one visible change in PR 1.
+3. **Order:** after 1.28.0, which is published.
