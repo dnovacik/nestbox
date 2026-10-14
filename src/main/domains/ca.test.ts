@@ -18,6 +18,7 @@ describe('local CA', { timeout: 30_000 }, () => {
     const x = new X509Certificate(root.cert);
     expect(x.subject).toContain('CN=NestBox Local CA');
     expect(x.ca).toBe(true);
+    expect(root.serialHex).toBe(new X509Certificate(root.cert).serialNumber.toLowerCase());
     expect(root.sha1).toMatch(/^[0-9a-f]{40}$/);
     const parsed = new (await import('@peculiar/x509')).X509Certificate(root.cert);
     expect(parsed.extensions.find((e) => e.type === '2.5.29.30')?.critical).toBe(true);
@@ -51,5 +52,40 @@ describe('local CA', { timeout: 30_000 }, () => {
     await ca.root();
     expect(ca.regenerated()).toBe(true);
     expect(JSON.parse(await readFile(file, 'utf8'))).toHaveProperty('root.cert');
+  });
+
+  it('shares one certificate per name across concurrent leaf() calls and keeps every name', async () => {
+    const file = join(await dir(), 'ca.json');
+    const ca = createLocalCa({ file, now: Date.now, logger: createMemoryLogger() });
+    const names = [
+      'a.localhost',
+      'a.localhost',
+      'a.localhost',
+      'b.localhost',
+      'c.localhost',
+      'd.localhost',
+    ];
+    const leaves = await Promise.all(names.map((n) => ca.leaf(n)));
+    expect(leaves[1]?.cert).toBe(leaves[0]?.cert);
+    expect(leaves[2]?.cert).toBe(leaves[0]?.cert);
+    const saved = JSON.parse(await readFile(file, 'utf8')) as { leaves: Record<string, unknown> };
+    expect(Object.keys(saved.leaves).sort()).toEqual([
+      'a.localhost',
+      'b.localhost',
+      'c.localhost',
+      'd.localhost',
+    ]);
+  });
+
+  it('reset() beats work in flight', async () => {
+    const file = join(await dir(), 'ca.json');
+    const ca = createLocalCa({ file, now: Date.now, logger: createMemoryLogger() });
+    const first = ca.root();
+    await ca.reset();
+    const second = await ca.root();
+    await first.catch(() => undefined);
+    expect((await ca.root()).sha1).toBe(second.sha1);
+    const saved = JSON.parse(await readFile(file, 'utf8')) as { root: { sha1: string } };
+    expect(saved.root.sha1).toBe(second.sha1);
   });
 });

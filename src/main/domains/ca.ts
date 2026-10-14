@@ -2,8 +2,8 @@
 // critical extension), so even a leaked key can't make a certificate a browser accepts for a real site.
 // Leaves are made per host name on demand. Certificates and keys never leave this module except to the
 // TLS server, and are never logged.
-import { createHash, randomBytes, webcrypto } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash, randomBytes, randomUUID, webcrypto } from 'node:crypto';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { AsnConvert } from '@peculiar/asn1-schema';
 import { GeneralName, GeneralSubtree, GeneralSubtrees, NameConstraints } from '@peculiar/asn1-x509';
 import * as x509 from '@peculiar/x509';
@@ -35,9 +35,12 @@ type CaFile = z.infer<typeof FileSchema>;
 export interface LocalCa {
   root(): Promise<{ cert: string; sha1: string; serialHex: string }>;
   leaf(host: string): Promise<{ cert: string; key: string }>;
-  /** Deletes the CA (the file is rewritten with a new root on next use). */
+  /** Deletes the CA (a new root is made on next use). */
   reset(): Promise<void>;
-  /** The file was missing or unreadable and a new root was made: trust must be asked again. */
+  /**
+   * True when this object made a new root (first run, a missing or corrupt file, or after reset()).
+   * The service sets trust back to none in each case.
+   */
   regenerated(): boolean;
 }
 
@@ -94,7 +97,7 @@ async function makeRoot(now: number): Promise<CaFile['root']> {
     cert: pem,
     key: await keyPem(keys.privateKey),
     sha1: createHash('sha1').update(Buffer.from(cert.rawData)).digest('hex'),
-    serialHex,
+    serialHex: cert.serialNumber.toLowerCase(),
   };
 }
 
@@ -135,32 +138,77 @@ async function makeLeaf(
 export function createLocalCa(deps: { file: string; now(): number; logger: Logger }): LocalCa {
   let state: CaFile | null = null;
   let fresh = false;
-  let pending: Promise<CaFile> | null = null;
+  let pending: Promise<CaFile | null> | null = null;
+  // Bumped by reset(): work started in an older generation must not touch state or the file.
+  let gen = 0;
+  const inflight = new Map<string, Promise<{ cert: string; key: string }>>();
+  // Every write goes through this chain, so writes never overlap and the last carries the full map.
+  let chain: Promise<void> = Promise.resolve();
 
-  async function persist(data: CaFile) {
-    const tmp = `${deps.file}.tmp`;
-    await writeFile(tmp, JSON.stringify(data), { mode: 0o600 });
-    await rename(tmp, deps.file);
+  function persist(g: number): Promise<void> {
+    const run = chain.then(async () => {
+      if (g !== gen || !state) return;
+      const tmp = `${deps.file}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(tmp, JSON.stringify(state), { mode: 0o600 });
+        await rename(tmp, deps.file);
+      } catch (error) {
+        await rm(tmp, { force: true }).catch(() => undefined);
+        throw error;
+      }
+    });
+    chain = run.catch(() => undefined);
+    return run;
   }
 
-  function load(): Promise<CaFile> {
-    if (state) return Promise.resolve(state);
-    pending ??= (async () => {
-      try {
-        const parsed = FileSchema.parse(JSON.parse(await readFile(deps.file, 'utf8')));
-        new x509.X509Certificate(parsed.root.cert); // throws on a damaged PEM
-        state = parsed;
-      } catch {
-        fresh = true;
-        state = { root: await makeRoot(deps.now()), leaves: {} };
-        await persist(state);
-        deps.logger.info('domains ca created');
+  async function load(): Promise<CaFile> {
+    for (;;) {
+      if (state) return state;
+      const g = gen;
+      if (!pending) {
+        const mine: Promise<CaFile | null> = (async () => {
+          let data: CaFile;
+          let created = false;
+          try {
+            data = FileSchema.parse(JSON.parse(await readFile(deps.file, 'utf8')));
+            new x509.X509Certificate(data.root.cert); // throws on a damaged PEM
+          } catch {
+            created = true;
+            data = { root: await makeRoot(deps.now()), leaves: {} };
+          }
+          if (g !== gen) return null;
+          state = data;
+          if (created) {
+            fresh = true;
+            await persist(g);
+            if (g !== gen) return null;
+            deps.logger.info('domains ca created');
+          }
+          return data;
+        })().finally(() => {
+          if (pending === mine) pending = null;
+        });
+        pending = mine;
       }
-      return state;
-    })().finally(() => {
-      pending = null;
-    });
-    return pending;
+      const result = await pending;
+      if (result) return result;
+    }
+  }
+
+  async function makeLeafFor(name: string): Promise<{ cert: string; key: string }> {
+    for (;;) {
+      const g = gen;
+      const data = await load();
+      const cached = data.leaves[name];
+      if (cached && cached.validUntil - deps.now() > RENEW_DAYS * DAY)
+        return { cert: cached.cert, key: cached.key };
+      const made = await makeLeaf(data.root, name, deps.now());
+      if (g !== gen) continue;
+      data.leaves[name] = made;
+      await persist(g);
+      if (g !== gen) continue;
+      return { cert: made.cert, key: made.key };
+    }
   }
 
   return {
@@ -168,22 +216,25 @@ export function createLocalCa(deps: { file: string; now(): number; logger: Logge
       const { root } = await load();
       return { cert: root.cert, sha1: root.sha1, serialHex: root.serialHex };
     },
-    async leaf(host) {
+    leaf(host) {
       const name = host.toLowerCase();
-      if (!HOST.test(name)) throw new Error('not a .localhost name');
-      const data = await load();
-      const cached = data.leaves[name];
-      if (cached && cached.validUntil - deps.now() > RENEW_DAYS * DAY)
-        return { cert: cached.cert, key: cached.key };
-      const made = await makeLeaf(data.root, name, deps.now());
-      data.leaves[name] = made;
-      await persist(data);
-      return { cert: made.cert, key: made.key };
+      if (!HOST.test(name)) return Promise.reject(new Error('not a .localhost name'));
+      const existing = inflight.get(name);
+      if (existing) return existing;
+      const p = makeLeafFor(name).finally(() => {
+        if (inflight.get(name) === p) inflight.delete(name);
+      });
+      inflight.set(name, p);
+      return p;
     },
     async reset() {
+      gen += 1;
       state = null;
       fresh = false;
-      await writeFile(deps.file, '{}', { mode: 0o600 });
+      pending = null;
+      inflight.clear();
+      await chain;
+      await rm(deps.file, { force: true });
     },
     regenerated: () => fresh,
   };
