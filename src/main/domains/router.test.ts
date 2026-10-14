@@ -37,6 +37,38 @@ const base: RouterInput = {
 };
 
 describe('buildRoutes', () => {
+  it('lets a package name win over a root script of the same label, listing each name once', () => {
+    const table = buildRoutes({
+      ...base,
+      processes: [proc('r1', 'web', 1), proc('r1', 'api', 2), proc('r1::packages/api', 'dev', 3)],
+      ports: [
+        port(5173, 'r1', 'web'),
+        port(4000, 'r1', 'api'),
+        port(3000, 'r1::packages/api', 'dev'),
+      ],
+    });
+    const names = table.routes.map((r) => r.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(table.routes.filter((r) => r.name === 'api.shop.localhost')).toEqual([
+      expect.objectContaining({ projectId: 'r1::packages/api', port: 3000 }),
+    ]);
+    expect(resolveHost(table, 'api.shop.localhost')).toMatchObject({
+      kind: 'forward',
+      port: 3000,
+      route: { projectId: 'r1::packages/api' },
+    });
+  });
+
+  it('lists an extra-server name once when two scripts share a label', () => {
+    const table = buildRoutes({
+      ...base,
+      processes: [proc('r1', 'web', 1), proc('r1', 'dev:docs', 2), proc('r1', 'dev-docs', 3)],
+      ports: [port(5173, 'r1', 'web'), port(4000, 'r1', 'dev:docs'), port(4001, 'r1', 'dev-docs')],
+    });
+    const docs = table.routes.filter((r) => r.name === 'dev-docs.shop.localhost');
+    expect(docs).toEqual([expect.objectContaining({ script: 'dev:docs', port: 4000 })]);
+  });
+
   it('prefers the main command, then the earliest running script, then the detected port', () => {
     const table = buildRoutes({
       ...base,

@@ -1,6 +1,7 @@
 // Which port each local domain reaches: the package's main command, else its earliest-started running
-// script, else the detected port; other running servers get <script>.<name>.localhost. Pure: the service
-// gathers the inputs and rebuilds the table when processes, ports or projects change.
+// script, else the detected port; other running servers get <script>.<name>.localhost unless a package (or an
+// earlier server) has that name. Pure: the service gathers the inputs and rebuilds the table when processes,
+// ports or projects change.
 import type { Route } from '@shared/domains';
 import type { PortRow } from '@shared/ports';
 import { isLive, type ProcessSummary } from '@shared/processes';
@@ -59,6 +60,8 @@ export function buildRoutes(input: RouterInput): RouteTable {
     rewriteHost: input.rewriteHost[projectId] === true,
   });
 
+  // Every project and package name is taken first, so an extra server never hides a package.
+  const taken = new Set(names.values());
   for (const [projectId, name] of names) {
     // Running scripts in start order, each with its lowest usable listening port.
     const running = input.processes
@@ -92,13 +95,14 @@ export function buildRoutes(input: RouterInput): RouteTable {
     }
     for (const extra of running) {
       if (extra === primary) continue;
-      routes.push(
-        target(projectId, `${toLabel(extra.script)}.${name}`, extra.script, extra.row, 'script'),
-      );
+      const extraName = `${toLabel(extra.script)}.${name}`;
+      if (taken.has(extraName)) continue;
+      taken.add(extraName);
+      routes.push(target(projectId, extraName, extra.script, extra.row, 'script'));
     }
   }
   const byName = new Map<string, RouteTarget>();
-  for (const route of routes) if (!byName.has(route.name)) byName.set(route.name, route);
+  for (const route of routes) byName.set(route.name, route);
   return {
     routes: routes.map(({ ipv6Only: _i, ...route }) => route),
     clashes,
