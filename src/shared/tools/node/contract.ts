@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PACKAGE_MANAGERS } from '../../detected';
 import { defineContract, type ToolDefinition } from '../../tool';
+import { nodeOf } from '../../ecosystems/node';
 
 const settingsSchema = z.object({
   /** Run scripts through fnm on the required version (root project; offered when fnm is found). */
@@ -12,7 +13,7 @@ export const nodeDefinition: ToolDefinition<NodeSettings> = {
   id: 'node',
   name: 'Node',
   icon: 'hexagon',
-  appliesTo: (p) => p.packageJson !== null,
+  appliesTo: (p) => nodeOf(p) !== null,
   settingsSchema,
 };
 

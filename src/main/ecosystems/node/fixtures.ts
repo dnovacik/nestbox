@@ -4,6 +4,8 @@ import type { NodeInfo } from './detect';
 
 export function nodeInfo(over: Partial<NodeInfo> = {}): NodeInfo {
   return {
+    name: null,
+    scripts: {},
     packageManager: 'npm',
     packageManagerSource: 'lockfile',
     lockfiles: [],

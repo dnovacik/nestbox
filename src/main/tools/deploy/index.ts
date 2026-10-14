@@ -48,6 +48,7 @@ import {
   parseWorkersList,
   productionBranch,
 } from './parse';
+import { nodeOf } from '@shared/ecosystems/node';
 
 export interface DeployToolDeps {
   logger: Logger;
@@ -244,7 +245,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
 
   async function resolve(ctx: Ctx, platform: DeployPlatform): Promise<Resolved> {
     const [cli, local] = await Promise.all([
-      resolveCli(platform, ctx.project.path, ctx.project.packageManager, (c) =>
+      resolveCli(platform, ctx.project.path, nodeOf(ctx.project)?.packageManager ?? null, (c) =>
         ctx.platform.commandExists(c),
       ),
       readLocalConfig(platform, ctx.project.path),
@@ -696,7 +697,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
   }
 
   async function checkReady(ctx: Ctx, scripts: string[]): Promise<Readiness> {
-    const known = ctx.project.packageJson?.scripts ?? {};
+    const known = nodeOf(ctx.project)?.scripts ?? {};
     if (scripts.some((s) => !Object.hasOwn(known, s)))
       throw new NestboxError('VALIDATION', "That script isn't in package.json");
     const state = stateOf(ctx);
@@ -783,7 +784,7 @@ export function createDeployTool(deps: DeployToolDeps): AnyMainTool {
         elsewhere: ctx.project.workspaces
           .filter((w) => w.deploy.length > 0)
           .map((w) => ({ projectId: w.id, name: w.name, platforms: w.deploy })),
-        scripts: Object.keys(ctx.project.packageJson?.scripts ?? {}),
+        scripts: Object.keys(nodeOf(ctx.project)?.scripts ?? {}),
         ready: state.ready,
       };
     },

@@ -1,10 +1,16 @@
 // Which framework a Node package is built with, from its dependency names (package.json, never node_modules).
 // The project card names it, and its default dev port feeds Health and the Inspector.
 import semver from 'semver';
-import { z } from 'zod';
+import type { Framework, FrameworkId } from '@shared/ecosystems/node';
+
+export type { Framework, FrameworkId };
 
 /** In priority order: a framework before the tools it builds on (Next before Vite, NestJS before Express). */
-const FRAMEWORKS = [
+const FRAMEWORKS: readonly {
+  id: FrameworkId;
+  label: string;
+  matches: (name: string) => boolean;
+}[] = [
   { id: 'next', label: 'Next.js', matches: (name: string) => name === 'next' },
   { id: 'nuxt', label: 'Nuxt', matches: (name: string) => name === 'nuxt' },
   { id: 'remix', label: 'Remix', matches: (name: string) => name.startsWith('@remix-run/') },
@@ -14,20 +20,10 @@ const FRAMEWORKS = [
   { id: 'electron', label: 'Electron', matches: (name: string) => name === 'electron' },
   { id: 'vite', label: 'Vite', matches: (name: string) => name === 'vite' },
   { id: 'express', label: 'Express', matches: (name: string) => name === 'express' },
-] as const;
-
-export const FRAMEWORK_IDS = FRAMEWORKS.map((f) => f.id) as [
-  (typeof FRAMEWORKS)[number]['id'],
-  ...(typeof FRAMEWORKS)[number]['id'][],
 ];
-export type FrameworkId = (typeof FRAMEWORKS)[number]['id'];
 
-export const FrameworkSchema = z.object({
-  id: z.enum(FRAMEWORK_IDS),
-  /** The declared range's lowest major; null for tags, protocols (workspace:, npm:, file:) and `*`. */
-  major: z.number().int().nullable(),
-});
-export type Framework = z.infer<typeof FrameworkSchema>;
+/** The matchers in priority order, for the test that keeps them in step with FRAMEWORK_IDS. */
+export const FRAMEWORK_ORDER = FRAMEWORKS.map((f) => f.id);
 
 function dependencyRanges(json: Record<string, unknown> | null): Map<string, unknown> {
   const ranges = new Map<string, unknown>();

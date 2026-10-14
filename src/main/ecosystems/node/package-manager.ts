@@ -1,6 +1,7 @@
 // The one lockfile -> package manager table: a project's packageManager (which runs its scripts) and the Node
 // module's info (install, ci, the summary) both come from here, so they never disagree.
 import type { PackageManager } from '@shared/detected';
+import { PACKAGE_MANAGER_SOURCES, type PackageManagerSource } from '@shared/ecosystems/node';
 import { parsePackageManager } from './versions';
 
 /** In priority order: with several lockfiles, the first found wins. */
@@ -40,8 +41,7 @@ export function lockfileWarning(
   return `${COUNT_WORDS[lockfiles.length] ?? lockfiles.length} lockfiles: ${names}; NestBox uses ${manager}`;
 }
 
-export const PACKAGE_MANAGER_SOURCES = ['lockfile', 'packageManager', 'default'] as const;
-export type PackageManagerSource = (typeof PACKAGE_MANAGER_SOURCES)[number];
+export { PACKAGE_MANAGER_SOURCES, type PackageManagerSource };
 
 interface ManagerInputs {
   files: ReadonlySet<string>;

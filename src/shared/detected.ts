@@ -41,7 +41,9 @@ export interface DetectedProject {
   relPath: string;
   name: string;
   missing: boolean;
+  /** @deprecated A copy of the Node entry's name and scripts (#63): read them with nodeOf(). */
   packageJson: { name?: string; scripts: Record<string, string> } | null;
+  /** @deprecated A copy of the Node entry's manager, null for npm's default (#63): read it with nodeOf(). */
   packageManager: PackageManager | null;
   /** File names only — env files are never opened. */
   envFiles: string[];
@@ -121,7 +123,7 @@ export function findDetected(root: DetectedProject, id: string): DetectedProject
   return root.workspaces.find((w) => w.id === id) ?? null;
 }
 
-/** A package is a folder with package.json or ecosystem modules. */
+/** A package is a folder with ecosystem modules (Node's for a package.json). */
 export function isPackage(project: DetectedProject): boolean {
-  return project.packageJson !== null || project.ecosystems.length > 0;
+  return project.ecosystems.length > 0;
 }

@@ -5,6 +5,7 @@ import type { ProcessSummary } from '@shared/processes';
 import type { ToolSummary } from '@shared/tool';
 import type { RunGroup } from '@shared/types';
 import type { ProjectNode } from './find-project';
+import { nodeOf } from '@shared/ecosystems/node';
 
 export const PALETTE_GROUPS = ['Projects', 'Tools', 'Scripts', 'Run groups', 'Claude', 'Go to'] as const;
 export type PaletteGroup = (typeof PALETTE_GROUPS)[number];
@@ -97,7 +98,7 @@ export function paletteEntries({
 
   for (const { detected, title } of all) {
     // package.json scripts everywhere; commands (detected, custom) in the selected root, where the list is known.
-    const npm = Object.entries(detected.packageJson?.scripts ?? {});
+    const npm = Object.entries(nodeOf(detected)?.scripts ?? {});
     const listed =
       detected.rootId === selected?.summary.id ? runnables.find((r) => r.relPath === detected.relPath)?.scripts ?? [] : [];
     const commands = listed.filter((name) => !npm.some(([script]) => script === name)).map((name) => [name, 'command'] as const);

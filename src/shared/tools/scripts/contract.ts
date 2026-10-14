@@ -45,7 +45,7 @@ export const scriptsDefinition: ToolDefinition<ScriptsSettings> = {
   name: 'Scripts',
   icon: 'terminal',
   // Every package: one without scripts can still run custom commands, and ecosystems provide detected tasks.
-  appliesTo: (p) => p.packageJson !== null || p.ecosystems.length > 0 || p.workspaces.length > 0,
+  appliesTo: (p) => p.ecosystems.length > 0 || p.workspaces.length > 0,
   settingsSchema,
 };
 

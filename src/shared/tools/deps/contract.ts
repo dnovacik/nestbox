@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { PACKAGE_MANAGERS } from '../../detected';
 import { DEPS_SCHEDULES } from '../../types';
 import { defineContract, defineEvents, type ToolDefinition } from '../../tool';
+import { nodeOf } from '../../ecosystems/node';
 
 export const depsDefinition: ToolDefinition<Record<string, never>> = {
   id: 'deps',
   name: 'Dependencies',
   icon: 'package',
-  appliesTo: (p) => p.packageJson !== null || p.ecosystems.some((e) => e.id === 'dotnet'),
+  appliesTo: (p) => nodeOf(p) !== null || p.ecosystems.some((e) => e.id === 'dotnet'),
   settingsSchema: z.object({}),
 };
 

@@ -6,8 +6,14 @@ import { installMockBridge } from '@/test/mock-bridge';
 import { renderWithProviders } from '@/test/render';
 import { ProjectHeader } from './ProjectHeader';
 
-function node(git: DetectedProject['git']) {
-  const detected = makeDetectedForTest({ id: 'p1', path: 'C:\\Dev\\Shop', name: 'shop', git });
+function node(git: DetectedProject['git'], over: Partial<DetectedProject> = {}) {
+  const detected = makeDetectedForTest({
+    id: 'p1',
+    path: 'C:\\Dev\\Shop',
+    name: 'shop',
+    git,
+    ...over,
+  });
   const summary: ProjectSummary = {
     id: 'p1',
     name: 'shop',
@@ -20,12 +26,16 @@ function node(git: DetectedProject['git']) {
   return { summary, detected, isWorkspace: false };
 }
 
-function setup(gitStatus: unknown, git: DetectedProject['git']) {
+function setup(
+  gitStatus: unknown,
+  git: DetectedProject['git'],
+  over: Partial<DetectedProject> = {},
+) {
   const bridge = installMockBridge({
     'processes:list': () => [],
     'tools:invoke': (() => gitStatus) as never,
   });
-  renderWithProviders(<ProjectHeader node={node(git)} />);
+  renderWithProviders(<ProjectHeader node={node(git, over)} />);
   return bridge;
 }
 
@@ -60,5 +70,22 @@ describe('ProjectHeader branch', () => {
     const bridge = setup(okStatus('x'), null);
     await screen.findByRole('heading', { name: 'shop' });
     await waitFor(() => expect(bridge.callsTo('tools:invoke')).toEqual([]));
+  });
+});
+
+describe('ProjectHeader package manager', () => {
+  it('names the manager a lockfile gives', () => {
+    setup(null, null);
+    expect(screen.getByText('pnpm')).toBeInTheDocument();
+  });
+
+  it('says npm (default) without a lockfile or packageManager field', () => {
+    setup(null, null, { packageManager: null });
+    expect(screen.getByText('npm (default)')).toBeInTheDocument();
+  });
+
+  it('shows no manager for a folder without package.json', () => {
+    setup(null, null, { packageJson: null, packageManager: null });
+    expect(screen.queryByText(/npm|pnpm/)).toBeNull();
   });
 });
