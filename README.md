@@ -194,6 +194,7 @@ Events (`defineEvents`) push data from main, as the static server's request log 
 | v1.26.0 | EF Core migrations in the Database tool |
 | v1.27.0 | Node as an ecosystem module: one package-manager rule for scripts and tasks, the Node version advice for every command |
 | v1.28.0 | More from Node: the `packageManager` field without a lockfile, a warning for lockfiles of two managers, the framework in the summary, dev-server ports for Health and the Inspector, missing or stale dependencies with Install, fixes for a version mismatch (fnm, nvm, `.nvmrc`), workspace-wide and Turborepo tasks on a monorepo root; Windows stops no longer leave a just-started program behind |
+| v1.29.0 | package.json's name and scripts read through the Node module (first half of #63); the project header and Project info say `npm (default)` when nothing names a manager |
 
 See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 started.
 
@@ -201,7 +202,7 @@ See [the spec](docs/nestbox-spec.md#v2-tools-out-of-scope-for-v1) for where v2 s
 
 - **Python:** a Python ecosystem module, with detection (`pyproject.toml`, `requirements.txt`, `Pipfile`), detected commands (Django, FastAPI, Flask, pytest) and the package's virtual environment for every command. Its Env work: `.env` files read by the venv's commands, and keys the code reads (`os.getenv`, `os.environ`) checked against them.
 - **Version and dependency checks for every ecosystem:** the Node and Dependencies tools' checks for .NET's SDK and Python's interpreter and packages.
-- **More from Node:** Nx targets on an Nx workspace root ([#76](https://github.com/dnovacik/nestbox/issues/76)), and package.json data read through the Node module only ([#63](https://github.com/dnovacik/nestbox/issues/63), design in review).
+- **More from Node:** Nx targets on an Nx workspace root ([#76](https://github.com/dnovacik/nestbox/issues/76)), and removing the deprecated `packageJson`/`packageManager` fields now that everything reads the Node module ([#63](https://github.com/dnovacik/nestbox/issues/63), second PR).
 - **Input to running commands** ([#45](https://github.com/dnovacik/nestbox/issues/45)): answering a command's prompts inside NestBox (Prisma's `migrate dev`) instead of a terminal.
 - **Beyond package managers:** any git repository as a project, and Makefile and justfile targets as detected commands.
 
