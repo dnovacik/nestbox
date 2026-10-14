@@ -77,15 +77,21 @@ describe('local CA', { timeout: 30_000 }, () => {
     ]);
   });
 
-  it('reset() beats work in flight', async () => {
-    const file = join(await dir(), 'ca.json');
-    const ca = createLocalCa({ file, now: Date.now, logger: createMemoryLogger() });
-    const first = ca.root();
-    await ca.reset();
-    const second = await ca.root();
-    await first.catch(() => undefined);
-    expect((await ca.root()).sha1).toBe(second.sha1);
-    const saved = JSON.parse(await readFile(file, 'utf8')) as { root: { sha1: string } };
-    expect(saved.root.sha1).toBe(second.sha1);
+  it('reset() beats work in flight, even when the old file is on disk', async () => {
+    for (let i = 0; i < 20; i += 1) {
+      const file = join(await dir(), 'ca.json');
+      const logger = createMemoryLogger();
+      const old = await createLocalCa({ file, now: Date.now, logger }).root();
+      const ca = createLocalCa({ file, now: Date.now, logger });
+      const first = ca.root();
+      await ca.reset();
+      const second = await ca.root();
+      await first.catch(() => undefined);
+      expect(second.sha1).not.toBe(old.sha1);
+      expect(ca.regenerated()).toBe(true);
+      expect((await ca.root()).sha1).toBe(second.sha1);
+      const saved = JSON.parse(await readFile(file, 'utf8')) as { root: { sha1: string } };
+      expect(saved.root.sha1).toBe(second.sha1);
+    }
   });
 });

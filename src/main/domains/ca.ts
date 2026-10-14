@@ -141,6 +141,8 @@ export function createLocalCa(deps: { file: string; now(): number; logger: Logge
   let pending: Promise<CaFile | null> | null = null;
   // Bumped by reset(): work started in an older generation must not touch state or the file.
   let gen = 0;
+  // Set by reset(): the file on disk is no longer ours to read until a new root exists.
+  let discardFile = false;
   const inflight = new Map<string, Promise<{ cert: string; key: string }>>();
   // Every write goes through this chain, so writes never overlap and the last carries the full map.
   let chain: Promise<void> = Promise.resolve();
@@ -170,6 +172,7 @@ export function createLocalCa(deps: { file: string; now(): number; logger: Logge
           let data: CaFile;
           let created = false;
           try {
+            if (discardFile) throw new Error('reset');
             data = FileSchema.parse(JSON.parse(await readFile(deps.file, 'utf8')));
             new x509.X509Certificate(data.root.cert); // throws on a damaged PEM
           } catch {
@@ -178,6 +181,7 @@ export function createLocalCa(deps: { file: string; now(): number; logger: Logge
           }
           if (g !== gen) return null;
           state = data;
+          discardFile = false;
           if (created) {
             fresh = true;
             await persist(g);
@@ -233,8 +237,11 @@ export function createLocalCa(deps: { file: string; now(): number; logger: Logge
       fresh = false;
       pending = null;
       inflight.clear();
-      await chain;
-      await rm(deps.file, { force: true });
+      discardFile = true;
+      // On the write chain, so no earlier write lands after it and no later one is deleted by it.
+      const removed = chain.then(() => rm(deps.file, { force: true }));
+      chain = removed.catch(() => undefined);
+      await removed;
     },
     regenerated: () => fresh,
   };
