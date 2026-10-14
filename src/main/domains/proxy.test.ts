@@ -1,7 +1,12 @@
+import { mkdtemp } from 'node:fs/promises';
 import { createServer, request, type Server } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { connect, type AddressInfo, type Socket } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createMemoryLogger } from '../logger';
+import { createLocalCa } from './ca';
 import { createDomainsProxy, type DomainsProxy } from './proxy';
 import { buildRoutes, type RouteTable } from './router';
 
@@ -320,5 +325,48 @@ describe('domains proxy upgrades', () => {
     const closed = new Promise<void>((r) => socket.on('close', () => r()));
     await proxy?.stop();
     await closed;
+  });
+});
+
+describe('domains proxy over HTTPS', { timeout: 30_000 }, () => {
+  it('serves a leaf for the requested name, valid against the root, and redirects HTTP', async () => {
+    const target = await echoTarget();
+    const ca = createLocalCa({
+      file: join(await mkdtemp(join(tmpdir(), 'nestbox-ca-')), 'ca.json'),
+      now: Date.now,
+      logger: createMemoryLogger(),
+    });
+    const root = await ca.root();
+    proxy = createDomainsProxy({
+      table: () => tableFor(target),
+      logger: createMemoryLogger(),
+      hosts: ['127.0.0.1'],
+    });
+    const httpPort = await freePort();
+    const httpsPort = await freePort();
+    const state = await proxy.start({ httpPort, httpsPort, sni: (name) => ca.leaf(name) });
+    expect(state.https.state).toBe('running');
+    const redirect = await get(httpPort, 'shop.localhost', '/a?b=1');
+    expect(redirect.status).toBe(308);
+    expect(redirect.headers['location']).toBe(`https://shop.localhost:${httpsPort}/a?b=1`);
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          host: '127.0.0.1',
+          port: httpsPort,
+          servername: 'shop.localhost',
+          ca: root.cert,
+          headers: { host: 'shop.localhost' },
+          path: '/',
+        },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode ?? 0));
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    expect(status).toBe(200);
   });
 });
